@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Mail, Phone, User, MessageSquare, Loader2, Check, Send } from 'lucide-react';
-import { enquiriesAPI } from '../services/api';
+import { Mail, Phone, User, MessageSquare, Loader2, Check, Send, MapPin } from 'lucide-react';
+import { enquiriesAPI, publicAPI } from '../services/api';
 
 const ContactEnquiry = () => {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ const ContactEnquiry = () => {
   const prefillItem = queryParams.get('item') || '';
 
   const [loading, setLoading] = useState(false);
+  const [pageContent, setPageContent] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,6 +24,19 @@ const ContactEnquiry = () => {
   });
   const [submitted, setSubmitted] = useState(false);
   const [enquiryNumber, setEnquiryNumber] = useState('');
+
+  useEffect(() => {
+    fetchPageContent();
+  }, []);
+
+  const fetchPageContent = async () => {
+    try {
+      const response = await publicAPI.getPage('contact');
+      setPageContent(response.data);
+    } catch (err) {
+      console.error('Error fetching page content:', err);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,18 +82,28 @@ const ContactEnquiry = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-primary-600 px-8 py-6">
-            <h1 className="text-3xl font-bold text-white flex items-center">
-              <MessageSquare className="h-8 w-8 mr-3" />
-              Contact Us
-            </h1>
-            <p className="text-primary-100 mt-2">
-              Have a question? Send us an enquiry and we'll get back to you within 24 hours.
-            </p>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-primary-600 to-primary-800 py-16">
+        {pageContent?.sections?.hero?.background_image && (
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-20"
+            style={{ backgroundImage: `url(${pageContent.sections.hero.background_image})` }}
+          />
+        )}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+          <h1 className="text-4xl font-bold mb-4">
+            {pageContent?.sections?.hero?.title || 'Contact Us'}
+          </h1>
+          <p className="text-xl max-w-2xl mx-auto">
+            {pageContent?.sections?.hero?.subtitle || "Have a question? Send us an enquiry and we'll get back to you within 24 hours."}
+          </p>
+        </div>
+      </div>
+
+      <div className="py-12">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8">
             <div className="md:col-span-2">
@@ -190,34 +214,41 @@ const ContactEnquiry = () => {
             </div>
 
             <div className="bg-gray-50 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {pageContent?.sections?.contact_info?.title || 'Contact Information'}
+              </h3>
               <div className="space-y-4">
+                <div className="flex items-start">
+                  <MapPin className="h-5 w-5 text-primary-600 mr-3 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-gray-900">Address</p>
+                    <p className="text-gray-600">{pageContent?.sections?.contact_info?.address || 'Thamel, Kathmandu, Nepal'}</p>
+                  </div>
+                </div>
                 <div className="flex items-start">
                   <Mail className="h-5 w-5 text-primary-600 mr-3 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
-                    <p className="text-gray-600">info@reservenow.com</p>
-                    <p className="text-gray-600">support@reservenow.com</p>
+                    <p className="text-gray-600">{pageContent?.sections?.contact_info?.email || 'info@reservenow.com'}</p>
                   </div>
                 </div>
                 <div className="flex items-start">
                   <Phone className="h-5 w-5 text-primary-600 mr-3 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">Phone</p>
-                    <p className="text-gray-600">+977 1-4444444</p>
-                    <p className="text-gray-600">+977 98XXXXXXXX</p>
+                    <p className="text-gray-600">{pageContent?.sections?.contact_info?.phone || '+977 1-4444444'}</p>
                   </div>
                 </div>
                 <div className="flex items-start">
                   <MessageSquare className="h-5 w-5 text-primary-600 mr-3 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">Business Hours</p>
-                    <p className="text-gray-600">Sunday - Friday</p>
-                    <p className="text-gray-600">9:00 AM - 6:00 PM NPT</p>
+                    <p className="text-gray-600">{pageContent?.sections?.contact_info?.hours || 'Sunday - Friday: 9:00 AM - 6:00 PM NPT'}</p>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

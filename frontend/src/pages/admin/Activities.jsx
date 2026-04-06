@@ -1,9 +1,96 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { getActivityImage } from '../../utils/images';
-import ImageSelector from '../../components/ImageSelector';
+import MediaPicker from '../../components/MediaPicker';
+
+  const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, getDifficultyColor, getActivityImage }) => {
+    const handleImageError = useCallback((e) => {
+      e.target.src = getActivityImage(activity.type);
+    }, [activity.type, getActivityImage]);
+
+    return (
+      <tr>
+        <td className="px-6 py-4">
+          <div className="flex items-center">
+            <div className="h-10 w-10 rounded-lg mr-3 overflow-hidden flex-shrink-0">
+              {activity.featured_image ? (
+                <img 
+                  src={activity.featured_image} 
+                  alt={activity.name} 
+                  className="h-full w-full object-cover" 
+                  loading="lazy"
+                  onError={handleImageError}
+                />
+              ) : (
+                <img 
+                  src={getActivityImage(activity.type)} 
+                  alt={activity.name} 
+                  className="h-full w-full object-cover" 
+                  loading="lazy"
+                />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">{activity.name}</p>
+              <p className="text-sm text-gray-500">{activity.duration}</p>
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <span className={`px-2 py-1 text-xs rounded-full ${getDifficultyColor(activity.difficulty_level)}`}>
+            {activity.type}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-sm text-gray-500">{activity.city}</td>
+        <td className="px-6 py-4 text-sm text-gray-900">${activity.price}</td>
+        <td className="px-6 py-4">
+          <div className="flex items-center space-x-2">
+            <span className={`px-2 py-1 text-xs rounded-full ${
+              activity.status === 'active' ? 'bg-green-100 text-green-800' :
+              activity.status === 'inactive' ? 'bg-red-100 text-red-800' :
+              'bg-yellow-100 text-yellow-800'
+            }`}>
+              {activity.status}
+            </span>
+            {activity.is_featured && (
+              <span className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-800">
+                Featured
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-6 py-4 text-right">
+          <div className="flex items-center justify-end space-x-2">
+            <button
+              onClick={() => onToggleFeatured(activity.id)}
+              className={`p-2 rounded ${activity.is_featured ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
+              title="Toggle Featured"
+            >
+              <Star className={`h-5 w-5 ${activity.is_featured ? 'fill-current' : ''}`} />
+            </button>
+            <button onClick={() => onEdit(activity)} className="p-2 text-blue-600 hover:text-blue-800" title="Edit">
+              <Edit className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => onDelete(activity.id)}
+              className="p-2 text-red-600 hover:text-red-800"
+              title="Delete"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }, (prevProps, nextProps) => {
+    // Custom comparison - only re-render if activity data actually changed
+    return prevProps.activity.id === nextProps.activity.id &&
+           prevProps.activity.featured_image === nextProps.activity.featured_image &&
+           prevProps.activity.is_featured === nextProps.activity.is_featured &&
+           prevProps.activity.status === nextProps.activity.status;
+  });
 
 const AdminActivities = () => {
   const [activities, setActivities] = useState([]);
@@ -11,7 +98,12 @@ const AdminActivities = () => {
   const [search, setSearch] = useState('');
   const [editModal, setEditModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState(null);
-  const [imageSelectorOpen, setImageSelectorOpen] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+
+  const handleImageSelect = useCallback((url) => {
+    setFormData(prev => ({ ...prev, featured_image: url }));
+    setMediaPickerOpen(false);
+  }, []);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -34,15 +126,15 @@ const AdminActivities = () => {
     total: 0,
   });
 
-  useEffect(() => {
-    fetchActivities();
-  }, [pagination.current_page, pagination.per_page]);
+  const hasFetchedRef = useRef(false);
+  const currentPageRef = useRef(1);
 
-  const fetchActivities = async (params = {}) => {
+  const fetchActivities = useCallback(async (params = {}) => {
     try {
+      setLoading(true);
       const response = await adminAPI.getActivities({
         ...params,
-        page: pagination.current_page,
+        page: currentPageRef.current,
         per_page: pagination.per_page,
       });
       setActivities(response.data.data || []);
@@ -57,30 +149,39 @@ const AdminActivities = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.per_page]);
 
-  const handleDelete = async (id) => {
+  useEffect(() => {
+    if (hasFetchedRef.current && currentPageRef.current === pagination.current_page) return;
+    hasFetchedRef.current = true;
+    currentPageRef.current = pagination.current_page;
+    fetchActivities();
+  }, [pagination.current_page, pagination.per_page, fetchActivities]);
+
+  const handleDelete = useCallback(async (id) => {
     if (!confirm('Are you sure you want to delete this activity?')) return;
     try {
       await adminAPI.deleteActivity(id);
-      setActivities(activities.filter((activity) => activity.id !== id));
+      setActivities((prev) => prev.filter((activity) => activity.id !== id));
     } catch (error) {
       console.error('Error deleting activity:', error);
     }
-  };
+  }, []);
 
-  const toggleFeatured = async (id) => {
+  const toggleFeatured = useCallback(async (id) => {
     try {
       const response = await adminAPI.toggleActivityFeatured(id);
-      setActivities(activities.map((activity) =>
-        activity.id === id ? { ...activity, is_featured: response.data.activity.is_featured } : activity
-      ));
+      setActivities((prev) =>
+        prev.map((activity) =>
+          activity.id === id ? { ...activity, is_featured: response.data.activity.is_featured } : activity
+        )
+      );
     } catch (error) {
       console.error('Error toggling featured:', error);
     }
-  };
+  }, []);
 
-  const getDifficultyColor = (level) => {
+  const getDifficultyColor = useCallback((level) => {
     switch (level) {
       case 'easy': return 'bg-green-100 text-green-800';
       case 'moderate': return 'bg-yellow-100 text-yellow-800';
@@ -88,9 +189,9 @@ const AdminActivities = () => {
       case 'extreme': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
+  }, []);
 
-  const openEditModal = (activity) => {
+  const openEditModal = useCallback((activity) => {
     setEditingActivity(activity);
     setFormData({
       name: activity.name,
@@ -106,7 +207,7 @@ const AdminActivities = () => {
       featured_image: activity.featured_image || '',
     });
     setEditModal(true);
-  };
+  }, []);
 
   const closeEditModal = () => {
     setEditModal(false);
@@ -126,10 +227,12 @@ const AdminActivities = () => {
     }
   };
 
-  const filteredActivities = activities.filter((activity) =>
-    activity.name.toLowerCase().includes(search.toLowerCase()) ||
-    activity.city.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredActivities = useMemo(() => {
+    return activities.filter((activity) =>
+      activity.name.toLowerCase().includes(search.toLowerCase()) ||
+      activity.city.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [activities, search]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.last_page) {
@@ -197,68 +300,15 @@ const AdminActivities = () => {
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredActivities.map((activity) => (
-              <tr key={activity.id}>
-                <td className="px-6 py-4">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 rounded-lg mr-3 overflow-hidden">
-                      <img 
-                        src={activity.featured_image || getActivityImage(activity.type)} 
-                        alt={activity.name} 
-                        className="h-full w-full object-cover" 
-                        onError={(e) => { e.target.src = getActivityImage(activity.type); }}
-                      />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{activity.name}</p>
-                      <p className="text-sm text-gray-500">{activity.duration}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${getDifficultyColor(activity.difficulty_level)}`}>
-                    {activity.type}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">{activity.city}</td>
-                <td className="px-6 py-4 text-sm text-gray-900">${activity.price}</td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      activity.status === 'active' ? 'bg-green-100 text-green-800' :
-                      activity.status === 'inactive' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {activity.status}
-                    </span>
-                    {activity.is_featured && (
-                      <span className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-800">
-                        Featured
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    <button
-                      onClick={() => toggleFeatured(activity.id)}
-                      className={`p-2 rounded ${activity.is_featured ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
-                      title="Toggle Featured"
-                    >
-                      <Star className={`h-5 w-5 ${activity.is_featured ? 'fill-current' : ''}`} />
-                    </button>
-                    <button onClick={() => openEditModal(activity)} className="p-2 text-blue-600 hover:text-blue-800" title="Edit">
-                      <Edit className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(activity.id)}
-                      className="p-2 text-red-600 hover:text-red-800"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <ActivityRow 
+                key={activity.id}
+                activity={activity}
+                onToggleFeatured={toggleFeatured}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                getDifficultyColor={getDifficultyColor}
+                getActivityImage={getActivityImage}
+              />
             ))}
           </tbody>
         </table>
@@ -427,13 +477,13 @@ const AdminActivities = () => {
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="Image URL or select from gallery..." 
                   />
-                  <button
+                <button
                     type="button"
-                    onClick={() => setImageSelectorOpen(true)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
+                    onClick={() => setMediaPickerOpen(true)}
+                    className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
                   >
-                    <ImageIcon className="h-5 w-5 mr-1" />
-                    Select
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Select from Media Library
                   </button>
                 </div>
                 {formData.featured_image && (
@@ -462,13 +512,10 @@ const AdminActivities = () => {
         </div>
       )}
 
-      {/* Image Selector Modal */}
-      <ImageSelector
-        isOpen={imageSelectorOpen}
-        onClose={() => setImageSelectorOpen(false)}
-        onSelect={(url) => setFormData({ ...formData, featured_image: url })}
-        category="activities"
-        currentImage={formData.featured_image}
+      <MediaPicker
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onSelect={handleImageSelect}
       />
     </div>
   );

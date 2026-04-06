@@ -15,16 +15,38 @@ const Checkout = () => {
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [pendingBooking, setPendingBooking] = useState(null);
   const [formData, setFormData] = useState({
     check_in_date: '',
     check_out_date: '',
     activity_datetime: '',
     guests: 1,
+    adults: 1,
+    children: 0,
     participants: 1,
+    room_id: null,
     special_requests: '',
   });
 
   useEffect(() => {
+    // Check for pending booking from sessionStorage (from HotelDetails page)
+    const storedBooking = sessionStorage.getItem('pendingBooking');
+    if (storedBooking) {
+      const parsed = JSON.parse(storedBooking);
+      setPendingBooking(parsed);
+      setFormData(prev => ({
+        ...prev,
+        check_in_date: parsed.check_in || '',
+        check_out_date: parsed.check_out || '',
+        guests: parsed.adults + parsed.children || 1,
+        adults: parsed.adults || 1,
+        children: parsed.children || 0,
+        room_id: parsed.room_id || null,
+      }));
+      // Clear sessionStorage after reading
+      sessionStorage.removeItem('pendingBooking');
+    }
+    
     if (type && id) {
       fetchItem();
     } else {
@@ -54,7 +76,10 @@ const Checkout = () => {
       const nights = formData.check_in_date && formData.check_out_date
         ? Math.max(1, (new Date(formData.check_out_date) - new Date(formData.check_in_date)) / (1000 * 60 * 60 * 24))
         : 1;
-      return item.price_per_night * nights * formData.guests;
+      const roomPrice = formData.room_id && item.rooms 
+        ? item.rooms.find(r => r.id === formData.room_id)?.price || item.price_per_night
+        : item.price_per_night;
+      return roomPrice * nights * formData.guests;
     }
     return item.price * formData.participants;
   };
@@ -91,6 +116,7 @@ const Checkout = () => {
         bookingData.check_in_date = formData.check_in_date;
         bookingData.check_out_date = formData.check_out_date;
         bookingData.guests = formData.guests;
+        bookingData.room_id = formData.room_id;
       } else {
         bookingData.activity_datetime = formData.activity_datetime;
         bookingData.participants = formData.participants;
@@ -204,14 +230,49 @@ const Checkout = () => {
                     <p className="mt-1 text-xs text-gray-500">{new Date(formData.check_out_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                   )}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Number of Guests *</label>
+                
+                {/* Adults and Children */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adults *</label>
                   <input type="number" min="1" max="10" required
-                    value={formData.guests}
-                    onChange={(e) => setFormData({ ...formData, guests: parseInt(e.target.value) })}
-                    className="w-full md:w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    value={formData.adults}
+                    onChange={(e) => {
+                      const adults = parseInt(e.target.value) || 1;
+                      setFormData({ ...formData, adults, guests: adults + formData.children });
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Children</label>
+                  <input type="number" min="0" max="10"
+                    value={formData.children}
+                    onChange={(e) => {
+                      const children = parseInt(e.target.value) || 0;
+                      setFormData({ ...formData, children, guests: formData.adults + children });
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                {/* Room Selector */}
+                {item?.rooms && item.rooms.length > 0 && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                    <select
+                      value={formData.room_id || ''}
+                      onChange={(e) => setFormData({ ...formData, room_id: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Standard Room - ${item.price_per_night}/night</option>
+                      {item.rooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name} - ${room.price}/night
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

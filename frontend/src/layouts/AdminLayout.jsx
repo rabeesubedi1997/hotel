@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 
 const AdminLayout = () => {
@@ -43,6 +43,10 @@ const AdminLayout = () => {
     { path: '/admin/banner', icon: Image, label: 'Banner' },
     { path: '/admin/seo', icon: Globe, label: 'SEO' },
     { path: '/admin/settings', icon: Settings, label: 'Site Settings' },
+    { path: '/admin/tour-guides', icon: MapPin, label: 'Tour Guides' },
+    { path: '/admin/media-library', icon: Images, label: 'Media Library' },
+    { path: '/admin/enquiries', icon: Mail, label: 'Enquiries' },
+    { path: '/admin/pages', icon: Layout, label: 'Pages' },
   ];
 
   return (

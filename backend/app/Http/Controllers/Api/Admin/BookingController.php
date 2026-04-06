@@ -115,4 +115,46 @@ class BookingController extends Controller
             'message' => 'Booking confirmed successfully.',
         ]);
     }
+
+    public function getCalendarData(Request $request): JsonResponse
+    {
+        $request->validate([
+            'hotel_id' => 'required|integer|exists:hotels,id',
+            'room_id' => 'nullable|integer|exists:rooms,id',
+            'year' => 'required|integer',
+            'month' => 'required|integer|between:1,12',
+        ]);
+
+        $hotelId = $request->hotel_id;
+        $roomId = $request->room_id;
+        $year = $request->year;
+        $month = $request->month;
+
+        // Get start and end of month
+        $startDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
+        $endDate = date('Y-m-t', strtotime($startDate));
+
+        // Query bookings that overlap with this month
+        $query = Booking::where('bookable_type', 'App\Models\Hotel')
+            ->where('bookable_id', $hotelId)
+            ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('check_in_date', [$startDate, $endDate])
+                  ->orWhereBetween('check_out_date', [$startDate, $endDate])
+                  ->orWhere(function ($q) use ($startDate, $endDate) {
+                      $q->where('check_in_date', '<=', $startDate)
+                        ->where('check_out_date', '>=', $endDate);
+                  });
+            });
+
+        if ($roomId) {
+            $query->where('room_id', $roomId);
+        }
+
+        $bookings = $query->select('id', 'check_in_date', 'check_out_date', 'status', 'guests')
+            ->orderBy('check_in_date')
+            ->get();
+
+        return response()->json($bookings);
+    }
 }

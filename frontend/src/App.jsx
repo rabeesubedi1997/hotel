@@ -13,6 +13,9 @@ import Hotels from './pages/Hotels';
 import HotelDetails from './pages/HotelDetails';
 import Activities from './pages/Activities';
 import ActivityDetails from './pages/ActivityDetails';
+import About from './pages/About';
+import TourGuides from './pages/TourGuides';
+import TourGuideDetail from './pages/TourGuideDetail';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import GetQuote from './pages/GetQuote';
@@ -35,6 +38,11 @@ import AdminReviews from './pages/admin/Reviews';
 import AdminBanner from './pages/admin/BannerManagement';
 import AdminSEO from './pages/admin/SeoManagement';
 import AdminSiteSettings from './pages/admin/SiteSettings';
+import AdminAbout from './pages/admin/AboutManagement';
+import AdminEnquiries from './pages/admin/EnquiriesManagement';
+import AdminTourGuides from './pages/admin/TourGuideManagement';
+import AdminMediaLibrary from './pages/admin/MediaLibrary';
+import PagesManagement from './pages/admin/PagesManagement';
 
 // Maintenance Mode Component
 const MaintenanceMode = () => {
@@ -116,6 +124,9 @@ function App() {
           <Route path="hotels/:slug" element={<HotelDetails />} />
           <Route path="activities" element={<Activities />} />
           <Route path="activities/:slug" element={<ActivityDetails />} />
+          <Route path="about" element={<About />} />
+          <Route path="tour-guides" element={<TourGuides />} />
+          <Route path="tour-guides/:slug" element={<TourGuideDetail />} />
           <Route path="quote" element={<GetQuote />} />
           <Route path="contact" element={<ContactEnquiry />} />
           <Route path="login" element={<Login />} />
@@ -140,6 +151,11 @@ function App() {
           <Route path="banner" element={<AdminBanner />} />
           <Route path="seo" element={<AdminSEO />} />
           <Route path="settings" element={<AdminSiteSettings />} />
+          <Route path="about" element={<AdminAbout />} />
+          <Route path="media-library" element={<AdminMediaLibrary />} />
+          <Route path="tour-guides" element={<AdminTourGuides />} />
+          <Route path="enquiries" element={<AdminEnquiries />} />
+          <Route path="pages" element={<PagesManagement />} />
         </Route>
       </Routes>
     </Router>

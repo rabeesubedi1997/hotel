@@ -67,6 +67,9 @@ export const bookingsAPI = {
   create: (data) => api.post('/bookings', data),
   cancel: (id, reason) => api.post(`/bookings/${id}/cancel`, { cancellation_reason: reason }),
   checkAvailability: (data) => api.post('/bookings/check-availability', data),
+  getCalendarData: (hotelId, roomId, year, month) => api.get('/admin/bookings/calendar/data', {
+    params: { hotel_id: hotelId, room_id: roomId, year, month }
+  }),
 };
 
 // Payments APIs
@@ -83,7 +86,17 @@ export const paymentsAPI = {
 // Reviews APIs
 export const reviewsAPI = {
   getAll: (params) => api.get('/reviews', { params }),
-  create: (data) => api.post('/reviews', data),
+  create: (data) => {
+    // If data is FormData (for file uploads), set correct headers
+    if (data instanceof FormData) {
+      return api.post('/reviews', data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    }
+    return api.post('/reviews', data);
+  },
   getMyReviews: () => api.get('/my-reviews'),
 };
 
@@ -97,6 +110,11 @@ export const quotesAPI = {
 export const enquiriesAPI = {
   create: (data) => api.post('/enquiries', data),
   getMyEnquiries: () => api.get('/my-enquiries'),
+  
+  // Tour Guide Bookings
+  getMyTourGuideBookings: () => api.get('/my-tour-guide-bookings'),
+  bookTourGuide: (slug, data) => api.post(`/tour-guides/${slug}/book`, data),
+  cancelTourGuideBooking: (bookingId) => api.post(`/tour-guide-bookings/${bookingId}/cancel`),
 };
 
 // Wishlists APIs
@@ -131,6 +149,12 @@ export const adminAPI = {
   toggleHotelBanner: (id) => api.post(`/admin/hotels/${id}/toggle-banner`),
   updateHotelBannerOrder: (id, order) => api.post(`/admin/hotels/${id}/banner-order`, { banner_order: order }),
   getHotelBannerItems: () => api.get('/admin/hotels/banner-items'),
+
+  // Room Management
+  getHotelRooms: (hotelId) => api.get(`/admin/hotels/${hotelId}/rooms`),
+  createRoom: (hotelId, data) => api.post(`/admin/hotels/${hotelId}/rooms`, data),
+  updateRoom: (roomId, data) => api.put(`/admin/rooms/${roomId}`, data),
+  deleteRoom: (roomId) => api.delete(`/admin/rooms/${roomId}`),
 
   // Activities
   getActivities: (params) => api.get('/admin/activities', { params }),
@@ -180,6 +204,61 @@ export const adminAPI = {
   createSeoSetting: (data) => api.post('/admin/seo', data),
   updateSeoSetting: (page, data) => api.put(`/admin/seo/${page}`, data),
   deleteSeoSetting: (page) => api.delete(`/admin/seo/${page}`),
+
+  // About Page
+  getAboutPage: () => api.get('/admin/about'),
+  updateAboutPage: (data) => api.post('/admin/about', data),
+  uploadAboutImage: (formData) => api.post('/admin/about/upload-image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+
+  // Enquiries
+  getEnquiries: (params) => api.get('/admin/enquiries', { params }),
+  getEnquiry: (id) => api.get(`/admin/enquiries/${id}`),
+  respondToEnquiry: (id, response) => api.post(`/admin/enquiries/${id}/respond`, { response }),
+  updateEnquiryStatus: (id, status) => api.post(`/admin/enquiries/${id}/status`, { status }),
+  deleteEnquiry: (id) => api.delete(`/admin/enquiries/${id}`),
+
+  // Media Library
+  getMediaLibrary: (params) => api.get('/admin/media-library', { params }),
+  uploadToMediaLibrary: (formData) => api.post('/admin/media-library/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deleteFromMediaLibrary: (path) => api.delete('/admin/media-library', { data: { path } }),
+
+  // Tour Guides
+  getTourGuides: (params) => api.get('/admin/tour-guides', { params }),
+  getTourGuide: (id) => api.get(`/admin/tour-guides/${id}`),
+  createTourGuide: (data) => api.post('/admin/tour-guides', data),
+  updateTourGuide: (id, data) => api.put(`/admin/tour-guides/${id}`, data),
+  deleteTourGuide: (id) => api.delete(`/admin/tour-guides/${id}`),
+  uploadTourGuideImage: (formData) => api.post('/admin/tour-guides/upload-image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  getTourGuideBookings: () => api.get('/admin/tour-guide-bookings'),
+  updateTourGuideBookingStatus: (bookingId, status, notes) => api.post(`/admin/tour-guide-bookings/${bookingId}/status`, { status, admin_notes: notes }),
+  seedDefaultTourGuides: () => api.post('/admin/tour-guides/seed-defaults'),
+
+  // Pages Management
+  getPages: () => api.get('/admin/pages'),
+  getPage: (id) => api.get(`/admin/pages/${id}`),
+  createPage: (data) => api.post('/admin/pages', data),
+  updatePage: (id, data) => api.put(`/admin/pages/${id}`, data),
+  deletePage: (id) => api.delete(`/admin/pages/${id}`),
+};
+
+// Public APIs (no auth required)
+export const publicAPI = {
+  getAboutPage: () => api.get('/about'),
+  getTourGuides: () => api.get('/tour-guides'),
+  getTourGuide: (slug) => api.get(`/tour-guides/${slug}`),
+  getPage: (slug) => api.get(`/pages/${slug}`),
 };
 
 export default api;

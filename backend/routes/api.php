@@ -1,21 +1,31 @@
 <?php
 
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\Admin\AboutPageController as AdminAboutPageController;
 use App\Http\Controllers\Api\Admin\ActivityController as AdminActivityController;
 use App\Http\Controllers\Api\Admin\BookingController as AdminBookingController;
 use App\Http\Controllers\Api\Admin\DashboardController;
+use App\Http\Controllers\Api\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\Admin\HotelController as AdminHotelController;
 use App\Http\Controllers\Api\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Api\Admin\SeoController;
 use App\Http\Controllers\Api\Admin\SiteSettingController;
 use App\Http\Controllers\Api\Admin\UploadController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\AboutPageController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\HotelController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\QuoteController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\TourGuideController;
 use App\Http\Controllers\Api\WishlistController;
+use App\Http\Controllers\Api\Admin\MediaLibraryController;
+use App\Http\Controllers\Api\Admin\PageController;
+use App\Http\Controllers\Api\Admin\TourGuideController as AdminTourGuideController;
+use App\Http\Controllers\Api\Admin\TourGuideSeederController;
 use Illuminate\Support\Facades\Route;
 
 // Public Routes
@@ -43,6 +53,14 @@ Route::get('/reviews', [ReviewController::class, 'index']);
 // Site Settings (Public)
 Route::get('/settings/public', [SiteSettingController::class, 'getAll']);
 Route::get('/settings/public/{group}', [SiteSettingController::class, 'getByGroup']);
+
+// About Page (Public)
+Route::get('/about', [AboutPageController::class, 'show']);
+
+// Public page content
+Route::get('/pages/{slug}', [PageController::class, 'showBySlug']);
+Route::get('/tour-guides', [TourGuideController::class, 'index']);
+Route::get('/tour-guides/{tourGuide:slug}', [TourGuideController::class, 'show']);
 
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -78,10 +96,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/wishlists/{wishlist}', [WishlistController::class, 'destroy']);
     Route::get('/wishlists/check', [WishlistController::class, 'check']);
 
-    // Quotes & Enquiries
+    // Tour Guide Bookings
+    Route::get('/my-tour-guide-bookings', [TourGuideController::class, 'myBookings']);
+    Route::post('/tour-guides/{tourGuide:slug}/book', [TourGuideController::class, 'storeBooking']);
+    Route::post('/tour-guide-bookings/{bookingId}/cancel', [TourGuideController::class, 'cancelBooking']);
+
+    // Quotes
     Route::get('/quotes/package-options', [QuoteController::class, 'getPackageOptions']);
     Route::post('/quotes', [QuoteController::class, 'store']);
     Route::get('/my-quotes', [QuoteController::class, 'myQuotes']);
+
+    // Enquiries
     Route::post('/enquiries', [EnquiryController::class, 'store']);
     Route::get('/my-enquiries', [EnquiryController::class, 'myEnquiries']);
 });
@@ -130,6 +155,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus']);
     Route::post('/bookings/{booking}/confirm', [AdminBookingController::class, 'confirmBooking']);
     Route::post('/bookings/{booking}/refund', [AdminBookingController::class, 'processRefund']);
+    Route::get('/bookings/calendar/data', [AdminBookingController::class, 'getCalendarData']);
 
     // Reviews
     Route::get('/reviews', [AdminReviewController::class, 'index']);
@@ -159,4 +185,47 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 
     // Upload
     Route::post('/upload', [UploadController::class, 'upload']);
+
+    // About Page Management
+    Route::get('/about', [AdminAboutPageController::class, 'index']);
+    Route::post('/about', [AdminAboutPageController::class, 'store']);
+    Route::put('/about', [AdminAboutPageController::class, 'update']);
+    Route::post('/about/upload-image', [AdminAboutPageController::class, 'uploadImage']);
+
+    // Enquiries Management
+    Route::get('/enquiries', [AdminEnquiryController::class, 'index']);
+    Route::get('/enquiries/{enquiry}', [AdminEnquiryController::class, 'show']);
+    Route::post('/enquiries/{enquiry}/respond', [AdminEnquiryController::class, 'respond']);
+    Route::post('/enquiries/{enquiry}/status', [AdminEnquiryController::class, 'updateStatus']);
+    Route::delete('/enquiries/{enquiry}', [AdminEnquiryController::class, 'destroy']);
+    Route::get('/dev-emails', [AdminEnquiryController::class, 'devEmails']);
+
+    // Pages Management
+    Route::get('/pages', [PageController::class, 'index']);
+    Route::get('/pages/{page}', [PageController::class, 'show']);
+    Route::post('/pages', [PageController::class, 'store']);
+    Route::put('/pages/{page}', [PageController::class, 'update']);
+    Route::delete('/pages/{page}', [PageController::class, 'destroy']);
+
+    // Media Library
+    Route::get('/media-library', [MediaLibraryController::class, 'index']);
+    Route::post('/media-library/upload', [MediaLibraryController::class, 'upload']);
+    Route::delete('/media-library', [MediaLibraryController::class, 'destroy']);
+
+    // Tour Guides Management
+    Route::get('/tour-guides', [AdminTourGuideController::class, 'index']);
+    Route::post('/tour-guides', [AdminTourGuideController::class, 'store']);
+    Route::get('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'show']);
+    Route::put('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'update']);
+    Route::delete('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'destroy']);
+    Route::post('/tour-guides/upload-image', [AdminTourGuideController::class, 'uploadImage']);
+    Route::get('/tour-guide-bookings', [AdminTourGuideController::class, 'getBookings']);
+    Route::post('/tour-guide-bookings/{bookingId}/status', [AdminTourGuideController::class, 'updateBookingStatus']);
+    Route::post('/tour-guides/seed-defaults', [TourGuideSeederController::class, 'seedDefaultGuides']);
+
+    // Room Management
+    Route::get('/hotels/{hotel}/rooms', [AdminHotelController::class, 'getRooms']);
+    Route::post('/hotels/{hotel}/rooms', [AdminHotelController::class, 'storeRoom']);
+    Route::put('/rooms/{room}', [AdminHotelController::class, 'updateRoom']);
+    Route::delete('/rooms/{room}', [AdminHotelController::class, 'destroyRoom']);
 });

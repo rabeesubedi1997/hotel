@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Star, Phone, Mail, Check, Heart, Loader2, Send } from 'lucide-react';
-import { hotelsAPI, wishlistsAPI, reviewsAPI } from '../services/api';
+import { MapPin, Star, Phone, Mail, Check, Heart, Loader2, Send, Calendar, Users, Minus, Plus, Upload } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { hotelsAPI, wishlistsAPI, reviewsAPI, bookingsAPI } from '../services/api';
 import useAuthStore from '../stores/authStore';
 import { getHotelImage } from '../utils/images';
 import ExternalRatings from '../components/ExternalRatings';
 import SEO, { generateHotelJsonLd } from '../components/SEO';
+import BookingCalendar from '../components/BookingCalendar';
 
 const HotelDetails = () => {
   const { slug } = useParams();
@@ -14,8 +17,23 @@ const HotelDetails = () => {
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
-  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [wishlistId, setWishlistId] = useState(null);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 0,
+    comment: '',
+    photos: [],
+  });
   const [submittingReview, setSubmittingReview] = useState(false);
+  
+  // Booking form state
+  const [checkInDate, setCheckInDate] = useState(null);
+  const [checkOutDate, setCheckOutDate] = useState(null);
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState(null);
+  const [totalPrice, setTotalPrice] = useState(0);
 
   useEffect(() => {
     fetchHotel();
@@ -44,13 +62,22 @@ const HotelDetails = () => {
     }
     setSubmittingReview(true);
     try {
-      await reviewsAPI.create({
-        reviewable_type: 'hotel',
-        reviewable_id: hotel.id,
-        rating: reviewForm.rating,
-        comment: reviewForm.comment,
-      });
-      setReviewForm({ rating: 5, comment: '' });
+      // Use FormData for file uploads
+      const formData = new FormData();
+      formData.append('reviewable_type', 'hotel');
+      formData.append('reviewable_id', hotel.id);
+      formData.append('rating', reviewForm.rating);
+      formData.append('comment', reviewForm.comment);
+      
+      // Add photos
+      if (reviewForm.photos && reviewForm.photos.length > 0) {
+        reviewForm.photos.forEach((photo) => {
+          formData.append('images[]', photo);
+        });
+      }
+      
+      await reviewsAPI.create(formData);
+      setReviewForm({ rating: 0, comment: '', photos: [] });
       fetchHotel();
       alert('Review submitted successfully! It will appear after admin approval.');
     } catch (error) {
@@ -67,6 +94,7 @@ const HotelDetails = () => {
         wishlistable_id: hotelId,
       });
       setInWishlist(response.data.in_wishlist);
+      setWishlistId(response.data.wishlist_id || null);
     } catch (error) {
       console.error('Error checking wishlist:', error);
     }
@@ -78,19 +106,99 @@ const HotelDetails = () => {
       return;
     }
     try {
-      if (inWishlist) {
-        // Remove from wishlist - would need the wishlist ID
+      if (inWishlist && wishlistId) {
+        await wishlistsAPI.remove(wishlistId);
         setInWishlist(false);
+        setWishlistId(null);
       } else {
-        await wishlistsAPI.add({
+        const response = await wishlistsAPI.add({
           wishlistable_type: 'hotel',
           wishlistable_id: hotel.id,
         });
         setInWishlist(true);
+        setWishlistId(response.data.wishlist?.id);
       }
     } catch (error) {
       console.error('Error toggling wishlist:', error);
     }
+  };
+
+  // Calculate total nights between dates
+  const calculateNights = () => {
+    if (checkInDate && checkOutDate) {
+      const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    }
+    return 0;
+  };
+
+  // Calculate total price
+  const calculateTotalPrice = () => {
+    const nights = calculateNights();
+    const roomPrice = selectedRoom ? selectedRoom.price : hotel?.price_per_night;
+    const totalGuests = adults + children;
+    return nights * roomPrice * totalGuests;
+  };
+
+  // Check availability
+  const checkAvailability = async () => {
+    if (!checkInDate || !checkOutDate) {
+      setAvailabilityStatus({ available: false, message: 'Please select check-in and check-out dates' });
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const response = await bookingsAPI.checkAvailability({
+        bookable_type: 'hotel',
+        bookable_id: hotel.id,
+        check_in_date: checkInDate.toISOString().split('T')[0],
+        check_out_date: checkOutDate.toISOString().split('T')[0],
+        guests: adults + children,
+        room_id: selectedRoom?.id,
+      });
+      
+      setAvailabilityStatus(response.data);
+      if (response.data.available) {
+        setTotalPrice(calculateTotalPrice());
+      }
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      setAvailabilityStatus({ available: false, message: 'Error checking availability' });
+    } finally {
+      setCheckingAvailability(false);
+    }
+  };
+
+  // Handle proceed to checkout
+  const handleProceedToCheckout = () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    
+    if (!availabilityStatus?.available) {
+      checkAvailability();
+      return;
+    }
+
+    const bookingData = {
+      type: 'hotel',
+      id: hotel.slug,
+      hotel_id: hotel.id,
+      check_in: checkInDate.toISOString().split('T')[0],
+      check_out: checkOutDate.toISOString().split('T')[0],
+      adults,
+      children,
+      room_id: selectedRoom?.id,
+      nights: calculateNights(),
+      total_price: calculateTotalPrice(),
+    };
+
+    // Store booking data in session storage for checkout page
+    sessionStorage.setItem('pendingBooking', JSON.stringify(bookingData));
+    navigate('/checkout');
   };
 
   if (loading) {
@@ -223,6 +331,20 @@ const HotelDetails = () => {
                       </span>
                     </div>
                     <p className="mt-2 text-gray-600">{review.comment}</p>
+                    {/* Review Photos */}
+                    {review.images && review.images.length > 0 && (
+                      <div className="flex gap-2 mt-3">
+                        {review.images.map((image, idx) => (
+                          <img
+                            key={idx}
+                            src={image}
+                            alt={`Review photo ${idx + 1}`}
+                            className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:scale-105 transition"
+                            onClick={() => window.open(image, '_blank')}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -238,8 +360,9 @@ const HotelDetails = () => {
                 <select
                   value={reviewForm.rating}
                   onChange={(e) => setReviewForm({ ...reviewForm, rating: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
                 >
+                  <option value="0">Select a rating...</option>
                   <option value="5">5 Stars - Excellent</option>
                   <option value="4">4 Stars - Very Good</option>
                   <option value="3">3 Stars - Good</option>
@@ -247,10 +370,12 @@ const HotelDetails = () => {
                   <option value="1">1 Star - Poor</option>
                 </select>
               </div>
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your Review</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Review
+                </label>
                 <textarea
-                  rows="3"
+                  rows={4}
                   value={reviewForm.comment}
                   onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
                   placeholder="Share your experience..."
@@ -258,20 +383,64 @@ const HotelDetails = () => {
                   required
                 />
               </div>
+
+              {/* Photo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Add Photos (optional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => setReviewForm({ ...reviewForm, photos: Array.from(e.target.files) })}
+                  className="hidden"
+                  id="review-photos"
+                />
+                <label
+                  htmlFor="review-photos"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {reviewForm.photos?.length > 0 
+                    ? `${reviewForm.photos.length} photo(s) selected` 
+                    : "Upload photos"}
+                </label>
+                {reviewForm.photos?.length > 0 && (
+                  <div className="flex gap-2 mt-3">
+                    {reviewForm.photos.map((photo, idx) => (
+                      <img
+                        key={idx}
+                        src={URL.createObjectURL(photo)}
+                        alt={`Preview ${idx}`}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={submittingReview}
                 className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
                 {submittingReview ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Submitting...
+                  </>
                 ) : (
-                  <Send className="h-5 w-5 mr-2" />
+                  <>
+                    <Send className="h-5 w-5 mr-2" />
+                    Submit Review
+                  </>
                 )}
-                Submit Review
               </button>
             </form>
           </div>
+
+          {/* Availability Calendar */}
+          <BookingCalendar hotelId={hotel.id} roomId={selectedRoom?.id} />
         </div>
 
         {/* Right Column - Booking */}
@@ -279,32 +448,168 @@ const HotelDetails = () => {
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Book Your Stay</h3>
             <div className="mb-4">
-              <span className="text-3xl font-bold text-primary-600">${hotel.price_per_night}</span>
+              <span className="text-3xl font-bold text-primary-600">${selectedRoom ? selectedRoom.price : hotel.price_per_night}</span>
               <span className="text-gray-500"> / night</span>
             </div>
 
-            {/* Contact Info */}
-            <div className="space-y-3 mb-6">
-              {hotel.phone && (
-                <div className="flex items-center text-gray-600">
-                  <Phone className="h-5 w-5 mr-2" />
-                  {hotel.phone}
+            {/* Date Pickers */}
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <DatePicker
+                    selected={checkInDate}
+                    onChange={setCheckInDate}
+                    minDate={new Date()}
+                    placeholderText="Select date"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    dateFormat="yyyy-MM-dd"
+                  />
                 </div>
-              )}
-              {hotel.email && (
-                <div className="flex items-center text-gray-600">
-                  <Mail className="h-5 w-5 mr-2" />
-                  {hotel.email}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <DatePicker
+                    selected={checkOutDate}
+                    onChange={setCheckOutDate}
+                    minDate={checkInDate ? new Date(checkInDate.getTime() + 86400000) : new Date()}
+                    placeholderText="Select date"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    dateFormat="yyyy-MM-dd"
+                  />
                 </div>
-              )}
+              </div>
             </div>
 
-            <Link
-              to={`/checkout?type=hotel&id=${hotel.slug}`}
-              className="block w-full bg-primary-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-primary-700"
+            {/* Guest Counter */}
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                <div className="flex items-center">
+                  <Users className="h-4 w-4 text-gray-400 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Adults</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setAdults(Math.max(1, adults - 1))}
+                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                    disabled={adults <= 1}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm font-medium w-4 text-center">{adults}</span>
+                  <button
+                    onClick={() => setAdults(adults + 1)}
+                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                <div className="flex items-center">
+                  <Users className="h-4 w-4 text-gray-400 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Children</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setChildren(Math.max(0, children - 1))}
+                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                    disabled={children <= 0}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm font-medium w-4 text-center">{children}</span>
+                  <button
+                    onClick={() => setChildren(children + 1)}
+                    className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Room Selector (if hotel has rooms) */}
+            {hotel.rooms && hotel.rooms.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Room Type</label>
+                <select
+                  value={selectedRoom?.id || ''}
+                  onChange={(e) => {
+                    const room = hotel.rooms.find(r => r.id === parseInt(e.target.value));
+                    setSelectedRoom(room);
+                    setAvailabilityStatus(null);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                >
+                  <option value="">Select a room...</option>
+                  {hotel.rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name} - ${room.price}/night
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Availability Status */}
+            {availabilityStatus && (
+              <div className={`mb-4 p-3 rounded-lg text-sm ${availabilityStatus.available ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {availabilityStatus.message}
+              </div>
+            )}
+
+            {/* Price Summary */}
+            {calculateNights() > 0 && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600">${selectedRoom ? selectedRoom.price : hotel.price_per_night} x {calculateNights()} nights</span>
+                  <span className="font-medium">${(selectedRoom ? selectedRoom.price : hotel.price_per_night) * calculateNights()}</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600">Guests ({adults + children})</span>
+                  <span className="font-medium">x {adults + children}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between font-semibold text-lg">
+                    <span>Total</span>
+                    <span className="text-primary-600">${calculateTotalPrice()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Check Availability Button */}
+            <button
+              onClick={checkAvailability}
+              disabled={checkingAvailability || !checkInDate || !checkOutDate}
+              className="w-full mb-3 py-2 border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Book Now
-            </Link>
+              {checkingAvailability ? (
+                <span className="flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Checking...
+                </span>
+              ) : (
+                'Check Availability'
+              )}
+            </button>
+
+            {/* Book Now Button */}
+            <button
+              onClick={handleProceedToCheckout}
+              disabled={!availabilityStatus?.available}
+              className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {availabilityStatus?.available ? 'Book Now' : 'Select Dates to Book'}
+            </button>
+
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              You won't be charged yet. Free cancellation available.
+            </p>
           </div>
         </div>
       </div>

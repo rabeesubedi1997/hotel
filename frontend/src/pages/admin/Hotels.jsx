@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { getHotelImage } from '../../utils/images';
-import ImageSelector from '../../components/ImageSelector';
+import MediaPicker from '../../components/MediaPicker';
 
 const AdminHotels = () => {
   const [hotels, setHotels] = useState([]);
@@ -11,7 +11,24 @@ const AdminHotels = () => {
   const [search, setSearch] = useState('');
   const [editModal, setEditModal] = useState(false);
   const [editingHotel, setEditingHotel] = useState(null);
-  const [imageSelectorOpen, setImageSelectorOpen] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  
+  // Room management state
+  const [roomsModal, setRoomsModal] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [roomFormData, setRoomFormData] = useState({
+    room_type: '',
+    room_number: '',
+    description: '',
+    price: '',
+    capacity: 2,
+    available_count: 1,
+    bed_count: 1,
+    bed_type: 'Queen',
+    amenities: [],
+    status: 'available',
+  });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -90,9 +107,9 @@ const AdminHotels = () => {
     setEditModal(true);
   };
 
-  const closeEditModal = () => {
-    setEditModal(false);
-    setEditingHotel(null);
+  const handleImageSelect = (url) => {
+    setFormData(prev => ({ ...prev, featured_image: url }));
+    setMediaPickerOpen(false);
   };
 
   const handleUpdate = async (e) => {
@@ -222,6 +239,13 @@ const AdminHotels = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end space-x-2">
+                    <button
+                      onClick={() => openRoomsModal(hotel)}
+                      className="p-2 text-green-600 hover:text-green-800"
+                      title="Manage Rooms"
+                    >
+                      <BedDouble className="h-5 w-5" />
+                    </button>
                     <button
                       onClick={() => toggleFeatured(hotel.id)}
                       className={`p-2 rounded ${hotel.is_featured ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
@@ -369,13 +393,13 @@ const AdminHotels = () => {
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="Image URL or select from gallery..." 
                   />
-                  <button
+                <button
                     type="button"
-                    onClick={() => setImageSelectorOpen(true)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
+                    onClick={() => setMediaPickerOpen(true)}
+                    className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
                   >
-                    <ImageIcon className="h-5 w-5 mr-1" />
-                    Select
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Select from Media Library
                   </button>
                 </div>
                 {formData.featured_image && (
@@ -404,14 +428,169 @@ const AdminHotels = () => {
         </div>
       )}
 
-      {/* Image Selector Modal */}
-      <ImageSelector
-        isOpen={imageSelectorOpen}
-        onClose={() => setImageSelectorOpen(false)}
-        onSelect={(url) => setFormData({ ...formData, featured_image: url })}
-        category="hotels"
-        currentImage={formData.featured_image}
+      <MediaPicker
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onSelect={handleImageSelect}
       />
+
+      {/* Rooms Management Modal */}
+      {roomsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Manage Rooms</h3>
+                <p className="text-sm text-gray-500">{editingHotel?.name}</p>
+              </div>
+              <button onClick={closeRoomsModal} className="p-2 hover:bg-gray-100 rounded-full">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {/* Room Form */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-gray-900 mb-4">
+                  {editingRoom ? 'Edit Room' : 'Add New Room'}
+                </h4>
+                <form onSubmit={handleRoomSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Room Type *</label>
+                    <input type="text" required
+                      value={roomFormData.room_type}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, room_type: e.target.value })}
+                      placeholder="e.g. Deluxe, Suite"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Room Number</label>
+                    <input type="text"
+                      value={roomFormData.room_number}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, room_number: e.target.value })}
+                      placeholder="e.g. 101"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price/Night ($) *</label>
+                    <input type="number" required min="0" step="0.01"
+                      value={roomFormData.price}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, price: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                    <input type="number" min="1"
+                      value={roomFormData.capacity}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, capacity: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Available Count</label>
+                    <input type="number" min="0"
+                      value={roomFormData.available_count}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, available_count: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={roomFormData.status}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, status: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    >
+                      <option value="available">Available</option>
+                      <option value="occupied">Occupied</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="cleaning">Cleaning</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea rows="2"
+                      value={roomFormData.description}
+                      onChange={(e) => setRoomFormData({ ...roomFormData, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2 lg:col-span-3 flex space-x-3">
+                    <button type="submit"
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 text-sm">
+                      {editingRoom ? 'Update Room' : 'Add Room'}
+                    </button>
+                    {editingRoom && (
+                      <button type="button" onClick={() => openRoomEditModal(null)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 text-sm">
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Rooms List */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-4">Rooms ({rooms.length})</h4>
+                {rooms.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No rooms added yet. Add your first room above.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Number</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Capacity</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {rooms.map((room) => (
+                          <tr key={room.id}>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{room.room_type}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{room.room_number || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">${room.price}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{room.capacity} guests</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                room.status === 'available' ? 'bg-green-100 text-green-800' :
+                                room.status === 'occupied' ? 'bg-red-100 text-red-800' :
+                                room.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>
+                                {room.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button onClick={() => openRoomEditModal(room)}
+                                  className="p-1 text-blue-600 hover:text-blue-800">
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button onClick={() => handleDeleteRoom(room.id)}
+                                  className="p-1 text-red-600 hover:text-red-800">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

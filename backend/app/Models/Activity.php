@@ -34,6 +34,8 @@ class Activity extends Model
         'type',
         'location',
         'city',
+        'latitude',
+        'longitude',
         'duration',
         'price',
         'max_participants',
@@ -61,6 +63,8 @@ class Activity extends Model
         'google_rating' => 'decimal:1',
         'tripadvisor_rating' => 'decimal:1',
         'is_featured' => 'boolean',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
     ];
 
     public function bookings(): \Illuminate\Database\Eloquent\Relations\MorphMany

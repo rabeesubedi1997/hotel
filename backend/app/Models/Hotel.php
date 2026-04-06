@@ -23,6 +23,8 @@ class Hotel extends Model
         'address',
         'city',
         'district',
+        'latitude',
+        'longitude',
         'price_per_night',
         'rating',
         'star_rating',
@@ -50,6 +52,8 @@ class Hotel extends Model
         'google_rating' => 'decimal:1',
         'tripadvisor_rating' => 'decimal:1',
         'is_featured' => 'boolean',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
     ];
 
     public function rooms(): HasMany

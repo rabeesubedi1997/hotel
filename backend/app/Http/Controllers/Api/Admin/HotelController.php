@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
+use App\Models\Room;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -157,5 +158,68 @@ class HotelController extends Controller
             ->get();
 
         return response()->json($hotels);
+    }
+
+    // Room Management
+    public function getRooms(Hotel $hotel): JsonResponse
+    {
+        $rooms = $hotel->rooms()->orderBy('room_type')->get();
+        return response()->json($rooms);
+    }
+
+    public function storeRoom(Request $request, Hotel $hotel): JsonResponse
+    {
+        $validated = $request->validate([
+            'room_type' => 'required|string|max:255',
+            'room_number' => 'nullable|string|max:50',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'capacity' => 'required|integer|min:1',
+            'available_count' => 'required|integer|min:0',
+            'bed_count' => 'nullable|integer|min:1',
+            'bed_type' => 'nullable|string|max:100',
+            'amenities' => 'nullable|array',
+            'images' => 'nullable|array',
+            'status' => 'required|in:available,occupied,maintenance,cleaning',
+        ]);
+
+        $room = $hotel->rooms()->create($validated);
+
+        return response()->json([
+            'room' => $room,
+            'message' => 'Room created successfully.',
+        ], 201);
+    }
+
+    public function updateRoom(Request $request, Room $room): JsonResponse
+    {
+        $validated = $request->validate([
+            'room_type' => 'required|string|max:255',
+            'room_number' => 'nullable|string|max:50',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'capacity' => 'required|integer|min:1',
+            'available_count' => 'required|integer|min:0',
+            'bed_count' => 'nullable|integer|min:1',
+            'bed_type' => 'nullable|string|max:100',
+            'amenities' => 'nullable|array',
+            'images' => 'nullable|array',
+            'status' => 'required|in:available,occupied,maintenance,cleaning',
+        ]);
+
+        $room->update($validated);
+
+        return response()->json([
+            'room' => $room,
+            'message' => 'Room updated successfully.',
+        ]);
+    }
+
+    public function destroyRoom(Room $room): JsonResponse
+    {
+        $room->delete();
+        return response()->json([
+            'message' => 'Room deleted successfully.',
+        ]);
     }
 }

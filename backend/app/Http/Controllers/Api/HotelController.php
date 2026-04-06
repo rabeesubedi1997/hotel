@@ -38,6 +38,19 @@ class HotelController extends Controller
             });
         }
 
+        // Filter by amenities (JSON column)
+        if ($request->has('amenities')) {
+            $amenities = is_array($request->amenities) ? $request->amenities : explode(',', $request->amenities);
+            foreach ($amenities as $amenity) {
+                $query->whereJsonContains('amenities', $amenity);
+            }
+        }
+
+        // Filter by minimum rating
+        if ($request->has('min_rating')) {
+            $query->where('rating', '>=', $request->min_rating);
+        }
+
         $hotels = $query->with(['rooms' => function ($q) {
             $q->available();
         }])->paginate($request->get('per_page', 12));

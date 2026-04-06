@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, Search, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
-import { activitiesAPI } from '../services/api';
+import { activitiesAPI, publicAPI } from '../services/api';
 import { getActivityImage } from '../utils/images';
 import SEO from '../components/SEO';
 
 const Activities = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pageContent, setPageContent] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
     city: '',
@@ -31,7 +32,17 @@ const Activities = () => {
     fetchActivities();
     fetchTypes();
     fetchCities();
+    fetchPageContent();
   }, [pagination.current_page, pagination.per_page]);
+
+  const fetchPageContent = async () => {
+    try {
+      const response = await publicAPI.getPage('activities');
+      setPageContent(response.data);
+    } catch (error) {
+      console.error('Error fetching page content:', error);
+    }
+  };
 
   const fetchActivities = async (params = {}) => {
     setLoading(true);
@@ -124,12 +135,29 @@ const Activities = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <SEO 
-        title="Adventure Activities in Nepal" 
-        description="Discover exciting adventure activities in Nepal. Trekking, paragliding, bungee jumping, rafting and more thrilling experiences."
+        title={pageContent?.title || "Adventure Activities in Nepal"}
+        description={pageContent?.meta_description || "Discover exciting adventure activities in Nepal. Trekking, paragliding, bungee jumping, rafting and more thrilling experiences."}
         keywords="Nepal activities, trekking Nepal, paragliding, bungee jumping, rafting, adventure sports Nepal, things to do Nepal"
         canonical="/activities"
       />
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Adventure Activities</h1>
+      
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-green-600 to-blue-600 py-16 mb-8">
+        {pageContent?.sections?.hero?.background_image && (
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-20"
+            style={{ backgroundImage: `url(${pageContent.sections.hero.background_image})` }}
+          />
+        )}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+          <h1 className="text-4xl font-bold mb-4">
+            {pageContent?.sections?.hero?.title || 'Adventure Activities'}
+          </h1>
+          <p className="text-xl max-w-2xl mx-auto">
+            {pageContent?.sections?.hero?.subtitle || 'Discover exciting adventure activities in Nepal'}
+          </p>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -138,7 +166,7 @@ const Activities = () => {
             <input
               type="text"
               name="search"
-              placeholder="Search activities..."
+              placeholder={pageContent?.sections?.filters?.search_placeholder || "Search activities..."}
               value={filters.search}
               onChange={handleFilterChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
@@ -151,7 +179,7 @@ const Activities = () => {
               onChange={handleFilterChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="">All Types</option>
+              <option value="">{pageContent?.sections?.filters?.type_label || "All Types"}</option>
               {Object.entries(types).map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
@@ -166,7 +194,7 @@ const Activities = () => {
               onChange={handleFilterChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="">All Cities</option>
+              <option value="">{pageContent?.sections?.filters?.city_label || "All Cities"}</option>
               {cities.map((city) => (
                 <option key={city} value={city}>
                   {city}
@@ -181,11 +209,11 @@ const Activities = () => {
               onChange={handleFilterChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="">All Levels</option>
-              <option value="easy">Easy</option>
-              <option value="moderate">Moderate</option>
-              <option value="challenging">Challenging</option>
-              <option value="extreme">Extreme</option>
+              <option value="">{pageContent?.sections?.filters?.difficulty_label || "All Levels"}</option>
+              <option value="easy">{pageContent?.sections?.filters?.difficulty_easy || "Easy"}</option>
+              <option value="moderate">{pageContent?.sections?.filters?.difficulty_moderate || "Moderate"}</option>
+              <option value="challenging">{pageContent?.sections?.filters?.difficulty_challenging || "Challenging"}</option>
+              <option value="extreme">{pageContent?.sections?.filters?.difficulty_extreme || "Extreme"}</option>
             </select>
           </div>
           <button
@@ -193,7 +221,7 @@ const Activities = () => {
             className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
           >
             <Search className="inline-block h-4 w-4 mr-2" />
-            Search
+            {pageContent?.sections?.filters?.search_button || "Search"}
           </button>
         </div>
       </div>
@@ -201,10 +229,10 @@ const Activities = () => {
       {/* Results count and per page selector */}
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
         <p className="text-gray-600 mb-4 sm:mb-0">
-          Showing {activities.length} of {pagination.total} activities
+          {pageContent?.sections?.results?.showing_text?.replace('{count}', activities.length).replace('{total}', pagination.total) || `Showing ${activities.length} of ${pagination.total} activities`}
         </p>
         <div className="flex items-center space-x-2">
-          <span className="text-gray-600">Rows per page:</span>
+          <span className="text-gray-600">{pageContent?.sections?.results?.per_page_label || "Rows per page:"}</span>
           <select
             value={pagination.per_page}
             onChange={(e) => handlePerPageChange(Number(e.target.value))}
@@ -251,11 +279,11 @@ const Activities = () => {
                     {activity.location}
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <p className="text-primary-600 font-semibold">${activity.price}</p>
+                    <p className="text-primary-600 font-semibold">${activity.price}{pageContent?.sections?.activity_card?.per_person || ""}</p>
                     <span className="text-sm text-gray-500">{activity.duration}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    Max {activity.max_participants} participants
+                    {pageContent?.sections?.activity_card?.max_participants?.replace('{count}', activity.max_participants) || `Max ${activity.max_participants} participants`}
                   </p>
                 </div>
               </Link>

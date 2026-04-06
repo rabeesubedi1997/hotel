@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Hotel, Compass, Star, MapPin, ArrowRight, Sparkles, Shield, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import { hotelsAPI, activitiesAPI } from '../services/api';
+import { hotelsAPI, activitiesAPI, publicAPI } from '../services/api';
 import { getHotelImage, getActivityImage, getAdventureBanner } from '../utils/images';
 import SEO from '../components/SEO';
 
@@ -10,6 +10,7 @@ const Home = () => {
   const [featuredActivities, setFeaturedActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ hotels: 6, activities: 9, bookings: 500 });
+  const [pageContent, setPageContent] = useState(null);
   
   // Banner slider state
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -18,14 +19,16 @@ const Home = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [hotelsRes, activitiesRes, bannerHotelsRes, bannerActivitiesRes] = await Promise.all([
+        const [hotelsRes, activitiesRes, bannerHotelsRes, bannerActivitiesRes, pageRes] = await Promise.all([
           hotelsAPI.getFeatured(),
           activitiesAPI.getFeatured(),
           hotelsAPI.getBannerItems().catch(() => ({ data: [] })),
           activitiesAPI.getBannerItems().catch(() => ({ data: [] })),
+          publicAPI.getPage('home').catch(() => ({ data: null })),
         ]);
         setFeaturedHotels(hotelsRes.data || []);
         setFeaturedActivities(activitiesRes.data || []);
+        setPageContent(pageRes.data);
         
         // Combine banner items from both hotels and activities, sorted by banner_order
         const bannerHotels = (bannerHotelsRes.data || []).map(h => ({ ...h, item_type: 'hotel' }));
@@ -214,27 +217,21 @@ const Home = () => {
       <section className="bg-white py-8 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-center justify-center space-x-3 text-gray-700">
-              <Shield className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="font-semibold">Secure Booking</p>
-                <p className="text-sm text-gray-500">100% secure payment</p>
+            {(pageContent?.sections?.trust_badges || [
+              { icon: 'shield', title: 'Secure Booking', subtitle: '100% secure payment' },
+              { icon: 'clock', title: '24/7 Support', subtitle: 'Always here to help' },
+              { icon: 'star', title: 'Best Price Guarantee', subtitle: 'Lowest rates guaranteed' },
+            ]).map((badge, index) => (
+              <div key={index} className="flex items-center justify-center space-x-3 text-gray-700">
+                {badge.icon === 'shield' && <Shield className="h-8 w-8 text-green-500" />}
+                {badge.icon === 'clock' && <Clock className="h-8 w-8 text-blue-500" />}
+                {badge.icon === 'star' && <Star className="h-8 w-8 text-yellow-500" />}
+                <div>
+                  <p className="font-semibold">{badge.title}</p>
+                  <p className="text-sm text-gray-500">{badge.subtitle}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-center space-x-3 text-gray-700">
-              <Clock className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="font-semibold">24/7 Support</p>
-                <p className="text-sm text-gray-500">Always here to help</p>
-              </div>
-            </div>
-            <div className="flex items-center justify-center space-x-3 text-gray-700">
-              <Star className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="font-semibold">Best Price Guarantee</p>
-                <p className="text-sm text-gray-500">Lowest rates guaranteed</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -243,9 +240,15 @@ const Home = () => {
       <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <span className="text-primary-600 font-semibold uppercase text-sm">Premium Stays</span>
-            <h2 className="text-4xl font-bold text-gray-900 mt-2">Featured Hotels</h2>
-            <p className="text-gray-600 mt-4 max-w-2xl mx-auto">Experience luxury and comfort at Nepal's finest hotels</p>
+            <span className="text-primary-600 font-semibold uppercase text-sm">
+              {pageContent?.sections?.hotels_section?.subtitle || 'Premium Stays'}
+            </span>
+            <h2 className="text-4xl font-bold text-gray-900 mt-2">
+              {pageContent?.sections?.hotels_section?.title || 'Featured Hotels'}
+            </h2>
+            <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
+              {pageContent?.sections?.hotels_section?.description || "Experience luxury and comfort at Nepal's finest hotels"}
+            </p>
           </div>
 
           {loading ? (
@@ -289,8 +292,8 @@ const Home = () => {
             </div>
           )}
           <div className="text-center mt-12">
-            <Link to="/hotels" className="inline-flex items-center text-primary-600 font-semibold hover:text-primary-700 transition">
-              View All Hotels <ArrowRight className="ml-2 h-5 w-5" />
+            <Link to={pageContent?.sections?.hotels_section?.button_link || '/hotels'} className="inline-flex items-center text-primary-600 font-semibold hover:text-primary-700 transition">
+              {pageContent?.sections?.hotels_section?.button_text || 'View All Hotels'} <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </div>
         </div>
@@ -298,15 +301,25 @@ const Home = () => {
 
       {/* Adventure Banner */}
       <section className="relative py-24 bg-gradient-to-r from-green-800 to-blue-800">
-        <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${getAdventureBanner()})` }}></div>
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20" 
+          style={{ 
+            backgroundImage: `url(${pageContent?.sections?.adventure_banner?.background_image || getAdventureBanner()})` 
+          }}
+        ></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Ready for Adventure?</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            {pageContent?.sections?.adventure_banner?.title || 'Ready for Adventure?'}
+          </h2>
           <p className="text-xl text-gray-200 mb-8 max-w-2xl mx-auto">
-            From bungee jumping to paragliding, experience the thrill of Nepal's most exciting activities
+            {pageContent?.sections?.adventure_banner?.description || "From bungee jumping to paragliding, experience the thrill of Nepal's most exciting activities"}
           </p>
-          <Link to="/activities" className="inline-flex items-center bg-white text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition">
+          <Link 
+            to={pageContent?.sections?.adventure_banner?.button_link || '/activities'} 
+            className="inline-flex items-center bg-white text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition"
+          >
             <Compass className="mr-2 h-5 w-5" />
-            Explore Activities
+            {pageContent?.sections?.adventure_banner?.button_text || 'Explore Activities'}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Link>
         </div>
@@ -316,9 +329,15 @@ const Home = () => {
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <span className="text-primary-600 font-semibold uppercase text-sm">Thrilling Experiences</span>
-            <h2 className="text-4xl font-bold text-gray-900 mt-2">Featured Adventures</h2>
-            <p className="text-gray-600 mt-4 max-w-2xl mx-auto">Push your limits with our curated selection of activities</p>
+            <span className="text-primary-600 font-semibold uppercase text-sm">
+              {pageContent?.sections?.activities_section?.subtitle || 'Thrilling Experiences'}
+            </span>
+            <h2 className="text-4xl font-bold text-gray-900 mt-2">
+              {pageContent?.sections?.activities_section?.title || 'Featured Adventures'}
+            </h2>
+            <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
+              {pageContent?.sections?.activities_section?.description || 'Push your limits with our curated selection of activities'}
+            </p>
           </div>
 
           {loading ? (
@@ -354,8 +373,8 @@ const Home = () => {
             </div>
           )}
           <div className="text-center mt-12">
-            <Link to="/activities" className="inline-flex items-center text-primary-600 font-semibold hover:text-primary-700 transition">
-              View All Activities <ArrowRight className="ml-2 h-5 w-5" />
+            <Link to={pageContent?.sections?.activities_section?.button_link || '/activities'} className="inline-flex items-center text-primary-600 font-semibold hover:text-primary-700 transition">
+              {pageContent?.sections?.activities_section?.button_text || 'View All Activities'} <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </div>
         </div>
@@ -364,12 +383,20 @@ const Home = () => {
       {/* Newsletter */}
       <section className="py-20 bg-gradient-to-r from-primary-600 to-purple-600">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Get Exclusive Deals</h2>
-          <p className="text-lg text-gray-100 mb-8">Subscribe to receive special offers on hotels and activities</p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            {pageContent?.sections?.newsletter?.title || 'Get Exclusive Deals'}
+          </h2>
+          <p className="text-lg text-gray-100 mb-8">
+            {pageContent?.sections?.newsletter?.description || 'Subscribe to receive special offers on hotels and activities'}
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-            <input type="email" placeholder="Enter your email" className="flex-1 px-6 py-4 rounded-xl text-gray-900 focus:outline-none" />
+            <input 
+              type="email" 
+              placeholder={pageContent?.sections?.newsletter?.placeholder || 'Enter your email'} 
+              className="flex-1 px-6 py-4 rounded-xl text-gray-900 focus:outline-none" 
+            />
             <button className="px-8 py-4 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition">
-              Subscribe
+              {pageContent?.sections?.newsletter?.button_text || 'Subscribe'}
             </button>
           </div>
         </div>

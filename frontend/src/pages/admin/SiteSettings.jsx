@@ -20,6 +20,7 @@ import {
   Upload
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
+import MediaPicker from '../../components/MediaPicker';
 
 const GROUP_ICONS = {
   general: Globe,
@@ -54,6 +55,8 @@ const SiteSettings = () => {
   const [expandedMenus, setExpandedMenus] = useState({});
   const [newMenuItem, setNewMenuItem] = useState({ label: '', url: '', icon: '' });
   const [uploading, setUploading] = useState({});
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState(null);
 
   useEffect(() => {
     fetchSettings();
@@ -134,6 +137,19 @@ const SiteSettings = () => {
     updateSettingValue(group, key, newValue);
   };
 
+  const openMediaPicker = (group, key) => {
+    setMediaPickerTarget({ group, key });
+    setMediaPickerOpen(true);
+  };
+
+  const handleMediaSelect = (url) => {
+    if (mediaPickerTarget) {
+      updateSettingValue(mediaPickerTarget.group, mediaPickerTarget.key, url);
+    }
+    setMediaPickerOpen(false);
+    setMediaPickerTarget(null);
+  };
+
   const moveMenuItem = (group, key, index, direction) => {
     const currentValue = [...(settings[group]?.find(i => i.key === key)?.value || [])];
     const newIndex = direction === 'up' ? index - 1 : index + 1;
@@ -182,28 +198,6 @@ const SiteSettings = () => {
         );
 
       case 'image':
-        const handleImageUpload = async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          setUploading(prev => ({ ...prev, [key]: true }));
-          
-          try {
-            const formData = new FormData();
-            formData.append('image', file);
-            
-            const response = await adminAPI.uploadImage(formData);
-            updateSettingValue(group, key, response.data.url);
-            setMessage('Image uploaded successfully');
-          } catch (error) {
-            console.error('Error uploading image:', error);
-            setMessage('Error uploading image');
-          } finally {
-            setUploading(prev => ({ ...prev, [key]: false }));
-            setTimeout(() => setMessage(''), 3000);
-          }
-        };
-        
         return (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -214,21 +208,17 @@ const SiteSettings = () => {
                   value={value || ''}
                   onChange={(e) => updateSettingValue(group, key, e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  placeholder="https://example.com/image.png or upload below"
+                  placeholder="https://example.com/image.png or select from Media Library"
                 />
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer text-sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    {uploading[key] ? 'Uploading...' : 'Choose File'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      disabled={uploading[key]}
-                    />
-                  </label>
-                  <span className="text-xs text-gray-500">Max 2MB (jpg, png, gif)</span>
+                  <button
+                    type="button"
+                    onClick={() => openMediaPicker(group, key)}
+                    className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
+                  >
+                    <Image className="h-4 w-4 mr-2" />
+                    Select from Media Library
+                  </button>
                 </div>
                 <p className="text-xs text-gray-500">{description}</p>
               </div>
@@ -485,6 +475,11 @@ const SiteSettings = () => {
           <li>• Reset to Defaults will restore all original settings</li>
         </ul>
       </div>
+      <MediaPicker
+        isOpen={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onSelect={handleMediaSelect}
+      />
     </div>
   );
 };

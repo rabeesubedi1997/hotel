@@ -7,6 +7,7 @@ use App\Models\Review;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ReviewController extends Controller
 {
@@ -34,6 +35,7 @@ class ReviewController extends Controller
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string',
             'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
         $reviewableClass = $request->reviewable_type === 'hotel'
@@ -52,13 +54,22 @@ class ReviewController extends Controller
             ], 422);
         }
 
+        // Handle image uploads
+        $imageUrls = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('reviews', 'public');
+                $imageUrls[] = Storage::url($path);
+            }
+        }
+
         $review = Review::create([
             'user_id' => $request->user()->id,
             'reviewable_type' => $reviewableClass,
             'reviewable_id' => $request->reviewable_id,
             'rating' => $request->rating,
             'comment' => $request->comment,
-            'images' => $request->images,
+            'images' => $imageUrls,
             'status' => Review::STATUS_PENDING,
         ]);
 

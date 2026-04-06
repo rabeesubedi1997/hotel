@@ -79,6 +79,9 @@ const MainLayout = () => {
                       <Link to="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                         Profile
                       </Link>
+                      <Link to="/wishlist" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                        My Wishlist
+                      </Link>
                       <Link to="/bookings" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                         My Bookings
                       </Link>
