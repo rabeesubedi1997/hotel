@@ -161,34 +161,64 @@ class HotelController extends Controller
     }
 
     // Room Management
-    public function getRooms(Hotel $hotel): JsonResponse
+    public function getRooms($hotelId): JsonResponse
     {
-        $rooms = $hotel->rooms()->orderBy('room_type')->get();
-        return response()->json($rooms);
+        try {
+            $hotel = Hotel::findOrFail($hotelId);
+            $rooms = $hotel->rooms()->orderBy('room_type')->get();
+            return response()->json($rooms);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Hotel not found',
+                'rooms' => []
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching rooms',
+                'rooms' => []
+            ], 500);
+        }
     }
 
-    public function storeRoom(Request $request, Hotel $hotel): JsonResponse
+    public function storeRoom(Request $request, $hotelId): JsonResponse
     {
-        $validated = $request->validate([
-            'room_type' => 'required|string|max:255',
-            'room_number' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'capacity' => 'required|integer|min:1',
-            'available_count' => 'required|integer|min:0',
-            'bed_count' => 'nullable|integer|min:1',
-            'bed_type' => 'nullable|string|max:100',
-            'amenities' => 'nullable|array',
-            'images' => 'nullable|array',
-            'status' => 'required|in:available,occupied,maintenance,cleaning',
-        ]);
+        try {
+            $hotel = Hotel::findOrFail($hotelId);
+            
+            $validated = $request->validate([
+                'room_type' => 'required|string|max:255',
+                'room_number' => 'nullable|string|max:50',
+                'description' => 'nullable|string',
+                'price' => 'required|numeric|min:0',
+                'capacity' => 'required|integer|min:1',
+                'available_count' => 'required|integer|min:0',
+                'bed_count' => 'nullable|integer|min:1',
+                'bed_type' => 'nullable|string|max:100',
+                'amenities' => 'nullable|array',
+                'images' => 'nullable|array',
+                'status' => 'required|in:available,occupied,maintenance,cleaning',
+            ]);
 
-        $room = $hotel->rooms()->create($validated);
+            $room = $hotel->rooms()->create($validated);
 
-        return response()->json([
-            'room' => $room,
-            'message' => 'Room created successfully.',
-        ], 201);
+            return response()->json([
+                'room' => $room,
+                'message' => 'Room created successfully.',
+            ], 201);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Hotel not found'
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error creating room'
+            ], 500);
+        }
     }
 
     public function updateRoom(Request $request, Room $room): JsonResponse

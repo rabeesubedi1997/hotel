@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Loader2, CreditCard, CheckCircle, Banknote, Wallet, ArrowLeft } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Loader2, CreditCard, Smartphone, DollarSign, Banknote, CheckCircle, Wallet, ArrowLeft } from 'lucide-react';
 import { hotelsAPI, activitiesAPI, bookingsAPI, paymentsAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
+import { getHotelImage, getActivityImage } from '../utils/images';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const type = searchParams.get('type');
   const id = searchParams.get('id');
+  const toast = useToast();
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState(null);
@@ -31,20 +35,100 @@ const Checkout = () => {
   useEffect(() => {
     // Check for pending booking from sessionStorage (from HotelDetails page)
     const storedBooking = sessionStorage.getItem('pendingBooking');
+    console.log('SessionStorage pendingBooking:', storedBooking);
+    
     if (storedBooking) {
       const parsed = JSON.parse(storedBooking);
+      console.log('Parsed booking data:', parsed);
       setPendingBooking(parsed);
+      
+      // Format dates to Y-m-d format and validate they're not in the past
+      const formatDate = (dateString) => {
+        if (!dateString) return '';
+        
+        // Handle different date formats that might come from sessionStorage
+        let date;
+        if (typeof dateString === 'string' && dateString.includes('T')) {
+          // If it's an ISO string, create date and adjust for timezone
+          date = new Date(dateString);
+          // Convert to local date by adding timezone offset
+          const timezoneOffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+          date = new Date(date.getTime() + timezoneOffset);
+        } else {
+          date = new Date(dateString);
+        }
+        
+        if (isNaN(date.getTime())) return '';
+        
+        // Use local date instead of UTC to avoid timezone issues
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const checkInDate = formatDate(parsed.check_in);
+      const checkOutDate = formatDate(parsed.check_out);
+      
+      // Debug logging
+      console.log('Original dates:', { check_in: parsed.check_in, check_out: parsed.check_out });
+      console.log('Formatted dates:', { checkInDate, checkOutDate });
+      
+      // Validate dates are not in the past (use proper date comparison)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of day for fair comparison
+      const checkInDateObj = new Date(checkInDate);
+      checkInDateObj.setHours(0, 0, 0, 0); // Set to start of day for fair comparison
+      
+      console.log('Today (local):', today.toISOString().split('T')[0]);
+      console.log('Check-in date object:', checkInDateObj.toISOString().split('T')[0]);
+      console.log('Date comparison:', { 
+        today: today.getTime(), 
+        checkIn: checkInDateObj.getTime(), 
+        isValid: checkInDateObj >= today 
+      });
+      
+      if (checkInDateObj < today) {
+        toast.error('Check-in date cannot be in the past. Please select valid dates.');
+        // Navigate back to hotel details to select new dates
+        navigate(`/hotels/${item?.slug || ''}`);
+        return;
+      }
+      
       setFormData(prev => ({
         ...prev,
-        check_in_date: parsed.check_in || '',
-        check_out_date: parsed.check_out || '',
+        check_in_date: checkInDate,
+        check_out_date: checkOutDate,
         guests: parsed.adults + parsed.children || 1,
         adults: parsed.adults || 1,
         children: parsed.children || 0,
         room_id: parsed.room_id || null,
       }));
-      // Clear sessionStorage after reading
-      sessionStorage.removeItem('pendingBooking');
+      // Don't clear sessionStorage yet - keep it for the item loading useEffect
+      // sessionStorage.removeItem('pendingBooking');
+      
+      // For hotels, skip directly to payment step since details are already selected
+      if (type === 'hotel') {
+        console.log('Hotel checkout detected, setting step to 2 (payment)');
+        setStep(2);
+        
+        // Check if we have the required booking data
+        if (parsed.check_in && parsed.check_out && parsed.room_id) {
+          console.log('Required booking data found, will create booking when item loads');
+          console.log('Booking data:', { check_in: parsed.check_in, check_out: parsed.check_out, room_id: parsed.room_id });
+          // Don't create booking yet - wait for item to load
+        } else {
+          console.log('Missing required data for auto-booking:', {
+            check_in: !!parsed.check_in,
+            check_out: !!parsed.check_out,
+            room_id: !!parsed.room_id
+          });
+          toast.error('Missing booking information. Please select dates and room again.');
+          navigate(`/hotels/${parsed.id || ''}`);
+        }
+      } else {
+        console.log('Non-hotel checkout, keeping step 1 (details form)');
+      }
     }
     
     if (type && id) {
@@ -54,17 +138,31 @@ const Checkout = () => {
     }
   }, [type, id]);
 
+  // Auto-create booking for hotels when item is loaded
+  useEffect(() => {
+    if (type === 'hotel' && item && step === 2 && !booking && pendingBooking) {
+      console.log('Item loaded, creating booking for hotel:', item.name);
+      handleCreateBookingForHotel();
+      // Clear sessionStorage after successful booking creation
+      sessionStorage.removeItem('pendingBooking');
+    }
+  }, [item, type, step, booking, pendingBooking]);
+
   const fetchItem = async () => {
     try {
       if (type === 'hotel') {
         const response = await hotelsAPI.getBySlug(id);
         setItem(response.data);
-      } else {
+      } else if (type === 'activity') {
         const response = await activitiesAPI.getBySlug(id);
         setItem(response.data);
+      } else {
+        console.error('Invalid type:', type);
+        setError('Invalid booking type');
       }
     } catch (error) {
       console.error('Error fetching item:', error);
+      setError('Failed to load item. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -84,22 +182,104 @@ const Checkout = () => {
     return item.price * formData.participants;
   };
 
+  const handleCreateBookingForHotel = async () => {
+    if (!item || type !== 'hotel') return;
+    
+    setProcessing(true);
+    try {
+      const bookingData = {
+        bookable_type: 'hotel',
+        bookable_id: item.id,
+        check_in_date: formData.check_in_date,
+        check_out_date: formData.check_out_date,
+        guests: formData.adults + formData.children,
+        adults: formData.adults,
+        children: formData.children,
+        room_id: formData.room_id,
+        special_requests: formData.special_requests,
+      };
+
+      console.log('Sending booking data:', bookingData);
+      console.log('Booking data details:', {
+        bookable_type: bookingData.bookable_type,
+        bookable_id: bookingData.bookable_id,
+        check_in_date: bookingData.check_in_date,
+        check_out_date: bookingData.check_out_date,
+        guests: bookingData.guests,
+        adults: bookingData.adults,
+        children: bookingData.children,
+        room_id: bookingData.room_id,
+        special_requests: bookingData.special_requests
+      });
+      
+      const response = await bookingsAPI.create(bookingData);
+      console.log('Booking response status:', response.status);
+      console.log('Booking response data:', response.data);
+      
+      // Backend returns booking in response.data.booking
+      const createdBooking = response.data.booking || response.data;
+      console.log('Setting booking data:', createdBooking);
+      setBooking(createdBooking);
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      // Show specific validation errors if available
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors;
+        const errorMessages = Object.values(validationErrors).flat();
+        toast.error(`Validation failed: ${errorMessages.join(', ')}`);
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Failed to create booking. Please check your details and try again.');
+      }
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleCreateBooking = async (e) => {
     e.preventDefault();
     
     // Validate dates
     if (type === 'hotel') {
+      console.log('Form data for validation:', formData);
       if (!formData.check_in_date || !formData.check_out_date) {
-        alert('Please select check-in and check-out dates');
+        toast.error('Please select check-in and check-out dates');
         return;
       }
       if (formData.check_out_date <= formData.check_in_date) {
-        alert('Check-out date must be after check-in date');
+        toast.error('Check-out date must be after check-in date');
+        return;
+      }
+      if (!formData.room_id) {
+        toast.error('Please select a room');
+        return;
+      }
+      
+      // Validate dates are not in the past (use proper date comparison)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of day for fair comparison
+      const checkInDateObj = new Date(formData.check_in_date);
+      checkInDateObj.setHours(0, 0, 0, 0); // Set to start of day for fair comparison
+      
+      console.log('Form validation - Today:', today.toISOString().split('T')[0]);
+      console.log('Form validation - Check-in:', checkInDateObj.toISOString().split('T')[0]);
+      console.log('Form validation - Comparison:', { 
+        today: today.getTime(), 
+        checkIn: checkInDateObj.getTime(), 
+        isValid: checkInDateObj >= today 
+      });
+      
+      if (checkInDateObj < today) {
+        toast.error('Check-in date cannot be in the past. Please select valid dates.');
         return;
       }
     } else {
       if (!formData.activity_datetime) {
-        alert('Please select activity date and time');
+        toast.error('Please select activity date and time');
         return;
       }
     }
@@ -132,24 +312,43 @@ const Checkout = () => {
       setStep(2);
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert('Failed to create booking. Please try again.');
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      // Show specific validation errors if available
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors;
+        const errorMessages = Object.values(validationErrors).flat();
+        toast.error(`Validation failed: ${errorMessages.join(', ')}`);
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Failed to create booking. Please check your details and try again.');
+      }
     } finally {
       setProcessing(false);
     }
   };
 
   const handlePayment = async () => {
+    if (!booking || !booking.id) {
+      toast.error('No booking found. Please create a booking first.');
+      return;
+    }
+    
     setProcessing(true);
     try {
       if (paymentMethod === 'cod') {
         await paymentsAPI.createCOD({ booking_id: booking.id });
+        toast.success('Booking confirmed successfully!');
         navigate('/bookings');
       } else {
+        toast.success('Booking confirmed successfully!');
         navigate('/bookings');
       }
     } catch (error) {
       console.error('Error processing payment:', error);
-      alert('Payment failed. Please try again.');
+      toast.error('Payment failed. Please try again.');
     } finally {
       setProcessing(false);
     }
@@ -166,7 +365,18 @@ const Checkout = () => {
   if (!item) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Item not found</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          {error || 'Item not found'}
+        </h2>
+        <p className="text-gray-600 mb-6">
+          {error || 'The hotel or activity you are trying to book could not be found.'}
+        </p>
+        <button 
+          onClick={() => navigate(-1)}
+          className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700"
+        >
+          Go Back
+        </button>
       </div>
     );
   }
@@ -188,6 +398,9 @@ const Checkout = () => {
         </div>
       </div>
 
+      {/* Debug: Show current step */}
+      {console.log('Rendering step:', step, 'Type:', type)}
+      
       {step === 1 ? (
         <div className="bg-white rounded-xl shadow-lg p-8">
           <div className="flex items-center space-x-4 mb-6 pb-6 border-b">
@@ -210,48 +423,42 @@ const Checkout = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date *</label>
-                  <input type="date" required min={new Date().toISOString().split('T')[0]}
-                    value={formData.check_in_date}
-                    onChange={(e) => setFormData({ ...formData, check_in_date: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  <input 
+                    type="text" 
+                    readOnly
+                    value={formData.check_in_date ? new Date(formData.check_in_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                   />
-                  {formData.check_in_date && (
-                    <p className="mt-1 text-xs text-gray-500">{new Date(formData.check_in_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  )}
+                  <p className="mt-1 text-xs text-gray-500">Date selected from hotel page</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
-                  <input type="date" required min={formData.check_in_date || new Date().toISOString().split('T')[0]}
-                    value={formData.check_out_date}
-                    onChange={(e) => setFormData({ ...formData, check_out_date: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  <input 
+                    type="text" 
+                    readOnly
+                    value={formData.check_out_date ? new Date(formData.check_out_date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                   />
-                  {formData.check_out_date && (
-                    <p className="mt-1 text-xs text-gray-500">{new Date(formData.check_out_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  )}
+                  <p className="mt-1 text-xs text-gray-500">Date selected from hotel page</p>
                 </div>
                 
                 {/* Adults and Children */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Adults *</label>
-                  <input type="number" min="1" max="10" required
+                  <input 
+                    type="text" 
+                    readOnly
                     value={formData.adults}
-                    onChange={(e) => {
-                      const adults = parseInt(e.target.value) || 1;
-                      setFormData({ ...formData, adults, guests: adults + formData.children });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Children</label>
-                  <input type="number" min="0" max="10"
+                  <input 
+                    type="text" 
+                    readOnly
                     value={formData.children}
-                    onChange={(e) => {
-                      const children = parseInt(e.target.value) || 0;
-                      setFormData({ ...formData, children, guests: formData.adults + children });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
                   />
                 </div>
 

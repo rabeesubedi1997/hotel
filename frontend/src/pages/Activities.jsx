@@ -160,69 +160,74 @@ const Activities = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div>
-            <input
-              type="text"
-              name="search"
-              placeholder={pageContent?.sections?.filters?.search_placeholder || "Search activities..."}
-              value={filters.search}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            />
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6 sm:mb-8">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <input
+                type="text"
+                name="search"
+                placeholder={pageContent?.sections?.filters?.search_placeholder || "Search activities..."}
+                value={filters.search}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <select
+                name="type"
+                value={filters.type}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">{pageContent?.sections?.filters?.type_label || "All Types"}</option>
+                {Object.entries(types).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <select
-              name="type"
-              value={filters.type}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <select
+                name="city"
+                value={filters.city}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">{pageContent?.sections?.filters?.city_label || "All Cities"}</option>
+                {cities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                name="difficulty_level"
+                value={filters.difficulty_level}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">{pageContent?.sections?.filters?.difficulty_label || "All Levels"}</option>
+                <option value="easy">{pageContent?.sections?.filters?.difficulty_easy || "Easy"}</option>
+                <option value="moderate">{pageContent?.sections?.filters?.difficulty_moderate || "Moderate"}</option>
+                <option value="challenging">{pageContent?.sections?.filters?.difficulty_challenging || "Challenging"}</option>
+                <option value="extreme">{pageContent?.sections?.filters?.difficulty_extreme || "Extreme"}</option>
+              </select>
+            </div>
+            <button
+              onClick={applyFilters}
+              className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
             >
-              <option value="">{pageContent?.sections?.filters?.type_label || "All Types"}</option>
-              {Object.entries(types).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <Search className="inline-block h-4 w-4 mr-2" />
+              {pageContent?.sections?.filters?.search_button || "Search"}
+            </button>
           </div>
-          <div>
-            <select
-              name="city"
-              value={filters.city}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">{pageContent?.sections?.filters?.city_label || "All Cities"}</option>
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <select
-              name="difficulty_level"
-              value={filters.difficulty_level}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">{pageContent?.sections?.filters?.difficulty_label || "All Levels"}</option>
-              <option value="easy">{pageContent?.sections?.filters?.difficulty_easy || "Easy"}</option>
-              <option value="moderate">{pageContent?.sections?.filters?.difficulty_moderate || "Moderate"}</option>
-              <option value="challenging">{pageContent?.sections?.filters?.difficulty_challenging || "Challenging"}</option>
-              <option value="extreme">{pageContent?.sections?.filters?.difficulty_extreme || "Extreme"}</option>
-            </select>
-          </div>
-          <button
-            onClick={applyFilters}
-            className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            <Search className="inline-block h-4 w-4 mr-2" />
-            {pageContent?.sections?.filters?.search_button || "Search"}
-          </button>
         </div>
       </div>
 
@@ -250,39 +255,42 @@ const Activities = () => {
         <div className="text-center py-8">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {activities.map((activity) => (
               <Link
                 key={activity.id}
                 to={`/activities/${activity.slug}`}
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition"
               >
-                <div className="h-48 overflow-hidden">
+                <div className="h-40 sm:h-48 overflow-hidden relative">
                   <img
                     src={activity.featured_image || getActivityImage(activity.type)}
                     alt={activity.name}
                     className="w-full h-full object-cover hover:scale-105 transition duration-500"
                   />
+                  {/* Difficulty Badge */}
+                  <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-full text-xs font-semibold">
+                    <span className={getDifficultyColor(activity.difficulty_level)}>
+                      {activity.difficulty_level}
+                    </span>
+                  </div>
                 </div>
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-primary-600 uppercase">
                       {activity.type}
                     </span>
-                    <span className={`text-xs font-semibold ${getDifficultyColor(activity.difficulty_level)}`}>
-                      {activity.difficulty_level}
-                    </span>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">{activity.name}</h3>
-                  <div className="flex items-center mt-1 text-gray-600 text-sm">
-                    <MapPin className="h-4 w-4 mr-1" />
+                  <h3 className="text-sm sm:text-lg font-semibold text-gray-900 line-clamp-2 mb-2">{activity.name}</h3>
+                  <div className="flex items-center text-gray-600 text-xs sm:text-sm mb-3">
+                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     {activity.location}
                   </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-primary-600 font-semibold">${activity.price}{pageContent?.sections?.activity_card?.per_person || ""}</p>
-                    <span className="text-sm text-gray-500">{activity.duration}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-base sm:text-lg text-primary-600 font-semibold">${activity.price}{pageContent?.sections?.activity_card?.per_person || ""}</p>
+                    <span className="text-xs sm:text-sm text-gray-500">{activity.duration}</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500">
                     {pageContent?.sections?.activity_card?.max_participants?.replace('{count}', activity.max_participants) || `Max ${activity.max_participants} participants`}
                   </p>
                 </div>

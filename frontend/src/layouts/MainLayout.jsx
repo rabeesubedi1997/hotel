@@ -125,8 +125,8 @@ const MainLayout = () => {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-t">
-            <div className="px-4 pt-2 pb-4 space-y-1">
+          <div className="md:hidden fixed top-16 left-0 right-0 z-50 bg-white border-t shadow-lg">
+            <div className="overflow-y-auto px-4 pt-2 pb-4 space-y-1 max-h-[calc(100vh-4rem)]">
               {headerMenu.map((item) => (
                 <Link
                   key={item.url}
@@ -179,7 +179,7 @@ const MainLayout = () => {
                   </Link>
                   <Link
                     to="/register"
-                    className="block px-3 py-2 text-primary-600 hover:bg-primary-50 rounded-md font-medium"
+                    className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
                     onClick={closeMobileMenu}
                   >
                     Register

@@ -1,19 +1,47 @@
+// Cache bust: 2025-04-07-12-54-00 - All imports fixed including bookingsAPI
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Star, Phone, Mail, Check, Heart, Loader2, Send, Calendar, Users, Minus, Plus, Upload } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { hotelsAPI, wishlistsAPI, reviewsAPI, bookingsAPI } from '../services/api';
+import { 
+  MapPin, 
+  Star, 
+  Phone, 
+  Mail, 
+  Globe, 
+  Calendar as CalendarIcon,
+  Calendar,
+  Users,
+  Wifi,
+  Car,
+  Coffee,
+  Dumbbell,
+  Check,
+  Heart,
+  Share2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Clock,
+  Upload,
+  Send,
+  Plus,
+  Minus
+} from 'lucide-react';
+// Fixed Upload import - cache refresh
+import { hotelsAPI, activitiesAPI, reviewsAPI, wishlistsAPI, bookingsAPI } from '../services/api';
 import useAuthStore from '../stores/authStore';
+import { useToast } from '../contexts/ToastContext';
+import BookingCalendar from '../components/BookingCalendar';
 import { getHotelImage } from '../utils/images';
 import ExternalRatings from '../components/ExternalRatings';
 import SEO, { generateHotelJsonLd } from '../components/SEO';
-import BookingCalendar from '../components/BookingCalendar';
 
 const HotelDetails = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const toast = useToast();
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
@@ -34,10 +62,34 @@ const HotelDetails = () => {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState(null);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [displayImages, setDisplayImages] = useState([]);
+  const [displayAmenities, setDisplayAmenities] = useState([]);
+  const [imageTransitioning, setImageTransitioning] = useState(false);
 
   useEffect(() => {
     fetchHotel();
   }, [slug]);
+
+  // Update display content when room is selected
+  useEffect(() => {
+    if (hotel) {
+      // Add transition effect
+      setImageTransitioning(true);
+      
+      setTimeout(() => {
+        if (selectedRoom) {
+          // Show room-specific content
+          setDisplayImages(selectedRoom.images || hotel.images || []);
+          setDisplayAmenities(selectedRoom.amenities || hotel.amenities || []);
+        } else {
+          // Show hotel-wide content
+          setDisplayImages(hotel.images || []);
+          setDisplayAmenities(hotel.amenities || []);
+        }
+        setImageTransitioning(false);
+      }, 200); // Small delay for smooth transition
+    }
+  }, [selectedRoom, hotel]);
 
   const fetchHotel = async () => {
     setLoading(true);
@@ -183,12 +235,18 @@ const HotelDetails = () => {
       return;
     }
 
+    // Check if room is selected
+    if (!selectedRoom) {
+      toast.warning('Please select a room type before proceeding to booking.');
+      return;
+    }
+
     const bookingData = {
       type: 'hotel',
       id: hotel.slug,
       hotel_id: hotel.id,
-      check_in: checkInDate.toISOString().split('T')[0],
-      check_out: checkOutDate.toISOString().split('T')[0],
+      check_in: checkInDate.getFullYear() + '-' + String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkInDate.getDate()).padStart(2, '0'),
+      check_out: checkOutDate.getFullYear() + '-' + String(checkOutDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkOutDate.getDate()).padStart(2, '0'),
       adults,
       children,
       room_id: selectedRoom?.id,
@@ -197,8 +255,10 @@ const HotelDetails = () => {
     };
 
     // Store booking data in session storage for checkout page
+    console.log('Storing booking data:', bookingData);
     sessionStorage.setItem('pendingBooking', JSON.stringify(bookingData));
-    navigate('/checkout');
+    console.log('Stored in sessionStorage, navigating to checkout');
+    navigate('/checkout?type=hotel&id=' + hotel.slug);
   };
 
   if (loading) {
@@ -242,7 +302,7 @@ const HotelDetails = () => {
 
       {/* Hotel Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900">{hotel.name}</h1>
           <div className="flex items-center mt-2 text-gray-600">
             <MapPin className="h-5 w-5 mr-1" />
@@ -255,31 +315,59 @@ const HotelDetails = () => {
             />
           </div>
         </div>
-        <div className="flex items-center mt-4 md:mt-0 space-x-4">
-          <button
-            onClick={toggleWishlist}
-            className={`p-2 rounded-full ${inWishlist ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-          >
-            <Heart className={`h-6 w-6 ${inWishlist ? 'fill-current' : ''}`} />
-          </button>
-          <div className="flex items-center bg-primary-50 px-4 py-2 rounded-lg">
-            <Star className="h-5 w-5 text-yellow-400 fill-current" />
-            <span className="ml-1 font-bold text-lg">{hotel.rating}</span>
+        <div className="flex flex-col md:flex-row md:items-center items-start mt-4 md:mt-0 space-y-4 md:space-y-0 md:space-x-4">
+          {/* Admin Management Buttons */}
+          {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
+            <div className="flex flex-col sm:flex-row gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <Link
+                to={`/admin/hotels/${hotel.id}/edit`}
+                className="inline-flex items-center justify-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Edit Hotel
+              </Link>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete ${hotel.name}?`)) {
+                    // Handle delete functionality
+                    console.log('Delete hotel:', hotel.id);
+                  }
+                }}
+                className="inline-flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+              >
+                Delete Hotel
+              </button>
+            </div>
+          )}
+          
+          {/* Wishlist and Rating */}
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleWishlist}
+              className={`p-2 rounded-full ${inWishlist ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+            >
+              <Heart className={`h-6 w-6 ${inWishlist ? 'fill-current' : ''}`} />
+            </button>
+            <div className="flex items-center bg-primary-50 px-4 py-2 rounded-lg">
+              <Star className="h-5 w-5 text-yellow-400 fill-current" />
+              <span className="ml-1 font-bold text-lg">{hotel.rating}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Image Gallery */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="h-96 rounded-lg overflow-hidden">
-          <img src={hotel.featured_image || getHotelImage(hotel.id)} alt={hotel.name} className="w-full h-full object-cover" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          {(hotel.images?.length > 0 ? hotel.images : [getHotelImage(hotel.id + 1), getHotelImage(hotel.id + 2), getHotelImage(hotel.id + 3), getHotelImage(hotel.id + 4)]).slice(0, 4).map((image, index) => (
-            <div key={index} className="h-44 rounded-lg overflow-hidden">
-              <img src={image} alt={`${hotel.name} ${index + 1}`} className="w-full h-full object-cover hover:scale-105 transition" />
-            </div>
-          ))}
+      <div className="mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={`h-96 rounded-lg overflow-hidden transition-opacity duration-300 ${imageTransitioning ? 'opacity-50' : 'opacity-100'}`}>
+            <img src={displayImages[0] || hotel.featured_image || getHotelImage(hotel.id)} alt={hotel.name} className="w-full h-full object-cover" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {(displayImages.length > 0 ? displayImages : [getHotelImage(hotel.id + 1), getHotelImage(hotel.id + 2), getHotelImage(hotel.id + 3), getHotelImage(hotel.id + 4)]).slice(0, 4).map((image, index) => (
+              <div key={index} className={`h-44 rounded-lg overflow-hidden transition-opacity duration-300 ${imageTransitioning ? 'opacity-50' : 'opacity-100'}`}>
+                <img src={image} alt={`${hotel.name} ${index + 1}`} className="w-full h-full object-cover hover:scale-105 transition" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -292,15 +380,25 @@ const HotelDetails = () => {
             <p className="text-gray-600">{hotel.description}</p>
 
             <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Amenities</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Amenities 
+                {selectedRoom && (
+                  <span className="text-sm font-normal text-primary-600 ml-2">
+                    (for {selectedRoom.room_type || selectedRoom.name})
+                  </span>
+                )}
+              </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {hotel.amenities?.map((amenity, index) => (
+                {displayAmenities?.map((amenity, index) => (
                   <div key={index} className="flex items-center text-gray-600">
                     <Check className="h-4 w-4 text-green-500 mr-2" />
                     {amenity}
                   </div>
                 ))}
               </div>
+              {displayAmenities?.length === 0 && (
+                <p className="text-gray-500 text-sm">No amenities listed</p>
+              )}
             </div>
 
             {hotel.policies && (
@@ -311,6 +409,9 @@ const HotelDetails = () => {
             )}
           </div>
 
+          {/* Availability Calendar */}
+          <BookingCalendar hotelId={hotel.id} roomId={selectedRoom?.id} />
+
           {/* Reviews */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Reviews</h2>
@@ -318,7 +419,7 @@ const HotelDetails = () => {
               <div className="space-y-4 mb-6">
                 {hotel.reviews.slice(0, 3).map((review) => (
                   <div key={review.id} className="border-b border-gray-200 pb-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-center">
                         <span className="font-semibold">{review.user?.name}</span>
                         <div className="ml-2 flex items-center">
@@ -326,9 +427,36 @@ const HotelDetails = () => {
                           <span className="ml-1">{review.rating}</span>
                         </div>
                       </div>
-                      <span className="text-sm text-gray-500">
-                        {new Date(review.created_at).toLocaleDateString()}
-                      </span>
+                      <div className="flex items-center justify-between w-full sm:w-auto">
+                        <span className="text-sm text-gray-500">
+                          {new Date(review.created_at).toLocaleDateString()}
+                        </span>
+                        {/* Admin Review Management */}
+                        {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
+                          <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 sm:ml-4 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                            <button
+                              onClick={() => {
+                                // Handle edit review
+                                console.log('Edit review:', review.id);
+                              }}
+                              className="inline-flex items-center justify-center px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this review?')) {
+                                  // Handle delete review
+                                  console.log('Delete review:', review.id);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-2 text-gray-600">{review.comment}</p>
                     {/* Review Photos */}
@@ -438,9 +566,6 @@ const HotelDetails = () => {
               </button>
             </form>
           </div>
-
-          {/* Availability Calendar */}
-          <BookingCalendar hotelId={hotel.id} roomId={selectedRoom?.id} />
         </div>
 
         {/* Right Column - Booking */}
@@ -548,10 +673,52 @@ const HotelDetails = () => {
                   <option value="">Select a room...</option>
                   {hotel.rooms.map((room) => (
                     <option key={room.id} value={room.id}>
-                      {room.name} - ${room.price}/night
+                      {room.room_type || room.name} - ${room.price}/night
+                      {room.capacity && ` • Max ${room.capacity} guests`}
+                      {room.bed_type && ` • ${room.bed_type}`}
+                      {room.bed_count && ` • ${room.bed_count} beds`}
                     </option>
                   ))}
                 </select>
+                
+                {/* Selected Room Details */}
+                {selectedRoom && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-blue-900">Selected: {selectedRoom.room_type || selectedRoom.name}</span>
+                      <span className="text-blue-700 font-semibold">${selectedRoom.price}/night</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                      {selectedRoom.bed_type && (
+                        <div className="flex items-center">
+                          <span className="font-medium">Bed:</span>
+                          <span className="ml-1">{selectedRoom.bed_type}</span>
+                        </div>
+                      )}
+                      {selectedRoom.bed_count && (
+                        <div className="flex items-center">
+                          <span className="font-medium">Beds:</span>
+                          <span className="ml-1">{selectedRoom.bed_count}</span>
+                        </div>
+                      )}
+                      {selectedRoom.capacity && (
+                        <div className="flex items-center">
+                          <span className="font-medium">Capacity:</span>
+                          <span className="ml-1">Max {selectedRoom.capacity} guests</span>
+                        </div>
+                      )}
+                      {selectedRoom.room_number && (
+                        <div className="flex items-center">
+                          <span className="font-medium">Room:</span>
+                          <span className="ml-1">{selectedRoom.room_number}</span>
+                        </div>
+                      )}
+                    </div>
+                    {selectedRoom.description && (
+                      <p className="text-xs text-blue-600 mt-2">{selectedRoom.description}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -601,10 +768,11 @@ const HotelDetails = () => {
             {/* Book Now Button */}
             <button
               onClick={handleProceedToCheckout}
-              disabled={!availabilityStatus?.available}
+              disabled={!availabilityStatus?.available || !selectedRoom}
               className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {availabilityStatus?.available ? 'Book Now' : 'Select Dates to Book'}
+              {availabilityStatus?.available && selectedRoom ? 'Book Now' : 
+               !selectedRoom ? 'Select Room Type to Book' : 'Select Dates to Book'}
             </button>
 
             <p className="text-xs text-gray-500 mt-3 text-center">

@@ -10,7 +10,7 @@ import SEO, { generateActivityJsonLd } from '../components/SEO';
 const ActivityDetails = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
@@ -143,7 +143,7 @@ const ActivityDetails = () => {
 
       {/* Activity Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <div>
+        <div className="flex-1">
           <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-2 ${getDifficultyColor(activity.difficulty_level)}`}>
             {activity.difficulty_level}
           </span>
@@ -159,12 +159,38 @@ const ActivityDetails = () => {
             />
           </div>
         </div>
-        <button
-          onClick={toggleWishlist}
-          className={`p-2 rounded-full mt-4 md:mt-0 ${inWishlist ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-        >
-          <Heart className={`h-6 w-6 ${inWishlist ? 'fill-current' : ''}`} />
-        </button>
+        <div className="flex flex-col md:flex-row md:items-center items-start mt-4 md:mt-0 space-y-4 md:space-y-0 md:space-x-4">
+          {/* Admin Management Buttons */}
+          {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
+            <div className="flex flex-col sm:flex-row gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <Link
+                to={`/admin/activities/${activity.id}/edit`}
+                className="inline-flex items-center justify-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Edit Activity
+              </Link>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete ${activity.name}?`)) {
+                    // Handle delete functionality
+                    console.log('Delete activity:', activity.id);
+                  }
+                }}
+                className="inline-flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+              >
+                Delete Activity
+              </button>
+            </div>
+          )}
+          
+          {/* Wishlist Button */}
+          <button
+            onClick={toggleWishlist}
+            className={`p-2 rounded-full ${inWishlist ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+          >
+            <Heart className={`h-6 w-6 ${inWishlist ? 'fill-current' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Image */}
@@ -227,7 +253,7 @@ const ActivityDetails = () => {
               <div className="space-y-4 mb-6">
                 {activity.reviews.slice(0, 3).map((review) => (
                   <div key={review.id} className="border-b border-gray-200 pb-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-center">
                         <span className="font-semibold">{review.user?.name}</span>
                         <div className="ml-2 flex items-center">
@@ -235,9 +261,36 @@ const ActivityDetails = () => {
                           <span className="ml-1">{review.rating}</span>
                         </div>
                       </div>
-                      <span className="text-sm text-gray-500">
-                        {new Date(review.created_at).toLocaleDateString()}
-                      </span>
+                      <div className="flex items-center justify-between w-full sm:w-auto">
+                        <span className="text-sm text-gray-500">
+                          {new Date(review.created_at).toLocaleDateString()}
+                        </span>
+                        {/* Admin Review Management */}
+                        {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
+                          <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 sm:ml-4 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                            <button
+                              onClick={() => {
+                                // Handle edit review
+                                console.log('Edit review:', review.id);
+                              }}
+                              className="inline-flex items-center justify-center px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this review?')) {
+                                  // Handle delete review
+                                  console.log('Delete review:', review.id);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-2 text-gray-600">{review.comment}</p>
                   </div>

@@ -1,12 +1,13 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, X } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 
 const AdminLayout = () => {
   const { user, logout, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Redirect to login if not authenticated or not admin
   useEffect(() => {
@@ -51,19 +52,40 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-800 text-white flex-shrink-0">
+      <aside className={`w-64 bg-gray-800 text-white flex-shrink-0 fixed h-screen overflow-y-auto z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
         <div className="p-6">
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold">ReserveNow Admin</span>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link to="/" className="flex items-center space-x-2">
+              <span className="text-xl font-bold">ReserveNow Admin</span>
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="lg:hidden p-2 rounded-md hover:bg-gray-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
         <nav className="mt-6">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className="flex items-center space-x-3 px-6 py-3 text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center space-x-3 px-6 py-3 text-gray-300 hover:bg-gray-700 hover:text-white ${
+                location.pathname === item.path ? 'bg-gray-700 text-white' : ''
+              }`}
             >
               <item.icon className="h-5 w-5" />
               <span>{item.label}</span>
@@ -91,16 +113,29 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
         <header className="bg-white shadow-sm">
-          <div className="px-8 py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="lg:hidden p-2 rounded-md hover:bg-gray-100"
+                >
+                  <Menu className="h-6 w-6 text-gray-600" />
+                </button>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Panel</h1>
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-sm text-gray-500">Welcome back, {user?.name}</p>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

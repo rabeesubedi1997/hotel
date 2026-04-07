@@ -77,10 +77,13 @@ const Hotels = () => {
   const fetchWishlist = async () => {
     try {
       const response = await wishlistsAPI.getAll();
-      const ids = new Set(response.data.map(item => item.wishlistable_id));
+      // Check if response.data is an array before mapping
+      const wishlistData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      const ids = new Set(wishlistData.map(item => item.wishlistable_id));
       setWishlistIds(ids);
     } catch (error) {
       console.error('Error fetching wishlist:', error);
+      setWishlistIds(new Set()); // Set empty set on error
     }
   };
 
@@ -303,65 +306,73 @@ const Hotels = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6 sm:mb-8">
         {/* Basic Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-          <div>
-            <input
-              type="text"
-              name="search"
-              placeholder={pageContent?.sections?.filters?.search_placeholder || "Search hotels..."}
-              value={filters.search}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <input
+                type="text"
+                name="search"
+                placeholder={pageContent?.sections?.filters?.search_placeholder || "Search hotels..."}
+                value={filters.search}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <select
+                name="city"
+                value={filters.city}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">{pageContent?.sections?.filters?.city_label || "All Cities"}</option>
+                {cities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <select
-              name="city"
-              value={filters.city}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">{pageContent?.sections?.filters?.city_label || "All Cities"}</option>
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <select
+                name="star_rating"
+                value={filters.star_rating}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">{pageContent?.sections?.filters?.rating_label || "All Ratings"}</option>
+                <option value="5">{pageContent?.sections?.filters?.rating_5 || "5 Star"}</option>
+                <option value="4">{pageContent?.sections?.filters?.rating_4 || "4 Star"}</option>
+                <option value="3">{pageContent?.sections?.filters?.rating_3 || "3 Star"}</option>
+              </select>
+            </div>
+            <div>
+              <input
+                type="number"
+                name="min_price"
+                placeholder={pageContent?.sections?.filters?.min_price_label || "Min Price"}
+                value={filters.min_price}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div>
+              <input
+                type="number"
+                name="max_price"
+                placeholder={pageContent?.sections?.filters?.max_price_label || "Max Price"}
+                value={filters.max_price}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
           </div>
-          <div>
-            <select
-              name="star_rating"
-              value={filters.star_rating}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">{pageContent?.sections?.filters?.rating_label || "All Ratings"}</option>
-              <option value="5">{pageContent?.sections?.filters?.rating_5 || "5 Star"}</option>
-              <option value="4">{pageContent?.sections?.filters?.rating_4 || "4 Star"}</option>
-              <option value="3">{pageContent?.sections?.filters?.rating_3 || "3 Star"}</option>
-            </select>
-          </div>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              name="min_price"
-              placeholder={pageContent?.sections?.filters?.min_price_label || "Min Price"}
-              value={filters.min_price}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            />
-            <input
-              type="number"
-              name="max_price"
-              placeholder={pageContent?.sections?.filters?.max_price_label || "Max Price"}
-              value={filters.max_price}
-              onChange={handleFilterChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
+          
           <button
             onClick={applyFilters}
             className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
@@ -372,7 +383,7 @@ const Hotels = () => {
         </div>
 
         {/* Advanced Filters Toggle */}
-        <div className="flex items-center justify-between border-t pt-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t pt-4">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="text-primary-600 font-medium hover:text-primary-700 flex items-center"
@@ -507,14 +518,14 @@ const Hotels = () => {
           {viewMode === 'list' ? (
             <>
               {/* Hotel Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {hotels.map((hotel, index) => (
                   <div
                     key={hotel.id}
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition relative group"
                   >
                     <Link to={`/hotels/${hotel.slug}`}>
-                      <div className="h-48 overflow-hidden relative">
+                      <div className="h-40 sm:h-48 overflow-hidden relative">
                         <img
                           src={hotel.featured_image || getHotelImage(index)}
                           alt={hotel.name}
@@ -522,7 +533,7 @@ const Hotels = () => {
                         />
                         {/* Compare Checkbox */}
                         <label 
-                          className="absolute top-3 left-3 flex items-center space-x-1 bg-white/90 px-2 py-1 rounded-full shadow-md cursor-pointer z-10 hover:bg-white transition"
+                          className="absolute top-2 sm:top-3 left-2 sm:left-3 flex items-center space-x-1 bg-white/90 px-2 py-1 rounded-full shadow-md cursor-pointer z-10 hover:bg-white transition"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <input
@@ -533,44 +544,58 @@ const Hotels = () => {
                               toggleCompare(hotel.id);
                             }}
                             disabled={compareIds.length >= maxCompare && !compareIds.includes(hotel.id)}
-                            className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                            className="w-3 h-3 sm:w-4 sm:h-4 text-primary-600 rounded focus:ring-primary-500"
                           />
-                          <span className="text-xs font-medium text-gray-700">Compare</span>
+                          <span className="text-xs font-medium text-gray-700 hidden sm:inline">Compare</span>
                         </label>
                         {/* Heart Icon */}
                         <button
                           onClick={(e) => toggleWishlist(hotel.id, e)}
                           disabled={togglingId === hotel.id}
-                          className={`absolute top-3 right-3 p-2 rounded-full shadow-md transition-all z-10 ${
+                          className={`absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full shadow-md transition-all z-10 ${
                             wishlistIds.has(hotel.id) 
                               ? 'bg-red-50 text-red-500' 
-                              : 'bg-white/80 text-gray-400 hover:text-red-500'
+                              : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'
                           }`}
                         >
-                          {togglingId === hotel.id ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                          ) : (
-                            <Heart className={`h-5 w-5 ${wishlistIds.has(hotel.id) ? 'fill-current' : ''}`} />
-                          )}
+                          <Heart className={`h-4 w-4 sm:h-5 sm:w-5 ${wishlistIds.has(hotel.id) ? 'fill-current' : ''}`} />
                         </button>
-                      </div>
-                      <div className="p-4">
-                        <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">{hotel.name}</h3>
-                        <div className="flex items-center mt-1 text-gray-600 text-sm">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {hotel.city}
-                        </div>
-                        <div className="flex items-center mt-2">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          <span className="ml-1 text-gray-700 text-sm">{hotel.rating}</span>
-                          <span className="mx-1 text-gray-400">|</span>
-                          <span className="text-gray-600 text-sm">{hotel.star_rating} {pageContent?.sections?.hotel_card?.star_rating || "Star"}</span>
-                        </div>
-                        <p className="mt-2 text-primary-600 font-semibold">
-                          ${hotel.price_per_night}{pageContent?.sections?.hotel_card?.per_night || "/night"}
-                        </p>
+                        {/* Featured Badge */}
+                        {hotel.is_featured && (
+                          <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                            Featured
+                          </div>
+                        )}
                       </div>
                     </Link>
+                    <div className="p-3 sm:p-4">
+                      <div className="flex items-center text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        {hotel.city}
+                      </div>
+                      <h3 className="text-sm sm:text-lg font-bold text-gray-900 group-hover:text-primary-600 transition mb-2 sm:mb-3 line-clamp-2">
+                        {hotel.name}
+                      </h3>
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <div className="flex items-center">
+                          <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-400 fill-current mr-1" />
+                          <span className="text-xs sm:text-sm font-semibold">{hotel.rating || '4.5'}</span>
+                        </div>
+                        <span className="text-xs sm:text-sm text-gray-500">{hotel.star_rating} Star</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-lg sm:text-2xl font-bold text-primary-600">${hotel.price_per_night}</span>
+                          <span className="text-xs sm:text-sm text-gray-500">/night</span>
+                        </div>
+                        <Link
+                          to={`/hotels/${hotel.slug}`}
+                          className="bg-primary-600 text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium hover:bg-primary-700 transition"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -166,4 +166,46 @@ class BookingController extends Controller
             'message' => $isAvailable ? 'Available for booking.' : 'Not available for the selected dates/times.',
         ]);
     }
+
+    public function getCalendarData(Request $request): JsonResponse
+    {
+        $request->validate([
+            'hotel_id' => 'required|integer|exists:hotels,id',
+            'room_id' => 'nullable|integer|exists:rooms,id',
+            'year' => 'required|integer|min:2020|max:2030',
+            'month' => 'required|integer|min:1|max:12',
+        ]);
+
+        $hotelId = $request->hotel_id;
+        $roomId = $request->room_id;
+        $year = $request->year;
+        $month = $request->month;
+
+        // Get all bookings for the hotel (and specific room if provided)
+        $query = Booking::where('bookable_type', Hotel::class)
+            ->where('bookable_id', $hotelId)
+            ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
+            ->whereYear('check_in_date', $year)
+            ->whereMonth('check_in_date', $month);
+
+        if ($roomId) {
+            $query->where('room_id', $roomId);
+        }
+
+        $bookings = $query->with('room')->get();
+
+        // Format bookings for calendar
+        $calendarData = $bookings->map(function ($booking) {
+            return [
+                'id' => $booking->id,
+                'check_in_date' => $booking->check_in_date,
+                'check_out_date' => $booking->check_out_date,
+                'status' => $booking->status,
+                'room_type' => $booking->room ? $booking->room->room_type : null,
+                'guests' => $booking->guests,
+            ];
+        });
+
+        return response()->json($calendarData);
+    }
 }

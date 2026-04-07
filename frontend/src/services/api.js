@@ -65,9 +65,10 @@ export const bookingsAPI = {
   getAll: () => api.get('/bookings'),
   getById: (id) => api.get(`/bookings/${id}`),
   create: (data) => api.post('/bookings', data),
+  delete: (id) => api.delete(`/bookings/${id}`),
   cancel: (id, reason) => api.post(`/bookings/${id}/cancel`, { cancellation_reason: reason }),
   checkAvailability: (data) => api.post('/bookings/check-availability', data),
-  getCalendarData: (hotelId, roomId, year, month) => api.get('/admin/bookings/calendar/data', {
+  getCalendarData: (hotelId, roomId, year, month) => api.get('/bookings/calendar', {
     params: { hotel_id: hotelId, room_id: roomId, year, month }
   }),
 };
@@ -171,6 +172,7 @@ export const adminAPI = {
   getBooking: (id) => api.get(`/admin/bookings/${id}`),
   updateBookingStatus: (id, status) => api.post(`/admin/bookings/${id}/status`, { status }),
   confirmBooking: (id) => api.post(`/admin/bookings/${id}/confirm`),
+  deleteBooking: (id) => api.delete(`/admin/bookings/${id}`),
   processRefund: (id, data) => api.post(`/admin/bookings/${id}/refund`, data),
 
   // Reviews

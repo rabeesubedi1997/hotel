@@ -70,12 +70,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
-    // Bookings
+    // Bookings - Fixed route order for calendar endpoint
     Route::get('/bookings', [BookingController::class, 'index']);
     Route::post('/bookings', [BookingController::class, 'store']);
+    Route::get('/bookings/calendar', [BookingController::class, 'getCalendarData']);
+    Route::post('/bookings/check-availability', [BookingController::class, 'checkAvailability']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
-    Route::post('/bookings/check-availability', [BookingController::class, 'checkAvailability']);
 
     // Payments
     Route::get('/payments/methods', [PaymentController::class, 'methods']);
@@ -224,8 +225,8 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/tour-guides/seed-defaults', [TourGuideSeederController::class, 'seedDefaultGuides']);
 
     // Room Management
-    Route::get('/hotels/{hotel}/rooms', [AdminHotelController::class, 'getRooms']);
-    Route::post('/hotels/{hotel}/rooms', [AdminHotelController::class, 'storeRoom']);
+    Route::get('/hotels/{hotelId}/rooms', [AdminHotelController::class, 'getRooms']);
+    Route::post('/hotels/{hotelId}/rooms', [AdminHotelController::class, 'storeRoom']);
     Route::put('/rooms/{room}', [AdminHotelController::class, 'updateRoom']);
     Route::delete('/rooms/{room}', [AdminHotelController::class, 'destroyRoom']);
 });

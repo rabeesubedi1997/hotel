@@ -15,28 +15,69 @@ const Home = () => {
   // Banner slider state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [bannerItems, setBannerItems] = useState([]);
+  
+  // Cache for API responses
+  const [apiCache, setApiCache] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [hotelsRes, activitiesRes, bannerHotelsRes, bannerActivitiesRes, pageRes] = await Promise.all([
-          hotelsAPI.getFeatured(),
-          activitiesAPI.getFeatured(),
-          hotelsAPI.getBannerItems().catch(() => ({ data: [] })),
-          activitiesAPI.getBannerItems().catch(() => ({ data: [] })),
-          publicAPI.getPage('home').catch(() => ({ data: null })),
-        ]);
-        setFeaturedHotels(hotelsRes.data || []);
-        setFeaturedActivities(activitiesRes.data || []);
-        setPageContent(pageRes.data);
+        // Check cache first
+        if (apiCache.featuredHotels && apiCache.featuredActivities) {
+          setFeaturedHotels(apiCache.featuredHotels);
+          setFeaturedActivities(apiCache.featuredActivities);
+          console.log('Using cached data for featured items');
+        } else {
+          // Load critical data first, then non-critical data
+          const [hotelsRes, activitiesRes] = await Promise.all([
+            hotelsAPI.getFeatured(),
+            activitiesAPI.getFeatured(),
+          ]);
+          
+          setFeaturedHotels(hotelsRes.data || []);
+          setFeaturedActivities(activitiesRes.data || []);
+          
+          // Cache the results
+          setApiCache(prev => ({
+            ...prev,
+            featuredHotels: hotelsRes.data || [],
+            featuredActivities: activitiesRes.data || []
+          }));
+          
+          console.log('Fetched and cached featured items');
+        }
         
-        // Combine banner items from both hotels and activities, sorted by banner_order
-        const bannerHotels = (bannerHotelsRes.data || []).map(h => ({ ...h, item_type: 'hotel' }));
-        const bannerActivities = (bannerActivitiesRes.data || []).map(a => ({ ...a, item_type: 'activity' }));
-        const combined = [...bannerHotels, ...bannerActivities]
-          .sort((a, b) => (a.banner_order || 0) - (b.banner_order || 0))
-          .slice(0, 5);
-        setBannerItems(combined);
+        // Load banner data in parallel (with fallbacks)
+        if (apiCache.bannerItems && apiCache.pageContent) {
+          setBannerItems(apiCache.bannerItems);
+          setPageContent(apiCache.pageContent);
+          console.log('Using cached data for banner and page content');
+        } else {
+          const [bannerHotelsRes, bannerActivitiesRes, pageRes] = await Promise.all([
+            hotelsAPI.getBannerItems().catch(() => ({ data: [] })),
+            activitiesAPI.getBannerItems().catch(() => ({ data: [] })),
+            publicAPI.getPage('home').catch(() => ({ data: null })),
+          ]);
+          
+          setPageContent(pageRes.data);
+          
+          // Combine banner items from both hotels and activities, sorted by banner_order
+          const bannerHotels = (bannerHotelsRes.data || []).map(h => ({ ...h, item_type: 'hotel' }));
+          const bannerActivities = (bannerActivitiesRes.data || []).map(a => ({ ...a, item_type: 'activity' }));
+          const combined = [...bannerHotels, ...bannerActivities]
+            .sort((a, b) => (a.banner_order || 0) - (b.banner_order || 0))
+            .slice(0, 5);
+          setBannerItems(combined);
+          
+          // Cache the results
+          setApiCache(prev => ({
+            ...prev,
+            bannerItems: combined,
+            pageContent: pageRes.data
+          }));
+          
+          console.log('Fetched and cached banner items');
+        }
       } catch (error) {
         console.error('Error fetching featured items:', error);
       } finally {

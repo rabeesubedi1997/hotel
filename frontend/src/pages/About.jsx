@@ -24,6 +24,7 @@ const About = () => {
         publicAPI.getTourGuides().catch(() => ({ data: [] }))
       ]);
       setAbout(pageRes.data?.sections || pageRes.data);
+      setPageContent(pageRes.data);
       // Only take first 3 guides for the team preview
       setTourGuides((guidesRes.data || []).slice(0, 3));
     } catch (err) {

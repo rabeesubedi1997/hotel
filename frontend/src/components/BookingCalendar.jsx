@@ -16,10 +16,18 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
     try {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
+      console.log('Fetching calendar data for:', { hotelId, roomId, year, month });
+      console.log('API URL:', `/bookings/calendar?hotel_id=${hotelId}&room_id=${roomId}&year=${year}&month=${month}`);
       const response = await bookingsAPI.getCalendarData(hotelId, roomId, year, month);
+      console.log('Calendar data received:', response.data);
+      console.log('Response status:', response.status);
       setBookings(response.data || []);
     } catch (error) {
       console.error('Error fetching calendar data:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
+      setBookings([]);
     } finally {
       setLoading(false);
     }
@@ -38,12 +46,21 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
 
   const isDateBooked = (day) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const targetDate = new Date(dateStr);
+    
     return bookings.some(booking => {
       const checkIn = new Date(booking.check_in_date);
       const checkOut = new Date(booking.check_out_date);
-      const targetDate = new Date(dateStr);
       return targetDate >= checkIn && targetDate < checkOut;
     });
+  };
+
+  const isPastDate = (day) => {
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const targetDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return targetDate < today;
   };
 
   const navigateMonth = (direction) => {
@@ -98,7 +115,7 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
       ) : (
         <>
           {/* Legend */}
-          <div className="flex items-center space-x-4 mb-4 text-sm">
+          <div className="flex items-center space-x-4 mb-4 text-sm flex-wrap">
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
               <span className="text-gray-600">Available</span>
@@ -106,6 +123,10 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
               <span className="text-gray-600">Booked</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
+              <span className="text-gray-600">Past Date</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
@@ -131,15 +152,18 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
               const day = index + 1;
               const booked = isDateBooked(day);
               const isCurrentDay = isToday(day);
+              const past = isPastDate(day);
               
               return (
                 <div
                   key={day}
                   className={`
                     h-10 flex items-center justify-center text-sm rounded-lg border
-                    ${booked 
-                      ? 'bg-red-50 border-red-200 text-red-700' 
-                      : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                    ${past 
+                      ? 'bg-gray-50 border-gray-200 text-gray-400' 
+                      : booked 
+                        ? 'bg-red-50 border-red-200 text-red-700' 
+                        : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
                     }
                     ${isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50 border-blue-300' : ''}
                   `}

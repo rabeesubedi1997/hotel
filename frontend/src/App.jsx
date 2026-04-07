@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useEffect } from 'react';
 import useAuthStore from './stores/authStore';
 import useSiteSettingsStore from './stores/siteSettingsStore';
+import { ToastProvider } from './contexts/ToastContext';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
@@ -115,50 +116,52 @@ const AdminRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<MaintenanceRoute><MainLayout /></MaintenanceRoute>}>
-          <Route index element={<Home />} />
-          <Route path="hotels" element={<Hotels />} />
-          <Route path="hotels/:slug" element={<HotelDetails />} />
-          <Route path="activities" element={<Activities />} />
-          <Route path="activities/:slug" element={<ActivityDetails />} />
-          <Route path="about" element={<About />} />
-          <Route path="tour-guides" element={<TourGuides />} />
-          <Route path="tour-guides/:slug" element={<TourGuideDetail />} />
-          <Route path="quote" element={<GetQuote />} />
-          <Route path="contact" element={<ContactEnquiry />} />
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
+    <ToastProvider>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<MaintenanceRoute><MainLayout /></MaintenanceRoute>}>
+            <Route index element={<Home />} />
+            <Route path="hotels" element={<Hotels />} />
+            <Route path="hotels/:slug" element={<HotelDetails />} />
+            <Route path="activities" element={<Activities />} />
+            <Route path="activities/:slug" element={<ActivityDetails />} />
+            <Route path="about" element={<About />} />
+            <Route path="tour-guides" element={<TourGuides />} />
+            <Route path="tour-guides/:slug" element={<TourGuideDetail />} />
+            <Route path="quote" element={<GetQuote />} />
+            <Route path="contact" element={<ContactEnquiry />} />
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
 
-          {/* Protected Routes */}
-          <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
-          <Route path="bookings/:id" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
-          <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-          <Route path="wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-        </Route>
+            {/* Protected Routes */}
+            <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
+            <Route path="bookings/:id" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
+            <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+            <Route path="wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
+          </Route>
 
-        {/* Admin Routes */}
-        <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="hotels" element={<AdminHotels />} />
-          <Route path="activities" element={<AdminActivities />} />
-          <Route path="bookings" element={<AdminBookings />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="reviews" element={<AdminReviews />} />
-          <Route path="banner" element={<AdminBanner />} />
-          <Route path="seo" element={<AdminSEO />} />
-          <Route path="settings" element={<AdminSiteSettings />} />
-          <Route path="about" element={<AdminAbout />} />
-          <Route path="media-library" element={<AdminMediaLibrary />} />
-          <Route path="tour-guides" element={<AdminTourGuides />} />
-          <Route path="enquiries" element={<AdminEnquiries />} />
-          <Route path="pages" element={<PagesManagement />} />
-        </Route>
-      </Routes>
-    </Router>
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="hotels" element={<AdminHotels />} />
+            <Route path="activities" element={<AdminActivities />} />
+            <Route path="bookings" element={<AdminBookings />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="reviews" element={<AdminReviews />} />
+            <Route path="banner" element={<AdminBanner />} />
+            <Route path="seo" element={<AdminSEO />} />
+            <Route path="settings" element={<AdminSiteSettings />} />
+            <Route path="about" element={<AdminAbout />} />
+            <Route path="media-library" element={<AdminMediaLibrary />} />
+            <Route path="tour-guides" element={<AdminTourGuides />} />
+            <Route path="enquiries" element={<AdminEnquiries />} />
+            <Route path="pages" element={<PagesManagement />} />
+          </Route>
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 }
 
