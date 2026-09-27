@@ -3,14 +3,20 @@ import { useEffect, useState } from 'react';
 import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, Map, ScrollText, MessageSquare, Megaphone, Tag, DollarSign, Award, X } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
+import useSiteSettingsStore from '../stores/siteSettingsStore';
 import NotificationBell from '../components/NotificationBell';
 
 const AdminLayout = () => {
   const { user, logout, isAuthenticated } = useAuthStore();
   const { fetchUnreadCount, subscribe, unsubscribe } = useNotificationStore();
+  const { fetchSettings, getSiteName } = useSiteSettingsStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   // Redirect to login if not authenticated or not admin/manager/super_admin/vendor
   useEffect(() => {
@@ -95,7 +101,7 @@ const AdminLayout = () => {
         <div className="p-6 shrink-0">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-2">
-              <span className="font-display text-xl font-bold">ReserveNow Admin</span>
+              <span className="font-display text-xl font-bold">{getSiteName()} Admin</span>
             </Link>
             <button
               onClick={() => setMobileMenuOpen(false)}

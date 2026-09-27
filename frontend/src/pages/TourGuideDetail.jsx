@@ -21,9 +21,11 @@ import useChatStore from '../stores/chatStore';
 import { useToast } from '../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Card, Badge, RatingStars, Container } from '../components/ui';
 import AddToTripButton from '../components/AddToTripButton';
+import useSiteSettingsStore from '../stores/siteSettingsStore';
 
 const TourGuideDetail = () => {
   const { slug } = useParams();
+  const siteName = useSiteSettingsStore((s) => s.getSiteName());
   const navigate = useNavigate();
   const [guide, setGuide] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,7 @@ const TourGuideDetail = () => {
   return (
     <div className="min-h-screen bg-neutral-50">
       <SEO
-        title={`${guide.name} - Tour Guide - ReserveNow`}
+        title={`${guide.name} - Tour Guide - ${siteName}`}
         description={`${guide.bio?.substring(0, 160) || `Professional tour guide with ${guide.trips_completed}+ trips completed`}`}
       />
 

@@ -7,8 +7,10 @@ import { Card, Badge, RatingStars, Container } from '../components/ui';
 import AddToTripButton from '../components/AddToTripButton';
 import DestinationShortcuts from '../components/DestinationShortcuts';
 import TrustStrip from '../components/TrustStrip';
+import useSiteSettingsStore from '../stores/siteSettingsStore';
 
 const TourGuides = () => {
+  const siteName = useSiteSettingsStore((s) => s.getSiteName());
   const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pageContent, setPageContent] = useState(null);
@@ -70,7 +72,7 @@ const TourGuides = () => {
   return (
     <div className="min-h-screen bg-neutral-50">
       <SEO
-        title={pageContent?.title || "Expert Tour Guides - ReserveNow"}
+        title={pageContent?.title || `Expert Tour Guides - ${siteName}`}
         description={pageContent?.meta_description || "Meet our professional tour guides with years of experience"}
       />
 
