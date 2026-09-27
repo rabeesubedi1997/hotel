@@ -32,6 +32,15 @@ const AdminVendors = () => {
   const [linkSearch, setLinkSearch] = useState('');
   const [linkingId, setLinkingId] = useState(null);
 
+  // Same optional assignment, but offered right inside the Add/Edit Vendor
+  // form itself — a checklist of existing hotels/activities to hand to
+  // this vendor at creation time, or reconcile on edit.
+  const [assignableHotels, setAssignableHotels] = useState([]);
+  const [assignableActivities, setAssignableActivities] = useState([]);
+  const [selectedHotelIds, setSelectedHotelIds] = useState([]);
+  const [selectedActivityIds, setSelectedActivityIds] = useState([]);
+  const [assignListsLoading, setAssignListsLoading] = useState(false);
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard!');
@@ -52,14 +61,75 @@ const AdminVendors = () => {
     }
   };
 
+  // Fetches the full hotel/activity lists to check against for the Add/Edit
+  // Vendor form's assignment checklist, and (when editing) pre-checks the
+  // ones this vendor already owns.
+  const loadAssignableListings = async (forVendorId = null) => {
+    setAssignListsLoading(true);
+    try {
+      const [hotelsRes, activitiesRes] = await Promise.all([
+        adminAPI.getHotels({ per_page: 100 }),
+        adminAPI.getActivities({ per_page: 100 }),
+      ]);
+      const hotels = hotelsRes.data.data || [];
+      const activities = activitiesRes.data.data || [];
+      setAssignableHotels(hotels);
+      setAssignableActivities(activities);
+      setSelectedHotelIds(forVendorId ? hotels.filter((h) => h.user_id === forVendorId).map((h) => h.id) : []);
+      setSelectedActivityIds(forVendorId ? activities.filter((a) => a.user_id === forVendorId).map((a) => a.id) : []);
+    } catch (error) {
+      console.error('Failed to fetch assignable listings:', error);
+    } finally {
+      setAssignListsLoading(false);
+    }
+  };
+
+  const handleAddVendorClick = () => {
+    setEditingVendor(null);
+    setFormData({ name: '', email: '', phone: '', address: '', company_name: '' });
+    setShowAddForm(true);
+    loadAssignableListings(null);
+  };
+
+  const toggleSelected = (list, setList, id) => {
+    setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  };
+
+  // Reconciles the checklist against each listing's current owner: newly
+  // checked ones get linked to the vendor, newly unchecked ones (that were
+  // owned by this vendor) get unlinked. Runs after the vendor itself is
+  // created/updated, since a brand-new vendor's id isn't known until then.
+  const reconcileAssignments = async (vendorId) => {
+    const hotelJobs = assignableHotels
+      .filter((h) => {
+        const shouldOwn = selectedHotelIds.includes(h.id);
+        const currentlyOwns = h.user_id === vendorId;
+        return shouldOwn !== currentlyOwns;
+      })
+      .map((h) => adminAPI.updateHotel(h.id, { user_id: selectedHotelIds.includes(h.id) ? vendorId : null }));
+
+    const activityJobs = assignableActivities
+      .filter((a) => {
+        const shouldOwn = selectedActivityIds.includes(a.id);
+        const currentlyOwns = a.user_id === vendorId;
+        return shouldOwn !== currentlyOwns;
+      })
+      .map((a) => adminAPI.updateActivity(a.id, { user_id: selectedActivityIds.includes(a.id) ? vendorId : null }));
+
+    await Promise.all([...hotelJobs, ...activityJobs]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let vendorId;
       if (editingVendor) {
         await adminAPI.updateVendor(editingVendor.id, formData);
+        vendorId = editingVendor.id;
         toast.success('Vendor updated successfully!');
       } else {
         const response = await adminAPI.createVendor(formData);
+        vendorId = response.data.vendor.id;
 
         // Store credentials for display
         const credentials = {
@@ -74,7 +144,13 @@ const AdminVendors = () => {
         toast.success('Vendor created successfully! Credentials displayed below.');
       }
 
+      if (selectedHotelIds.length > 0 || selectedActivityIds.length > 0 || editingVendor) {
+        await reconcileAssignments(vendorId);
+      }
+
       setFormData({ name: '', email: '', phone: '', address: '', company_name: '' });
+      setSelectedHotelIds([]);
+      setSelectedActivityIds([]);
       setShowAddForm(false);
       setEditingVendor(null);
       fetchVendors();
@@ -94,6 +170,7 @@ const AdminVendors = () => {
       company_name: vendor.company_name || '',
     });
     setShowAddForm(true);
+    loadAssignableListings(vendor.id);
   };
 
   const handleDelete = async (vendorId) => {
@@ -250,7 +327,7 @@ const AdminVendors = () => {
           <h2 className="font-display text-2xl font-bold text-neutral-900">Vendor Management</h2>
           <p className="text-neutral-500 text-sm mt-1">Manage vendor accounts and permissions</p>
         </div>
-        <Button onClick={() => setShowAddForm(true)}>
+        <Button onClick={handleAddVendorClick}>
           <Plus className="h-5 w-5 mr-2" />
           Add Vendor
         </Button>
@@ -263,9 +340,11 @@ const AdminVendors = () => {
           setShowAddForm(false);
           setEditingVendor(null);
           setFormData({ name: '', email: '', phone: '', address: '', company_name: '' });
+          setSelectedHotelIds([]);
+          setSelectedActivityIds([]);
         }}
         title={editingVendor ? 'Edit Vendor' : 'Add New Vendor'}
-        size="md"
+        size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -300,6 +379,72 @@ const AdminVendors = () => {
             value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           />
+
+          {/* Assigning existing hotels/activities is entirely optional —
+              a vendor can be created with none, and this list can be left
+              untouched on edit too. */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+              Assign Hotels (optional)
+            </label>
+            {assignListsLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary-600" /></div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto border border-neutral-200 rounded-xl divide-y divide-neutral-100">
+                {assignableHotels.length === 0 ? (
+                  <p className="text-sm text-neutral-500 p-3">No hotels exist yet.</p>
+                ) : (
+                  assignableHotels.map((hotel) => (
+                    <label key={hotel.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-neutral-50">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedHotelIds.includes(hotel.id)}
+                          onChange={() => toggleSelected(selectedHotelIds, setSelectedHotelIds, hotel.id)}
+                        />
+                        {hotel.name}
+                      </span>
+                      {hotel.user_id && hotel.user_id !== editingVendor?.id && (
+                        <span className="text-xs text-amber-600">owned by {hotel.user?.company_name || hotel.user?.name}</span>
+                      )}
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+              Assign Activities (optional)
+            </label>
+            {assignListsLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary-600" /></div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto border border-neutral-200 rounded-xl divide-y divide-neutral-100">
+                {assignableActivities.length === 0 ? (
+                  <p className="text-sm text-neutral-500 p-3">No activities exist yet.</p>
+                ) : (
+                  assignableActivities.map((activity) => (
+                    <label key={activity.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-neutral-50">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedActivityIds.includes(activity.id)}
+                          onChange={() => toggleSelected(selectedActivityIds, setSelectedActivityIds, activity.id)}
+                        />
+                        {activity.name}
+                      </span>
+                      {activity.user_id && activity.user_id !== editingVendor?.id && (
+                        <span className="text-xs text-amber-600">owned by {activity.user?.company_name || activity.user?.name}</span>
+                      )}
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end space-x-3 pt-2">
             <Button
               type="button"
@@ -308,6 +453,8 @@ const AdminVendors = () => {
                 setShowAddForm(false);
                 setEditingVendor(null);
                 setFormData({ name: '', email: '', phone: '', address: '', company_name: '' });
+                setSelectedHotelIds([]);
+                setSelectedActivityIds([]);
               }}
             >
               Cancel
