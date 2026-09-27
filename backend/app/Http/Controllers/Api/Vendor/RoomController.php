@@ -10,6 +10,24 @@ use App\Models\Hotel;
 
 class RoomController extends Controller
 {
+    /**
+     * Room management is an operational feature, not basic listing info —
+     * a vendor can still edit the hotel's own profile while pending (to
+     * fix a rejected submission), but room-level management stays locked
+     * until an admin has actually verified the hotel. Admins themselves
+     * are never blocked, since they're the ones doing the verifying.
+     */
+    private function blockIfUnapproved($user, Hotel $hotel): ?JsonResponse
+    {
+        if ($user->isAdminLevel() || $hotel->approval_status === Hotel::APPROVAL_STATUS_APPROVED) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'This hotel must be verified by an admin before you can manage its rooms.',
+        ], 403);
+    }
+
     public function index($hotelId)
     {
         $user = auth()->user();
@@ -41,6 +59,10 @@ class RoomController extends Controller
             // Vendors can only access their own hotels
             $hotel = Hotel::where('user_id', $user->id)
                 ->findOrFail($hotelId);
+        }
+
+        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+            return $blocked;
         }
 
         $validated = $request->validate([
@@ -77,6 +99,9 @@ class RoomController extends Controller
         if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+            return $blocked;
+        }
 
         $validated = $request->validate([
             'room_type' => 'sometimes|string|max:255',
@@ -108,6 +133,9 @@ class RoomController extends Controller
         // Ensure user can only delete their own rooms (admin can access all)
         if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+            return $blocked;
         }
 
         $room->delete();

@@ -393,8 +393,13 @@ const VendorHotels = () => {
           </div>
         ) : (
           <div className="space-y-4">
+            {roomsModalHotel && roomsModalHotel.approval_status !== 'approved' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                This hotel is pending admin verification — room management unlocks once it's approved. You can still view existing rooms below.
+              </div>
+            )}
             <div className="flex justify-end">
-              <Button size="sm" onClick={openAddRoomForm}>
+              <Button size="sm" onClick={openAddRoomForm} disabled={roomsModalHotel?.approval_status !== 'approved'}>
                 <Plus className="h-4 w-4" />
                 Add Room Type
               </Button>
@@ -434,10 +439,20 @@ const VendorHotels = () => {
                       </Td>
                       <Td className="text-right">
                         <div className="flex items-center justify-end space-x-2">
-                          <button onClick={() => openEditRoomForm(room)} className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50" title="Edit">
+                          <button
+                            onClick={() => openEditRoomForm(room)}
+                            disabled={roomsModalHotel?.approval_status !== 'approved'}
+                            className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Edit"
+                          >
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button onClick={() => handleRoomDelete(room.id)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50" title="Delete">
+                          <button
+                            onClick={() => handleRoomDelete(room.id)}
+                            disabled={roomsModalHotel?.approval_status !== 'approved'}
+                            className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Delete"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
