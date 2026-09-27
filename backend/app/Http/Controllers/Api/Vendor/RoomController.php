@@ -53,7 +53,7 @@ class RoomController extends Controller
             'bed_count' => 'nullable|integer|min:1',
             'bed_type' => 'required|string|max:255',
             'amenities' => 'nullable|array',
-            'status' => 'required|in:available,occupied,maintenance',
+            'status' => 'required|in:available,occupied,maintenance,cleaning',
         ]);
 
         $validated['hotel_id'] = $hotelId;
@@ -88,7 +88,7 @@ class RoomController extends Controller
             'bed_count' => 'sometimes|integer|min:1',
             'bed_type' => 'sometimes|string|max:255',
             'amenities' => 'sometimes|array',
-            'status' => 'sometimes|in:available,occupied,maintenance',
+            'status' => 'sometimes|in:available,occupied,maintenance,cleaning',
         ]);
 
         $room->update($validated);
