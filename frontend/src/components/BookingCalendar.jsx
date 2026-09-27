@@ -45,6 +45,11 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
   };
 
   const isDateBooked = (day) => {
+    // If no room is selected, don't show any dates as booked
+    if (!roomId) {
+      return false;
+    }
+    
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const targetDate = new Date(dateStr);
     

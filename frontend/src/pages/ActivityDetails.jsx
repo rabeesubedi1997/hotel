@@ -1,21 +1,59 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Heart, Loader2, Clock, Users, AlertTriangle, Check, Shield, Star, Send } from 'lucide-react';
+import {
+  MapPin,
+  Loader2,
+  Clock,
+  Users,
+  AlertTriangle,
+  Check,
+  Shield,
+  Send,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  X,
+  MessageSquare,
+  Compass,
+  BarChart3,
+  Lock,
+  ShieldCheck,
+} from 'lucide-react';
 import { activitiesAPI, wishlistsAPI, reviewsAPI } from '../services/api';
 import useAuthStore from '../stores/authStore';
+import useChatStore from '../stores/chatStore';
+import { useToast } from '../contexts/ToastContext';
 import { getActivityImage } from '../utils/images';
 import ExternalRatings from '../components/ExternalRatings';
 import SEO, { generateActivityJsonLd } from '../components/SEO';
+import { Button, Textarea, Select, Card, Badge, RatingStars, Container, WishlistButton } from '../components/ui';
+import AddToTripButton from '../components/AddToTripButton';
+import useCurrencyStore from '../stores/currencyStore';
+
+const DIFFICULTY_TONE = {
+  easy: 'success',
+  moderate: 'warning',
+  challenging: 'accent',
+  extreme: 'danger',
+};
 
 const ActivityDetails = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
+  const formatPrice = useCurrencyStore((s) => s.formatPrice);
+  const { startConversation } = useChatStore();
+  const toast = useToast();
   const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [messagingHost, setMessagingHost] = useState(false);
+
+  // Photo gallery lightbox state
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     fetchActivity();
@@ -92,13 +130,25 @@ const ActivityDetails = () => {
     }
   };
 
-  const getDifficultyColor = (level) => {
-    switch (level) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'moderate': return 'bg-yellow-100 text-yellow-800';
-      case 'challenging': return 'bg-orange-100 text-orange-800';
-      case 'extreme': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const handleMessageHost = async () => {
+    if (!isAuthenticated) {
+      toast.info('Please log in to message the host.');
+      navigate('/login');
+      return;
+    }
+    setMessagingHost(true);
+    const result = await startConversation({
+      type: 'vendor_inquiry',
+      vendor_id: activity.user.id,
+      subject_type: 'activity',
+      subject_id: activity.id,
+      message: "Hi, I'm interested in this listing.",
+    });
+    setMessagingHost(false);
+    if (result.success) {
+      navigate(`/messages/${result.conversation.id}`);
+    } else {
+      toast.error(result.error);
     }
   };
 
@@ -112,18 +162,32 @@ const ActivityDetails = () => {
 
   if (!activity) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Activity not found</h2>
+      <Container className="py-8 text-center">
+        <h2 className="text-2xl font-bold text-neutral-900">Activity not found</h2>
         <Link to="/activities" className="text-primary-600 mt-4 inline-block">
           Browse other activities
         </Link>
-      </div>
+      </Container>
     );
   }
 
+  // Gallery images: activity.images array, falling back to the type stock photo
+  const galleryImages = activity.images && activity.images.length > 0
+    ? activity.images
+    : [activity.featured_image || getActivityImage(activity.type)];
+  const mainImage = galleryImages[0];
+  const thumbnailImages = galleryImages.slice(1, 5);
+
+  const openGallery = (index = 0) => {
+    setActiveImage(index);
+    setGalleryOpen(true);
+  };
+  const showNextImage = () => setActiveImage((i) => (i + 1) % galleryImages.length);
+  const showPrevImage = () => setActiveImage((i) => (i - 1 + galleryImages.length) % galleryImages.length);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SEO 
+    <div>
+      <SEO
         title={activity.name}
         description={activity.description?.substring(0, 160) || `Book ${activity.name} in ${activity.location}, Nepal. ${activity.type} activity with ${activity.difficulty_level} difficulty level.`}
         keywords={`${activity.name}, ${activity.type} Nepal, ${activity.location} activities, adventure Nepal, ${activity.difficulty_level} trekking`}
@@ -132,102 +196,217 @@ const ActivityDetails = () => {
         canonical={`/activities/${activity.slug}`}
         jsonLd={generateActivityJsonLd(activity)}
       />
-      {/* Breadcrumb */}
-      <nav className="flex items-center text-sm text-gray-500 mb-6">
-        <Link to="/" className="hover:text-gray-700">Home</Link>
-        <span className="mx-2">/</span>
-        <Link to="/activities" className="hover:text-gray-700">Activities</Link>
-        <span className="mx-2">/</span>
-        <span className="text-gray-900">{activity.name}</span>
-      </nav>
 
-      {/* Activity Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <div className="flex-1">
-          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-2 ${getDifficultyColor(activity.difficulty_level)}`}>
-            {activity.difficulty_level}
-          </span>
-          <h1 className="text-3xl font-bold text-gray-900">{activity.name}</h1>
-          <div className="flex items-center mt-2 text-gray-600">
-            <MapPin className="h-5 w-5 mr-1" />
-            {activity.location}, {activity.city}
-            <ExternalRatings
-              googleRating={activity.google_rating}
-              googleCount={activity.google_review_count}
-              tripadvisorRating={activity.tripadvisor_rating}
-              tripadvisorCount={activity.tripadvisor_review_count}
+      {/* Atmospheric hero — breadcrumb, badges, title, and a real metrics
+          bar (duration/difficulty/group size/type), no fabricated data. */}
+      <div className="relative bg-neutral-900 overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity"
+          style={{ backgroundImage: `url(${activity.featured_image || getActivityImage(activity.type)})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/70 to-transparent" />
+        <Container className="relative pt-8 pb-10 sm:pt-12 sm:pb-14">
+          <nav className="flex items-center text-sm text-neutral-300 mb-6">
+            <Link to="/" className="hover:text-white">Home</Link>
+            <span className="mx-2">/</span>
+            <Link to="/activities" className="hover:text-white">Activities</Link>
+            <span className="mx-2">/</span>
+            <span className="text-white">{activity.name}</span>
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Badge tone={DIFFICULTY_TONE[activity.difficulty_level] || 'neutral'} className="capitalize">
+              {activity.difficulty_level}
+            </Badge>
+            <Badge tone="info" className="uppercase">{activity.type}</Badge>
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="max-w-2xl">
+              <h1 className="font-display text-3xl sm:text-4xl font-bold text-white">{activity.name}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-3 text-neutral-200">
+                <span className="flex items-center">
+                  <MapPin className="h-5 w-5 mr-1" />
+                  {activity.location}, {activity.city}
+                </span>
+                <ExternalRatings
+                  googleRating={activity.google_rating}
+                  googleCount={activity.google_review_count}
+                  tripadvisorRating={activity.tripadvisor_rating}
+                  tripadvisorCount={activity.tripadvisor_review_count}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {activity.rating > 0 && (
+                <div className="flex items-center bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl">
+                  <RatingStars rating={activity.rating} reviewCount={activity.reviews?.length} size="md" />
+                </div>
+              )}
+              <WishlistButton active={inWishlist} onClick={toggleWishlist} />
+              <AddToTripButton
+                variant="button"
+                bookableType="activity"
+                bookableId={activity.id}
+                bookableName={activity.name}
+              />
+            </div>
+          </div>
+
+          {/* Key metrics bar */}
+          <div className="mt-8 p-5 sm:p-6 rounded-2xl bg-white/10 backdrop-blur-md grid grid-cols-2 sm:grid-cols-4 gap-6 text-white">
+            <div className="flex flex-col gap-1">
+              <span className="font-label-caps text-label-caps text-primary-300 uppercase tracking-wider">Duration</span>
+              <span className="font-headline-sm text-headline-sm font-semibold flex items-center gap-1.5"><Clock className="h-4 w-4" />{activity.duration}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-label-caps text-label-caps text-primary-300 uppercase tracking-wider">Difficulty</span>
+              <span className="font-headline-sm text-headline-sm font-semibold flex items-center gap-1.5 capitalize"><BarChart3 className="h-4 w-4" />{activity.difficulty_level}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-label-caps text-label-caps text-primary-300 uppercase tracking-wider">Group Size</span>
+              <span className="font-headline-sm text-headline-sm font-semibold flex items-center gap-1.5"><Users className="h-4 w-4" />Max {activity.max_participants}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-label-caps text-label-caps text-primary-300 uppercase tracking-wider">Category</span>
+              <span className="font-headline-sm text-headline-sm font-semibold flex items-center gap-1.5 capitalize"><Compass className="h-4 w-4" />{activity.type?.replace('_', ' ')}</span>
+            </div>
+          </div>
+        </Container>
+      </div>
+
+    <Container className="py-8">
+      {/* Hosted by vendor */}
+      {activity.user && (
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <Link
+            to={`/vendors/${activity.user.slug}`}
+            className="inline-flex items-center gap-3 p-3 bg-white rounded-2xl border border-neutral-100 shadow-card hover:shadow-card-hover transition-all duration-300"
+          >
+            {activity.user.avatar ? (
+              <img
+                src={activity.user.avatar}
+                alt={activity.user.company_name || activity.user.name}
+                className="h-10 w-10 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <span className="h-10 w-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                {(activity.user.company_name || activity.user.name || '?').charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div>
+              <div className="text-xs text-neutral-500">Hosted by</div>
+              <div className="text-sm font-semibold text-neutral-900">{activity.user.company_name || activity.user.name}</div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-neutral-400 ml-1" />
+          </Link>
+          <Button variant="secondary" size="sm" onClick={handleMessageHost} loading={messagingHost}>
+            <MessageSquare className="h-4 w-4" />
+            Message host
+          </Button>
+        </div>
+      )}
+
+      {/* Photo Grid Gallery */}
+      <div className="relative mb-8">
+        <div className="grid grid-cols-4 grid-rows-2 gap-2 rounded-3xl overflow-hidden h-72 md:h-[420px]">
+          <button
+            type="button"
+            onClick={() => openGallery(0)}
+            className={`relative overflow-hidden ${thumbnailImages.length > 0 ? 'col-span-4 md:col-span-2 row-span-2' : 'col-span-4 row-span-2'}`}
+          >
+            <img src={mainImage} alt={activity.name} className="w-full h-full object-cover hover:brightness-95 transition" />
+          </button>
+          {thumbnailImages.map((image, index) => (
+            <button
+              type="button"
+              key={index}
+              onClick={() => openGallery(index + 1)}
+              className="hidden md:block relative overflow-hidden"
+            >
+              <img src={image} alt={`${activity.name} ${index + 1}`} className="w-full h-full object-cover hover:brightness-95 transition" />
+            </button>
+          ))}
+        </div>
+        {galleryImages.length > 1 && (
+          <button
+            type="button"
+            onClick={() => openGallery(0)}
+            className="absolute bottom-4 right-4 inline-flex items-center gap-2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-xl text-sm font-semibold text-neutral-800 shadow-sm hover:bg-white transition"
+          >
+            <ImageIcon className="h-4 w-4" />
+            Show all photos
+          </button>
+        )}
+      </div>
+
+      {/* Fullscreen Gallery Lightbox */}
+      {galleryOpen && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
+          <div className="flex justify-between items-center p-4 text-white">
+            <span className="text-sm">{activeImage + 1} / {galleryImages.length}</span>
+            <button type="button" onClick={() => setGalleryOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center relative px-4 pb-6">
+            <button
+              type="button"
+              onClick={showPrevImage}
+              className="absolute left-2 sm:left-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <img
+              src={galleryImages[activeImage]}
+              alt={`${activity.name} ${activeImage + 1}`}
+              className="max-h-full max-w-full object-contain rounded-lg"
             />
+            <button
+              type="button"
+              onClick={showNextImage}
+              className="absolute right-2 sm:right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row md:items-center items-start mt-4 md:mt-0 space-y-4 md:space-y-0 md:space-x-4">
-          {/* Admin Management Buttons */}
-          {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
-            <div className="flex flex-col sm:flex-row gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <Link
-                to={`/admin/activities/${activity.id}/edit`}
-                className="inline-flex items-center justify-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Edit Activity
-              </Link>
-              <button
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete ${activity.name}?`)) {
-                    // Handle delete functionality
-                    console.log('Delete activity:', activity.id);
-                  }
-                }}
-                className="inline-flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
-              >
-                Delete Activity
-              </button>
-            </div>
-          )}
-          
-          {/* Wishlist Button */}
-          <button
-            onClick={toggleWishlist}
-            className={`p-2 rounded-full ${inWishlist ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-          >
-            <Heart className={`h-6 w-6 ${inWishlist ? 'fill-current' : ''}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Image */}
-      <div className="h-96 rounded-lg overflow-hidden mb-8">
-        <img src={activity.featured_image || getActivityImage(activity.type)} alt={activity.name} className="w-full h-full object-cover" />
-      </div>
+      )}
 
       {/* Activity Info */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">About this Activity</h2>
-            <p className="text-gray-600">{activity.description}</p>
-          </div>
+          <Card hoverLift={false} className="p-6 mb-6">
+            <h2 className="font-display text-2xl font-bold text-neutral-900 mb-4">About this Activity</h2>
+            <p className="text-neutral-600 whitespace-pre-line">{activity.description}</p>
+          </Card>
 
           {/* What's Included */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">What's Included</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {activity.includes?.map((item, index) => (
-                <div key={index} className="flex items-center text-gray-600">
-                  <Check className="h-5 w-5 text-green-500 mr-2" />
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
+          {activity.includes?.length > 0 && (
+            <Card hoverLift={false} className="p-6 mb-6">
+              <h3 className="text-xl font-semibold text-neutral-900 mb-4">What's Included</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {activity.includes.map((item, index) => (
+                  <div key={index} className="p-3.5 rounded-xl bg-neutral-50 flex items-start gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
+                      <Check className="h-4 w-4" />
+                    </span>
+                    <span className="text-sm text-neutral-700 pt-1.5">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Requirements */}
           {activity.requirements && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6">
               <div className="flex items-start">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="text-lg font-semibold text-yellow-800 mb-2">Requirements</h3>
-                  <p className="text-yellow-700">{activity.requirements}</p>
+                  <h3 className="text-lg font-semibold text-amber-800 mb-2">Requirements</h3>
+                  <p className="text-amber-700">{activity.requirements}</p>
                 </div>
               </div>
             </div>
@@ -235,126 +414,89 @@ const ActivityDetails = () => {
 
           {/* Safety Info */}
           {activity.safety_info && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <div className="bg-primary-50 border border-primary-200 rounded-2xl p-6 mb-6">
               <div className="flex items-start">
-                <Shield className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
+                <Shield className="h-5 w-5 text-primary-600 mr-2 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="text-lg font-semibold text-blue-800 mb-2">Safety Information</h3>
-                  <p className="text-blue-700">{activity.safety_info}</p>
+                  <h3 className="text-lg font-semibold text-primary-800 mb-2">Safety Information</h3>
+                  <p className="text-primary-700">{activity.safety_info}</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Reviews */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Reviews</h2>
+          <Card hoverLift={false} className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl font-bold text-neutral-900">Reviews</h2>
+              {activity.reviews?.length > 0 && (
+                <RatingStars rating={activity.rating} reviewCount={activity.reviews.length} size="md" />
+              )}
+            </div>
             {activity.reviews?.length > 0 ? (
               <div className="space-y-4 mb-6">
                 {activity.reviews.slice(0, 3).map((review) => (
-                  <div key={review.id} className="border-b border-gray-200 pb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-center">
-                        <span className="font-semibold">{review.user?.name}</span>
-                        <div className="ml-2 flex items-center">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          <span className="ml-1">{review.rating}</span>
-                        </div>
+                  <Card key={review.id} hoverLift={false} className="p-4 shadow-none border-neutral-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-neutral-900">{review.user?.name}</span>
+                        <RatingStars rating={review.rating} />
                       </div>
-                      <div className="flex items-center justify-between w-full sm:w-auto">
-                        <span className="text-sm text-gray-500">
-                          {new Date(review.created_at).toLocaleDateString()}
-                        </span>
-                        {/* Admin Review Management */}
-                        {isAuthenticated && (user?.role === 'admin' || user?.role === 'manager') && (
-                          <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0 sm:ml-4 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                            <button
-                              onClick={() => {
-                                // Handle edit review
-                                console.log('Edit review:', review.id);
-                              }}
-                              className="inline-flex items-center justify-center px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm('Are you sure you want to delete this review?')) {
-                                  // Handle delete review
-                                  console.log('Delete review:', review.id);
-                                }
-                              }}
-                              className="inline-flex items-center justify-center px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <span className="text-sm text-neutral-500">
+                        {new Date(review.created_at).toLocaleDateString()}
+                      </span>
                     </div>
-                    <p className="mt-2 text-gray-600">{review.comment}</p>
-                  </div>
+                    <p className="mt-2 text-neutral-600">{review.comment}</p>
+                  </Card>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 mb-6">No reviews yet.</p>
+              <p className="text-neutral-500 mb-6">No reviews yet.</p>
             )}
 
             {/* Review Form */}
-            <form onSubmit={handleReviewSubmit} className="border-t pt-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Write a Review</h3>
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                <select
-                  value={reviewForm.rating}
-                  onChange={(e) => setReviewForm({ ...reviewForm, rating: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="5">5 Stars - Excellent</option>
-                  <option value="4">4 Stars - Very Good</option>
-                  <option value="3">3 Stars - Good</option>
-                  <option value="2">2 Stars - Fair</option>
-                  <option value="1">1 Star - Poor</option>
-                </select>
-              </div>
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your Review</label>
-                <textarea
-                  rows="3"
-                  value={reviewForm.comment}
-                  onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
-                  placeholder="Share your experience..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={submittingReview}
-                className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            <form onSubmit={handleReviewSubmit} className="border-t border-neutral-200 pt-4">
+              <h3 className="text-lg font-semibold text-neutral-900 mb-3">Write a Review</h3>
+              <Select
+                label="Rating"
+                value={reviewForm.rating}
+                onChange={(e) => setReviewForm({ ...reviewForm, rating: parseInt(e.target.value) })}
+                className="mb-3"
               >
-                {submittingReview ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : (
-                  <Send className="h-5 w-5 mr-2" />
-                )}
-                Submit Review
-              </button>
+                <option value="5">5 Stars - Excellent</option>
+                <option value="4">4 Stars - Very Good</option>
+                <option value="3">3 Stars - Good</option>
+                <option value="2">2 Stars - Fair</option>
+                <option value="1">1 Star - Poor</option>
+              </Select>
+              <Textarea
+                label="Your Review"
+                rows={3}
+                value={reviewForm.comment}
+                onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                placeholder="Share your experience..."
+                required
+                className="mb-3"
+              />
+              <Button type="submit" loading={submittingReview}>
+                {!submittingReview && <Send className="h-4 w-4" />}
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </Button>
             </form>
-          </div>
+          </Card>
         </div>
 
         {/* Right Column - Booking */}
         <div>
-          <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Book This Activity</h3>
+          <Card hoverLift={false} className="p-6 sticky top-24">
+            <h3 className="font-display text-xl font-bold text-neutral-900 mb-4">Book This Activity</h3>
             <div className="mb-4">
-              <span className="text-3xl font-bold text-primary-600">${activity.price}</span>
-              <span className="text-gray-500"> / person</span>
+              <span className="text-3xl font-bold text-primary-600">{formatPrice(activity.price)}</span>
+              <span className="text-neutral-500"> / person</span>
             </div>
 
             {/* Activity Details */}
-            <div className="space-y-3 mb-6 text-gray-600">
+            <div className="space-y-3 mb-6 text-neutral-600">
               <div className="flex items-center">
                 <Clock className="h-5 w-5 mr-2" />
                 {activity.duration}
@@ -365,15 +507,18 @@ const ActivityDetails = () => {
               </div>
             </div>
 
-            <Link
-              to={`/checkout?type=activity&id=${activity.slug}`}
-              className="block w-full bg-primary-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-primary-700"
-            >
+            <Button as={Link} to={`/checkout?type=activity&id=${activity.slug}`} size="lg" fullWidth>
               Book Now
-            </Link>
-          </div>
+            </Button>
+
+            <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-neutral-100 text-neutral-400 text-xs">
+              <span className="flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Secure Payment</span>
+              <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Best Price</span>
+            </div>
+          </Card>
         </div>
       </div>
+    </Container>
     </div>
   );
 };

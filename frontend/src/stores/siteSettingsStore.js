@@ -61,6 +61,8 @@ const useSiteSettingsStore = create((set, get) => ({
     return get().getSetting('header_menu', [
       { label: 'Hotels', url: '/hotels', icon: 'Building2' },
       { label: 'Activities', url: '/activities', icon: 'Compass' },
+      { label: 'Tour Guides', url: '/tour-guides', icon: 'Users' },
+      { label: 'Packages', url: '/itineraries', icon: 'Route' },
     ]);
   },
 
@@ -91,6 +93,52 @@ const useSiteSettingsStore = create((set, get) => ({
       twitter: get().getSetting('social_twitter', ''),
       youtube: get().getSetting('social_youtube', ''),
     };
+  },
+
+  // Get footer description / blurb
+  getFooterDescription: () => {
+    return get().getSetting(
+      'footer_description',
+      'Handpicked hotels, activities, and local guides across Nepal — planned, booked, and supported by a team that knows the ground.'
+    );
+  },
+
+  // Whether to show the footer newsletter signup bar
+  isFooterNewsletterEnabled: () => {
+    return get().getSetting('footer_newsletter_enabled', true);
+  },
+
+  // Footer newsletter headline
+  getFooterNewsletterHeading: () => {
+    return get().getSetting('footer_newsletter_heading', 'Deals, new stays, and adventure ideas — straight to your inbox.');
+  },
+
+  // Footer department-style directory grid
+  getFooterDirectory: () => {
+    return get().getSetting('footer_directory', [
+      { label: 'Hotels & Stays', url: '/hotels' },
+      { label: 'Activities', url: '/activities' },
+      { label: 'Tour Guides', url: '/tour-guides' },
+      { label: 'Holiday Packages', url: '/itineraries' },
+      { label: 'Trip Planner', url: '/trip-planner' },
+      { label: 'Get a Quote', url: '/quote' },
+      { label: 'Become a Partner', url: '/register' },
+      { label: 'Support', url: '/contact' },
+    ]);
+  },
+
+  // Accepted payment method badges, as a plain list
+  getFooterPaymentMethods: () => {
+    const raw = get().getSetting('footer_payment_methods', 'Cash on Delivery, Khalti, Stripe');
+    return String(raw)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  },
+
+  // Footer bottom-bar copyright text (site name + year prepended by the caller)
+  getFooterCopyrightText: () => {
+    return get().getSetting('footer_copyright_text', 'All rights reserved.');
   },
 
   // Check if maintenance mode is enabled

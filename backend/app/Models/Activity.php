@@ -16,6 +16,10 @@ class Activity extends Model
     const STATUS_INACTIVE = 'inactive';
     const STATUS_SEASONAL = 'seasonal';
 
+    const APPROVAL_STATUS_PENDING = 'pending';
+    const APPROVAL_STATUS_APPROVED = 'approved';
+    const APPROVAL_STATUS_REJECTED = 'rejected';
+
     const TYPE_BUNGEE = 'bungee';
     const TYPE_PARAGLIDING = 'paragliding';
     const TYPE_RAFTING = 'rafting';
@@ -30,6 +34,7 @@ class Activity extends Model
     protected $fillable = [
         'name',
         'slug',
+        'user_id',
         'description',
         'type',
         'location',
@@ -47,8 +52,13 @@ class Activity extends Model
         'show_in_banner',
         'banner_order',
         'status',
+        'approval_status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
         'requirements',
         'safety_info',
+        'rating',
         'google_rating',
         'google_review_count',
         'tripadvisor_rating',
@@ -70,6 +80,31 @@ class Activity extends Model
     public function bookings(): \Illuminate\Database\Eloquent\Relations\MorphMany
     {
         return $this->morphMany(Booking::class, 'bookable');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_APPROVED);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_PENDING);
+    }
+
+    public function scopeRejected($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_REJECTED);
     }
 
     public function reviews(): \Illuminate\Database\Eloquent\Relations\MorphMany
@@ -95,5 +130,18 @@ class Activity extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    public function scopeNearLocation($query, $latitude, $longitude, $radiusInKm = 50)
+    {
+        $haversine = "(6371 * acos(cos(radians(?)) 
+                        * cos(radians(latitude)) 
+                        * cos(radians(longitude) - radians(?)) 
+                        + sin(radians(?)) 
+                        * sin(radians(latitude))))";
+
+        return $query->selectRaw("*, {$haversine} AS distance", [$latitude, $longitude, $latitude])
+                     ->having('distance', '<', $radiusInKm)
+                     ->orderBy('distance');
     }
 }

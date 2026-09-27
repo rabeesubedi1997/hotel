@@ -29,6 +29,8 @@ class SiteSetting extends Model
         'navigation' => 'Navigation & Menus',
         'contact' => 'Contact Information',
         'social' => 'Social Media',
+        'footer' => 'Footer',
+        'loyalty' => 'Loyalty Program',
         'advanced' => 'Advanced Settings',
     ];
 
@@ -91,9 +93,9 @@ class SiteSetting extends Model
                 ['label' => 'Contact', 'url' => '/contact'],
             ],
             'type' => 'menu',
-            'group' => 'navigation',
-            'label' => 'Footer Menu',
-            'description' => 'Footer navigation links',
+            'group' => 'footer',
+            'label' => 'Footer Quick Links',
+            'description' => 'Link list shown in the footer\'s "Quick Links" column',
         ],
         // Contact
         'contact_address' => [
@@ -145,6 +147,73 @@ class SiteSetting extends Model
             'group' => 'social',
             'label' => 'YouTube URL',
             'description' => 'YouTube channel link',
+        ],
+        // Footer
+        'footer_description' => [
+            'value' => 'Handpicked hotels, activities, and local guides across Nepal — planned, booked, and supported by a team that knows the ground.',
+            'type' => 'textarea',
+            'group' => 'footer',
+            'label' => 'Footer Description',
+            'description' => 'Short blurb shown under the logo in the footer brand column',
+        ],
+        'footer_newsletter_enabled' => [
+            'value' => true,
+            'type' => 'boolean',
+            'group' => 'footer',
+            'label' => 'Show Newsletter Signup',
+            'description' => 'Show the "Stay in the loop" email signup bar above the footer columns',
+        ],
+        'footer_newsletter_heading' => [
+            'value' => 'Deals, new stays, and adventure ideas — straight to your inbox.',
+            'type' => 'text',
+            'group' => 'footer',
+            'label' => 'Newsletter Heading',
+            'description' => 'Headline shown in the footer newsletter signup bar',
+        ],
+        'footer_directory' => [
+            'value' => [
+                ['label' => 'Hotels & Stays', 'url' => '/hotels'],
+                ['label' => 'Activities', 'url' => '/activities'],
+                ['label' => 'Tour Guides', 'url' => '/tour-guides'],
+                ['label' => 'Holiday Packages', 'url' => '/itineraries'],
+                ['label' => 'Trip Planner', 'url' => '/trip-planner'],
+                ['label' => 'Get a Quote', 'url' => '/quote'],
+                ['label' => 'Become a Partner', 'url' => '/register'],
+                ['label' => 'Support', 'url' => '/contact'],
+            ],
+            'type' => 'menu',
+            'group' => 'footer',
+            'label' => 'Footer Directory Grid',
+            'description' => 'Department-style link grid shown above the payment row in the footer',
+        ],
+        'footer_payment_methods' => [
+            'value' => 'Cash on Delivery, Khalti, Stripe',
+            'type' => 'text',
+            'group' => 'footer',
+            'label' => 'Accepted Payment Methods',
+            'description' => 'Comma-separated list of payment badges shown in the footer ("We accept" row)',
+        ],
+        'footer_copyright_text' => [
+            'value' => 'All rights reserved.',
+            'type' => 'text',
+            'group' => 'footer',
+            'label' => 'Copyright Text',
+            'description' => 'Text shown after the site name and year in the footer\'s bottom bar',
+        ],
+        // Loyalty Program
+        'loyalty_earn_rate_percent' => [
+            'value' => 5,
+            'type' => 'number',
+            'group' => 'loyalty',
+            'label' => 'Points Earn Rate (%)',
+            'description' => 'Points earned per confirmed booking, as a percentage of the amount paid (1 point = $1 of redemption value)',
+        ],
+        'loyalty_redemption_rate' => [
+            'value' => 100,
+            'type' => 'number',
+            'group' => 'loyalty',
+            'label' => 'Points Per $1 Redeemed',
+            'description' => 'How many points a customer spends to redeem $1 of discount at checkout',
         ],
         // Advanced
         'maintenance_mode' => [

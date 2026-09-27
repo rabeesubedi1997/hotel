@@ -21,6 +21,8 @@ class TourGuideBooking extends Model
         'admin_notes',
         'confirmed_at',
         'completed_at',
+        'response_due_at',
+        'escalated_at',
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class TourGuideBooking extends Model
         'total_price' => 'decimal:2',
         'confirmed_at' => 'datetime',
         'completed_at' => 'datetime',
+        'response_due_at' => 'datetime',
+        'escalated_at' => 'datetime',
     ];
 
     public function tourGuide(): BelongsTo

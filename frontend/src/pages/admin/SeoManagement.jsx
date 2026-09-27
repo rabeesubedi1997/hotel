@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Globe, Search, FileText, Image, Link2, AlertCircle, X } from 'lucide-react';
 import { adminAPI } from '../../services/api';
+import { Button, Input, Textarea, Select } from '../../components/ui';
 
 const PREDEFINED_PAGES = {
   'home': 'Home Page',
@@ -105,162 +106,176 @@ const SeoManagement = () => {
 
   const getCharacterCount = (text, max) => {
     const count = text?.length || 0;
-    const color = count > max ? 'text-red-500' : count > max * 0.9 ? 'text-yellow-500' : 'text-green-500';
-    return <span className={`text-sm ${color}`}>{count}/{max}</span>;
+    const color = count > max ? 'text-red-500' : count > max * 0.9 ? 'text-amber-500' : 'text-green-600';
+    return <span className={`text-xs font-normal ${color}`}>{count}/{max}</span>;
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-          <Globe className="h-6 w-6 mr-2" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-2xl font-bold text-neutral-900 flex items-center gap-2">
+          <Globe className="h-6 w-6 text-primary-600" />
           SEO Management
-        </h1>
+        </h2>
       </div>
 
       {message && (
-        <div className={`mb-4 p-4 rounded-lg flex items-center ${message.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-          {message.includes('Error') ? <AlertCircle className="h-5 w-5 mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm font-medium ${message.includes('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
+          {message.includes('Error') ? <AlertCircle className="h-5 w-5 shrink-0" /> : <Save className="h-5 w-5 shrink-0" />}
           {message}
         </div>
       )}
 
       {/* Page Selector */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          <Search className="inline h-4 w-4 mr-1" />
-          Select Page
-        </label>
-        <select
+      <div className="bg-white rounded-2xl shadow-card p-4 sm:p-6">
+        <Select
+          label={
+            <span className="inline-flex items-center gap-1.5">
+              <Search className="h-4 w-4" />
+              Select Page
+            </span>
+          }
           value={selectedPage}
           onChange={(e) => setSelectedPage(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
         >
           {Object.entries(PREDEFINED_PAGES).map(([key, label]) => (
             <option key={key} value={key}>{label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* SEO Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-card p-4 sm:p-6">
         <div className="space-y-6">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="inline h-4 w-4 mr-1" />
-              Page Title {getCharacterCount(formData.title, 60)}
-            </label>
-            <input
+            <Input
+              label={
+                <span className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText className="h-4 w-4" />
+                    Page Title
+                  </span>
+                  {getCharacterCount(formData.title, 60)}
+                </span>
+              }
               type="text"
               name="title"
               value={formData.title}
               onChange={handleChange}
               placeholder="Enter page title (recommended: 50-60 characters)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-xs text-gray-500 mt-1">This appears in browser tabs and search results</p>
+            <p className="text-xs text-neutral-500 mt-1.5">This appears in browser tabs and search results</p>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="inline h-4 w-4 mr-1" />
-              Meta Description {getCharacterCount(formData.description, 160)}
-            </label>
-            <textarea
+            <Textarea
+              label={
+                <span className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText className="h-4 w-4" />
+                    Meta Description
+                  </span>
+                  {getCharacterCount(formData.description, 160)}
+                </span>
+              }
               name="description"
               value={formData.description}
               onChange={handleChange}
               rows="3"
               placeholder="Enter meta description (recommended: 150-160 characters)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-xs text-gray-500 mt-1">This appears under your page title in search results</p>
+            <p className="text-xs text-neutral-500 mt-1.5">This appears under your page title in search results</p>
           </div>
 
           {/* Keywords */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Search className="inline h-4 w-4 mr-1" />
-              Keywords
-            </label>
-            <input
+            <Input
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <Search className="h-4 w-4" />
+                  Keywords
+                </span>
+              }
               type="text"
               name="keywords"
               value={formData.keywords}
               onChange={handleChange}
               placeholder="Enter keywords separated by commas"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-xs text-gray-500 mt-1">Example: Nepal hotels, Kathmandu, luxury accommodation</p>
+            <p className="text-xs text-neutral-500 mt-1.5">Example: Nepal hotels, Kathmandu, luxury accommodation</p>
           </div>
 
           {/* OG Image */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Image className="inline h-4 w-4 mr-1" />
-              Open Graph Image URL
-            </label>
-            <input
+            <Input
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <Image className="h-4 w-4" />
+                  Open Graph Image URL
+                </span>
+              }
               type="text"
               name="og_image"
               value={formData.og_image}
               onChange={handleChange}
               placeholder="https://example.com/image.jpg"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-xs text-gray-500 mt-1">Image displayed when shared on social media (1200x630px recommended)</p>
+            <p className="text-xs text-neutral-500 mt-1.5">Image displayed when shared on social media (1200x630px recommended)</p>
           </div>
 
           {/* Canonical URL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Link2 className="inline h-4 w-4 mr-1" />
-              Canonical URL
-            </label>
-            <input
+            <Input
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <Link2 className="h-4 w-4" />
+                  Canonical URL
+                </span>
+              }
               type="text"
               name="canonical"
               value={formData.canonical}
               onChange={handleChange}
               placeholder={`/${selectedPage}`}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
-            <p className="text-xs text-gray-500 mt-1">The preferred URL for this page (helps prevent duplicate content)</p>
+            <p className="text-xs text-neutral-500 mt-1.5">The preferred URL for this page (helps prevent duplicate content)</p>
           </div>
 
           {/* No Index */}
-          <div className="flex items-center">
+          <label className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-100 cursor-pointer">
             <input
               type="checkbox"
               name="noindex"
               checked={formData.noindex}
               onChange={handleChange}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
             />
-            <label className="ml-2 text-sm font-medium text-gray-700">
-              <X className="inline h-4 w-4 mr-1 text-red-500" />
+            <span className="text-sm font-medium text-neutral-700 inline-flex items-center gap-1.5">
+              <X className="h-4 w-4 text-red-500" />
               Hide from search engines (noindex)
-            </label>
-          </div>
+            </span>
+          </label>
 
           {/* JSON-LD */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="inline h-4 w-4 mr-1" />
-              Structured Data (JSON-LD)
-            </label>
-            <textarea
+            <Textarea
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  <FileText className="h-4 w-4" />
+                  Structured Data (JSON-LD)
+                </span>
+              }
               name="json_ld"
               value={formData.json_ld}
               onChange={handleChange}
               rows="6"
               placeholder="Enter JSON-LD structured data"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Structured data helps search engines understand your content. 
+            <p className="text-xs text-neutral-500 mt-1.5">
+              Structured data helps search engines understand your content.
               <a href="https://schema.org" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline ml-1">
                 Learn more about Schema.org
               </a>
@@ -270,25 +285,17 @@ const SeoManagement = () => {
 
         {/* Submit Button */}
         <div className="mt-6 flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50"
-          >
-            {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-            ) : (
-              <Save className="h-5 w-5 mr-2" />
-            )}
+          <Button type="submit" loading={loading} size="lg">
+            {!loading && <Save className="h-5 w-5" />}
             Save SEO Settings
-          </button>
+          </Button>
         </div>
       </form>
 
       {/* SEO Tips */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-800 mb-2">SEO Best Practices</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
+      <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 sm:p-6">
+        <h3 className="text-sm font-semibold text-primary-800 mb-2">SEO Best Practices</h3>
+        <ul className="text-sm text-primary-700 space-y-1">
           <li>• Keep titles under 60 characters for optimal display in search results</li>
           <li>• Write compelling meta descriptions (150-160 characters) to improve click-through rates</li>
           <li>• Use relevant keywords naturally in your content</li>

@@ -11,7 +11,12 @@ class ActivityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Activity::active();
+        $query = Activity::active()->approved();
+
+        if ($request->has('lat') && $request->has('lng')) {
+            $radius = $request->get('radius', 50); // Default 50km
+            $query->nearLocation($request->lat, $request->lng, $radius);
+        }
 
         if ($request->has('type')) {
             $query->where('type', $request->type);
@@ -58,7 +63,14 @@ class ActivityController extends Controller
 
     public function show(Activity $activity): JsonResponse
     {
-        $activity->load(['reviews.approved.user']);
+        $activity->load([
+            'reviews.approved.user',
+            'user' => function ($q) {
+                $q->select(['id', 'name', 'slug', 'company_name', 'avatar'])
+                    ->where('role', 'vendor')
+                    ->where('status', 'active');
+            },
+        ]);
 
         return response()->json($activity);
     }
@@ -90,5 +102,43 @@ class ActivityController extends Controller
             ->values();
 
         return response()->json($cities);
+    }
+
+    // City shortcut cards (Home/Activities destination bands) — one row per
+    // city with its cheapest active listing, so the card can show a real
+    // "From $X" price instead of a flat placeholder.
+    public function destinations(): JsonResponse
+    {
+        $destinations = Activity::active()->approved()
+            ->selectRaw('city, MIN(price) as price_from, COUNT(*) as listings_count')
+            ->groupBy('city')
+            ->orderByDesc('listings_count')
+            ->get();
+
+        return response()->json($destinations);
+    }
+
+    public function filters(): JsonResponse
+    {
+        $minPrice = Activity::active()->min('price') ?? 0;
+        $maxPrice = Activity::active()->max('price') ?? 1000;
+
+        // Fetch all unique includes
+        $allIncludes = Activity::active()
+            ->whereNotNull('includes')
+            ->pluck('includes')
+            ->map(function ($includes) {
+                return is_string($includes) ? json_decode($includes, true) : $includes;
+            })
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values();
+
+        return response()->json([
+            'min_price' => $minPrice,
+            'max_price' => $maxPrice,
+            'includes' => $allIncludes
+        ]);
     }
 }

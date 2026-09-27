@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, RefreshCcw, Loader2, Eye, X, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, CheckCircle, Loader2, Eye, Trash2, UserCog } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
+import { Button, Input, Select, Table, Th, Td, Badge, Modal } from '../../components/ui';
 
 const AdminBookings = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const oversightUserId = searchParams.get('user_id');
+  const oversightUserName = searchParams.get('user_name');
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -14,11 +19,12 @@ const AdminBookings = () => {
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+  }, [oversightUserId]);
 
   const fetchBookings = async () => {
     try {
       const params = filterStatus ? { status: filterStatus } : {};
+      if (oversightUserId) params.user_id = oversightUserId;
       const response = await adminAPI.getBookings(params);
       setBookings(response.data.data);
     } catch (error) {
@@ -81,18 +87,6 @@ const AdminBookings = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed': return 'bg-green-100 text-green-800';
-      case 'checked_in': return 'bg-blue-100 text-blue-800';
-      case 'checked_out': return 'bg-gray-100 text-gray-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'refunded': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const filteredBookings = bookings.filter((booking) =>
     booking.booking_number.toLowerCase().includes(search.toLowerCase()) ||
     booking.user?.name.toLowerCase().includes(search.toLowerCase())
@@ -109,27 +103,39 @@ const AdminBookings = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Manage Bookings</h2>
+        <h2 className="font-display text-xl sm:text-2xl font-bold text-neutral-900">Manage Bookings</h2>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search bookings..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-          />
+      {oversightUserId && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <UserCog className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-medium">
+              Viewing {oversightUserName || 'this customer'}'s bookings — superadmin oversight
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setSearchParams({})}>
+            Exit oversight view
+          </Button>
         </div>
-        <select
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <Input
+          type="text"
+          placeholder="Search bookings..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          icon={Search}
+          className="flex-1"
+        />
+        <Select
           value={filterStatus}
           onChange={(e) => {
             setFilterStatus(e.target.value);
             fetchBookings();
           }}
-          className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+          className="w-full sm:w-auto"
         >
           <option value="">All Status</option>
           <option value="pending">Pending</option>
@@ -138,290 +144,207 @@ const AdminBookings = () => {
           <option value="checked_out">Checked Out</option>
           <option value="cancelled">Cancelled</option>
           <option value="refunded">Refunded</option>
-        </select>
+        </Select>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {/* Desktop Table */}
-        <div className="hidden lg:block">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booking #</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredBookings.map((booking) => (
-                <tr key={booking.id}>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{booking.booking_number}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{booking.user?.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{booking.bookable?.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">${booking.total_amount}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
-                      {booking.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button
-                        onClick={() => openViewModal(booking)}
-                        className="p-2 text-blue-600 hover:text-blue-800"
-                        title="View Details"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </button>
-                      {booking.status === 'pending' && (
-                        <button
-                          onClick={() => confirmBooking(booking.id)}
-                          className="p-2 text-green-600 hover:text-green-800"
-                          title="Confirm"
-                        >
-                          <CheckCircle className="h-5 w-5" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteBooking(booking.id)}
-                        className="p-2 text-red-600 hover:text-red-800"
-                        title="Delete Booking"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                      <select
-                        value={booking.status}
-                        onChange={(e) => updateStatus(booking.id, e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="checked_in">Checked In</option>
-                        <option value="checked_out">Checked Out</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="refunded">Refunded</option>
-                      </select>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className="lg:hidden divide-y divide-gray-200">
+      <Table>
+        <thead>
+          <tr>
+            <Th>Booking #</Th>
+            <Th>Customer</Th>
+            <Th>Item</Th>
+            <Th>Amount</Th>
+            <Th>Status</Th>
+            <Th className="text-right">Actions</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
           {filteredBookings.map((booking) => (
-            <div key={booking.id} className="p-4 space-y-3">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{booking.booking_number}</p>
-                  <p className="text-sm text-gray-500">{booking.user?.name}</p>
-                </div>
-                <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
-                  {booking.status}
-                </span>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Item:</span>
-                  <span className="text-sm font-medium">{booking.bookable?.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Amount:</span>
-                  <span className="text-sm font-medium">${booking.total_amount}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between pt-2 border-t">
-                <div className="flex items-center space-x-2">
-                  <button
+            <tr key={booking.id}>
+              <Td className="font-medium text-neutral-900">{booking.booking_number}</Td>
+              <Td>{booking.user?.name}</Td>
+              <Td>{booking.bookable?.name}</Td>
+              <Td className="text-neutral-900">${booking.total_amount}</Td>
+              <Td>
+                <Badge status={booking.status} />
+              </Td>
+              <Td className="text-right">
+                <div className="flex items-center justify-end gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => openViewModal(booking)}
-                    className="p-2 text-blue-600 hover:text-blue-800"
                     title="View Details"
+                    className="!px-2"
                   >
                     <Eye className="h-4 w-4" />
-                  </button>
+                  </Button>
                   {booking.status === 'pending' && (
-                    <button
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => confirmBooking(booking.id)}
-                      className="p-2 text-green-600 hover:text-green-800"
                       title="Confirm"
+                      className="!px-2"
                     >
                       <CheckCircle className="h-4 w-4" />
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => handleDeleteBooking(booking.id)}
-                    className="p-2 text-red-600 hover:text-red-800"
                     title="Delete Booking"
+                    className="!px-2"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </Button>
+                  <select
+                    value={booking.status}
+                    onChange={(e) => updateStatus(booking.id, e.target.value)}
+                    className="text-sm border border-neutral-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="checked_in">Checked In</option>
+                    <option value="checked_out">Checked Out</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="refunded">Refunded</option>
+                  </select>
                 </div>
-                <select
-                  value={booking.status}
-                  onChange={(e) => updateStatus(booking.id, e.target.value)}
-                  className="text-xs border border-gray-300 rounded px-2 py-1"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="checked_in">Checked In</option>
-                  <option value="checked_out">Checked Out</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="refunded">Refunded</option>
-                </select>
-              </div>
-            </div>
+              </Td>
+            </tr>
           ))}
-        </div>
-      </div>
+        </tbody>
+      </Table>
 
       {/* View Booking Modal */}
-      {viewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Booking Details</h3>
-              <button onClick={closeViewModal} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="h-5 w-5" />
-              </button>
+      <Modal open={viewModal} onClose={closeViewModal} title="Booking Details" size="lg">
+        {viewLoading ? (
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+          </div>
+        ) : selectedBooking ? (
+          <div className="space-y-4 sm:space-y-6">
+            {/* Booking Number & Status */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div>
+                <p className="text-sm text-neutral-500">Booking Number</p>
+                <p className="text-lg font-bold text-neutral-900">{selectedBooking.booking_number}</p>
+              </div>
+              <Badge status={selectedBooking.status} />
             </div>
-            <div className="p-4 sm:p-6">
-              {viewLoading ? (
-                <div className="flex justify-center items-center h-32">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+
+            {/* Customer Info */}
+            <div className="bg-neutral-50 rounded-2xl p-4">
+              <h4 className="font-display font-semibold text-neutral-900 mb-3">Customer Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-neutral-500">Name</p>
+                  <p className="font-medium">{selectedBooking.user?.name}</p>
                 </div>
-              ) : selectedBooking ? (
-                <div className="space-y-4 sm:space-y-6">
-                  {/* Booking Number & Status */}
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                <div>
+                  <p className="text-sm text-neutral-500">Email</p>
+                  <p className="font-medium">{selectedBooking.user?.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-neutral-500">Phone</p>
+                  <p className="font-medium">{selectedBooking.user?.phone || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Item Info */}
+            <div className="bg-neutral-50 rounded-2xl p-4">
+              <h4 className="font-display font-semibold text-neutral-900 mb-3">
+                {selectedBooking.bookable_type === 'App\\Models\\Hotel' ? 'Hotel' : 'Activity'} Details
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-neutral-500">Name</p>
+                  <p className="font-medium">{selectedBooking.bookable?.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-neutral-500">Location</p>
+                  <p className="font-medium">{selectedBooking.bookable?.city || selectedBooking.bookable?.location}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Booking Details */}
+            <div className="bg-neutral-50 rounded-2xl p-4">
+              <h4 className="font-display font-semibold text-neutral-900 mb-3">Booking Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {selectedBooking.check_in_date && (
+                  <>
                     <div>
-                      <p className="text-sm text-gray-500">Booking Number</p>
-                      <p className="text-lg font-bold text-gray-900">{selectedBooking.booking_number}</p>
+                      <p className="text-sm text-neutral-500">Check-in Date</p>
+                      <p className="font-medium">{new Date(selectedBooking.check_in_date).toLocaleDateString()}</p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedBooking.status)}`}>
-                      {selectedBooking.status}
-                    </span>
-                  </div>
-
-                  {/* Customer Info */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">Customer Information</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Name</p>
-                        <p className="font-medium">{selectedBooking.user?.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Email</p>
-                        <p className="font-medium">{selectedBooking.user?.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Phone</p>
-                        <p className="font-medium">{selectedBooking.user?.phone || 'N/A'}</p>
-                      </div>
+                    <div>
+                      <p className="text-sm text-neutral-500">Check-out Date</p>
+                      <p className="font-medium">{new Date(selectedBooking.check_out_date).toLocaleDateString()}</p>
                     </div>
-                  </div>
-
-                  {/* Item Info */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">
-                      {selectedBooking.bookable_type === 'App\\Models\\Hotel' ? 'Hotel' : 'Activity'} Details
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Name</p>
-                        <p className="font-medium">{selectedBooking.bookable?.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Location</p>
-                        <p className="font-medium">{selectedBooking.bookable?.city || selectedBooking.bookable?.location}</p>
-                      </div>
+                    <div>
+                      <p className="text-sm text-neutral-500">Guests</p>
+                      <p className="font-medium">{selectedBooking.guests}</p>
                     </div>
-                  </div>
-
-                  {/* Booking Details */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">Booking Details</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {selectedBooking.check_in_date && (
-                        <>
-                          <div>
-                            <p className="text-sm text-gray-500">Check-in Date</p>
-                            <p className="font-medium">{new Date(selectedBooking.check_in_date).toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Check-out Date</p>
-                            <p className="font-medium">{new Date(selectedBooking.check_out_date).toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Guests</p>
-                            <p className="font-medium">{selectedBooking.guests}</p>
-                          </div>
-                        </>
-                      )}
-                      {selectedBooking.activity_datetime && (
-                        <>
-                          <div>
-                            <p className="text-sm text-gray-500">Activity Date & Time</p>
-                            <p className="font-medium">{new Date(selectedBooking.activity_datetime).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Participants</p>
-                            <p className="font-medium">{selectedBooking.participants}</p>
-                          </div>
-                        </>
-                      )}
-                      <div>
-                        <p className="text-sm text-gray-500">Total Amount</p>
-                        <p className="font-bold text-primary-600">${selectedBooking.total_amount}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Booking Date</p>
-                        <p className="font-medium">{new Date(selectedBooking.created_at).toLocaleDateString()}</p>
-                      </div>
+                  </>
+                )}
+                {selectedBooking.activity_datetime && (
+                  <>
+                    <div>
+                      <p className="text-sm text-neutral-500">Activity Date & Time</p>
+                      <p className="font-medium">{new Date(selectedBooking.activity_datetime).toLocaleString()}</p>
                     </div>
-                    {selectedBooking.special_requests && (
-                      <div className="mt-4">
-                        <p className="text-sm text-gray-500">Special Requests</p>
-                        <p className="font-medium">{selectedBooking.special_requests}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Payment Info */}
-                  {selectedBooking.payment && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 mb-3">Payment Information</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Payment Method</p>
-                          <p className="font-medium capitalize">{selectedBooking.payment.payment_method}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Payment Status</p>
-                          <p className="font-medium">{selectedBooking.payment.status}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Amount Paid</p>
-                          <p className="font-medium">${selectedBooking.payment.amount}</p>
-                        </div>
-                      </div>
+                    <div>
+                      <p className="text-sm text-neutral-500">Participants</p>
+                      <p className="font-medium">{selectedBooking.participants}</p>
                     </div>
-                  )}
+                  </>
+                )}
+                <div>
+                  <p className="text-sm text-neutral-500">Total Amount</p>
+                  <p className="font-bold text-primary-600">${selectedBooking.total_amount}</p>
                 </div>
-              ) : (
-                <p className="text-center text-gray-500">Failed to load booking details.</p>
+                <div>
+                  <p className="text-sm text-neutral-500">Booking Date</p>
+                  <p className="font-medium">{new Date(selectedBooking.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+              {selectedBooking.special_requests && (
+                <div className="mt-4">
+                  <p className="text-sm text-neutral-500">Special Requests</p>
+                  <p className="font-medium">{selectedBooking.special_requests}</p>
+                </div>
               )}
             </div>
+
+            {/* Payment Info */}
+            {selectedBooking.payment && (
+              <div className="bg-neutral-50 rounded-2xl p-4">
+                <h4 className="font-display font-semibold text-neutral-900 mb-3">Payment Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-neutral-500">Payment Method</p>
+                    <p className="font-medium capitalize">{selectedBooking.payment.payment_method}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-neutral-500">Payment Status</p>
+                    <p className="font-medium">{selectedBooking.payment.status}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-neutral-500">Amount Paid</p>
+                    <p className="font-medium">${selectedBooking.payment.amount}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-center text-neutral-500">Failed to load booking details.</p>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -19,13 +19,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token expiration
+// Handle token expiration.
+// Must clear BOTH the plain 'token' key (read by the request interceptor
+// above) AND zustand's persisted 'auth-storage' blob (authStore.js) — that
+// blob carries its own independent copy of isAuthenticated/user/token and
+// rehydrates on every load. Clearing only 'token' left isAuthenticated true
+// after the hard redirect below, so the next mount re-fired the same
+// authenticated request, 401'd again, and redirected in an infinite loop.
+// Only redirect if we're not already there, so a 401 on the login page
+// itself (e.g. a stray background request) can't loop either.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('auth-storage');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -47,6 +58,8 @@ export const hotelsAPI = {
   getFeatured: () => api.get('/hotels/featured'),
   getBySlug: (slug) => api.get(`/hotels/${slug}`),
   getCities: () => api.get('/hotels/cities'),
+  getDestinations: () => api.get('/hotels/destinations'),
+  getFilters: () => api.get('/hotels/filters'),
   getBannerItems: () => api.get('/hotels/banner'),
 };
 
@@ -57,6 +70,8 @@ export const activitiesAPI = {
   getBySlug: (slug) => api.get(`/activities/${slug}`),
   getTypes: () => api.get('/activities/types'),
   getCities: () => api.get('/activities/cities'),
+  getDestinations: () => api.get('/activities/destinations'),
+  getFilters: () => api.get('/activities/filters'),
   getBannerItems: () => api.get('/activities/banner'),
 };
 
@@ -71,6 +86,7 @@ export const bookingsAPI = {
   getCalendarData: (hotelId, roomId, year, month) => api.get('/bookings/calendar', {
     params: { hotel_id: hotelId, room_id: roomId, year, month }
   }),
+  downloadInvoice: (id) => api.get(`/bookings/${id}/invoice`, { responseType: 'blob' }),
 };
 
 // Payments APIs
@@ -118,6 +134,17 @@ export const enquiriesAPI = {
   cancelTourGuideBooking: (bookingId) => api.post(`/tour-guide-bookings/${bookingId}/cancel`),
 };
 
+// Coupons APIs
+export const couponsAPI = {
+  validate: (data) => api.post('/coupons/validate', data),
+};
+
+// Loyalty Points APIs
+export const loyaltyAPI = {
+  getAccount: () => api.get('/loyalty/account'),
+  redeem: (data) => api.post('/loyalty/redeem', data),
+};
+
 // Wishlists APIs
 export const wishlistsAPI = {
   getAll: () => api.get('/wishlists'),
@@ -126,20 +153,95 @@ export const wishlistsAPI = {
   check: (params) => api.get('/wishlists/check', { params }),
 };
 
+// Chat APIs (authenticated — customer↔vendor inquiries, customer↔support; live delivery via Reverb, see services/echo.js)
+// `guestToken` (optional, last arg) overrides the Authorization header for
+// an anonymous visitor's floating-chat session — see FloatingChatWidget.jsx
+// and chatStore.js. Never written to localStorage's shared 'token' key, so
+// it can't be mistaken for a real logged-in session elsewhere in the app.
+const authOverride = (guestToken) => (guestToken ? { headers: { Authorization: `Bearer ${guestToken}` } } : {});
+
+export const chatAPI = {
+  getConversations: (params) => api.get('/chat/conversations', { params }),
+  startConversation: (data) => api.post('/chat/conversations', data),
+  guestStart: (data) => api.post('/chat/guest-start', data),
+  getConversation: (id, guestToken) => api.get(`/chat/conversations/${id}`, authOverride(guestToken)),
+  sendMessage: (id, body, guestToken) => api.post(`/chat/conversations/${id}/messages`, { body }, authOverride(guestToken)),
+  markRead: (id, guestToken) => api.post(`/chat/conversations/${id}/read`, {}, authOverride(guestToken)),
+};
+
+// Notifications APIs (authenticated — bell history; live push arrives via Reverb, see services/echo.js)
+export const notificationsAPI = {
+  getAll: (params) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.post(`/notifications/${id}/read`),
+  markAllAsRead: () => api.post('/notifications/read-all'),
+};
+
+// Itineraries APIs (public — browse admin-curated packages)
+export const itinerariesAPI = {
+  getAll: (params) => api.get('/itineraries', { params }),
+  getBySlug: (slug) => api.get(`/itineraries/${slug}`),
+};
+
+// Package Bookings APIs (fixed-price holiday packages, authenticated customer)
+export const packageBookingsAPI = {
+  getAll: () => api.get('/package-bookings'),
+  getById: (id) => api.get(`/package-bookings/${id}`),
+  create: (data) => api.post('/package-bookings', data),
+  cancel: (id, reason) => api.post(`/package-bookings/${id}/cancel`, { cancellation_reason: reason }),
+  downloadInvoice: (id) => api.get(`/package-bookings/${id}/invoice`, { responseType: 'blob' }),
+};
+
+// Trip Planner APIs (personal itineraries, authenticated customer)
+export const tripPlansAPI = {
+  getAll: () => api.get('/trip-plans'),
+  create: (data) => api.post('/trip-plans', data),
+  getById: (id) => api.get(`/trip-plans/${id}`),
+  update: (id, data) => api.put(`/trip-plans/${id}`, data),
+  delete: (id) => api.delete(`/trip-plans/${id}`),
+  addItem: (id, data) => api.post(`/trip-plans/${id}/items`, data),
+  updateItem: (id, itemId, data) => api.put(`/trip-plans/${id}/items/${itemId}`, data),
+  removeItem: (id, itemId) => api.delete(`/trip-plans/${id}/items/${itemId}`),
+};
+
 // Admin APIs
 export const adminAPI = {
   // Dashboard
   getStats: () => api.get('/admin/dashboard/stats'),
   getRecentBookings: () => api.get('/admin/dashboard/recent-bookings'),
+  getPendingRequests: () => api.get('/admin/dashboard/pending-requests'),
   getPopularItems: () => api.get('/admin/dashboard/popular-items'),
 
   // Users
   getUsers: (params) => api.get('/admin/users', { params }),
+  getUser: (id) => api.get(`/admin/users/${id}`),
   createUser: (data) => api.post('/admin/users', data),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   updateUserRole: (id, role) => api.post(`/admin/users/${id}/role`, { role }),
   updateUserStatus: (id, status) => api.post(`/admin/users/${id}/status`, { status }),
+  resetUserPassword: (id) => api.post(`/admin/users/${id}/reset-password`),
+
+  // Audit Log (superadmin/admin oversight trail)
+  getAuditLog: (params) => api.get('/admin/audit-log', { params }),
+
+  // Vendors Management
+  getVendors: () => api.get('/admin/vendors'),
+  createVendor: (data) => api.post('/admin/vendors', data),
+  getVendor: (id) => api.get(`/admin/vendors/${id}`),
+  updateVendor: (id, data) => api.put(`/admin/vendors/${id}`, data),
+  deleteVendor: (id) => api.delete(`/admin/vendors/${id}`),
+  toggleVendorStatus: (id, data) => api.post(`/admin/vendors/${id}/toggle-status`, data),
+  resetVendorPassword: (id) => api.post(`/admin/vendors/${id}/reset-password`),
+
+  // Approvals Management
+  getApprovalDashboard: () => api.get('/admin/approvals/dashboard'),
+  getPendingHotels: () => api.get('/admin/approvals/pending-hotels'),
+  getPendingActivities: () => api.get('/admin/approvals/pending-activities'),
+  approveHotel: (id, data) => api.post(`/admin/approvals/hotels/${id}/approve`, data),
+  approveActivity: (id, data) => api.post(`/admin/approvals/activities/${id}/approve`, data),
+  bulkApproveHotels: (data) => api.post('/admin/approvals/hotels/bulk-approve', data),
+  bulkApproveActivities: (data) => api.post('/admin/approvals/activities/bulk-approve', data),
 
   // Hotels
   getHotels: (params) => api.get('/admin/hotels', { params }),
@@ -152,10 +254,10 @@ export const adminAPI = {
   getHotelBannerItems: () => api.get('/admin/hotels/banner-items'),
 
   // Room Management
-  getHotelRooms: (hotelId) => api.get(`/admin/hotels/${hotelId}/rooms`),
-  createRoom: (hotelId, data) => api.post(`/admin/hotels/${hotelId}/rooms`, data),
-  updateRoom: (roomId, data) => api.put(`/admin/rooms/${roomId}`, data),
-  deleteRoom: (roomId) => api.delete(`/admin/rooms/${roomId}`),
+  getHotelRooms: (hotelId) => api.get(`/hotels/${hotelId}/rooms`),
+  createRoom: (hotelId, data) => api.post(`/hotels/${hotelId}/rooms`, data),
+  updateRoom: (roomId, data) => api.put(`/rooms/${roomId}`, data),
+  deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`),
 
   // Activities
   getActivities: (params) => api.get('/admin/activities', { params }),
@@ -170,7 +272,7 @@ export const adminAPI = {
   // Bookings
   getBookings: (params) => api.get('/admin/bookings', { params }),
   getBooking: (id) => api.get(`/admin/bookings/${id}`),
-  updateBookingStatus: (id, status) => api.post(`/admin/bookings/${id}/status`, { status }),
+  updateBookingStatus: (id, status) => api.put(`/admin/bookings/${id}/status`, { status }),
   confirmBooking: (id) => api.post(`/admin/bookings/${id}/confirm`),
   deleteBooking: (id) => api.delete(`/admin/bookings/${id}`),
   processRefund: (id, data) => api.post(`/admin/bookings/${id}/refund`, data),
@@ -253,6 +355,88 @@ export const adminAPI = {
   createPage: (data) => api.post('/admin/pages', data),
   updatePage: (id, data) => api.put(`/admin/pages/${id}`, data),
   deletePage: (id) => api.delete(`/admin/pages/${id}`),
+
+  // Itineraries Management (curated packages)
+  getItineraries: (params) => api.get('/admin/itineraries', { params }),
+  createItinerary: (data) => api.post('/admin/itineraries', data),
+  getItinerary: (id) => api.get(`/admin/itineraries/${id}`),
+  updateItinerary: (id, data) => api.put(`/admin/itineraries/${id}`, data),
+  deleteItinerary: (id) => api.delete(`/admin/itineraries/${id}`),
+  addItineraryItem: (id, data) => api.post(`/admin/itineraries/${id}/items`, data),
+  updateItineraryItem: (id, itemId, data) => api.put(`/admin/itineraries/${id}/items/${itemId}`, data),
+  removeItineraryItem: (id, itemId) => api.delete(`/admin/itineraries/${id}/items/${itemId}`),
+
+  // Promotions (advertising / promotional banners)
+  getPromotions: (params) => api.get('/admin/promotions', { params }),
+  getPromotion: (id) => api.get(`/admin/promotions/${id}`),
+  createPromotion: (data) => api.post('/admin/promotions', data),
+  updatePromotion: (id, data) => api.put(`/admin/promotions/${id}`, data),
+  deletePromotion: (id) => api.delete(`/admin/promotions/${id}`),
+  togglePromotionActive: (id) => api.post(`/admin/promotions/${id}/toggle-active`),
+
+  // Loyalty points
+  getLoyaltyAccounts: (params) => api.get('/admin/loyalty/accounts', { params }),
+  adjustLoyaltyPoints: (userId, data) => api.post(`/admin/loyalty/accounts/${userId}/adjust`, data),
+  getLoyaltyTransactions: (params) => api.get('/admin/loyalty/transactions', { params }),
+
+  // Exchange Rates (multi-currency display)
+  getExchangeRates: () => api.get('/admin/exchange-rates'),
+  updateExchangeRate: (data) => api.post('/admin/exchange-rates', data),
+  deleteExchangeRate: (id) => api.delete(`/admin/exchange-rates/${id}`),
+
+  // Package Bookings (fixed-price holiday packages)
+  getPackageBookings: (params) => api.get('/admin/package-bookings', { params }),
+  getPackageBooking: (id) => api.get(`/admin/package-bookings/${id}`),
+  updatePackageBookingStatus: (id, status) => api.post(`/admin/package-bookings/${id}/status`, { status }),
+  processPackageBookingRefund: (id, data) => api.post(`/admin/package-bookings/${id}/refund`, data),
+
+  // Coupons (promo/discount codes)
+  getCoupons: (params) => api.get('/admin/coupons', { params }),
+  getCoupon: (id) => api.get(`/admin/coupons/${id}`),
+  createCoupon: (data) => api.post('/admin/coupons', data),
+  updateCoupon: (id, data) => api.put(`/admin/coupons/${id}`, data),
+  deleteCoupon: (id) => api.delete(`/admin/coupons/${id}`),
+  toggleCouponActive: (id) => api.post(`/admin/coupons/${id}/toggle-active`),
+  getCouponRedemptions: (id) => api.get(`/admin/coupons/${id}/redemptions`),
+};
+
+// Vendor APIs
+export const vendorAPI = {
+  // Dashboard
+  getStats: () => api.get('/vendor/dashboard/stats'),
+  
+  // Hotels Management
+  getHotels: () => api.get('/vendor/hotels'),
+  createHotel: (data) => api.post('/vendor/hotels', data),
+  updateHotel: (id, data) => api.put(`/vendor/hotels/${id}`, data),
+  deleteHotel: (id) => api.delete(`/vendor/hotels/${id}`),
+  
+  // Room Management
+  getHotelRooms: (hotelId) => api.get(`/vendor/hotels/${hotelId}/rooms`),
+  createRoom: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/rooms`, data),
+  updateRoom: (roomId, data) => api.put(`/vendor/rooms/${roomId}`, data),
+  deleteRoom: (roomId) => api.delete(`/vendor/rooms/${roomId}`),
+  
+  // Activities Management
+  getActivities: () => api.get('/vendor/activities'),
+  createActivity: (data) => api.post('/vendor/activities', data),
+  updateActivity: (id, data) => api.put(`/vendor/activities/${id}`, data),
+  deleteActivity: (id) => api.delete(`/vendor/activities/${id}`),
+  
+  // Bookings Management
+  getBookings: () => api.get('/vendor/bookings'),
+  getBooking: (id) => api.get(`/vendor/bookings/${id}`),
+  updateBookingStatus: (id, data) => api.put(`/vendor/bookings/${id}/status`, data),
+  getBookingStats: () => api.get('/vendor/bookings/stats'),
+
+  // Media Library
+  getMediaLibrary: (params) => api.get('/vendor/media-library', { params }),
+  uploadToMediaLibrary: (formData) => api.post('/vendor/media-library/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deleteMedia: (path) => api.delete(`/vendor/media-library`, { data: { path } }),
 };
 
 // Public APIs (no auth required)
@@ -261,6 +445,9 @@ export const publicAPI = {
   getTourGuides: () => api.get('/tour-guides'),
   getTourGuide: (slug) => api.get(`/tour-guides/${slug}`),
   getPage: (slug) => api.get(`/pages/${slug}`),
+  getVendorProfile: (slug) => api.get(`/vendors/${slug}`),
+  getPromotions: (placement) => api.get('/promotions', { params: { placement } }),
+  trackPromotionClick: (id) => api.post(`/promotions/${id}/click`),
 };
 
 export default api;

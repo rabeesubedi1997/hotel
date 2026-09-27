@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Hotel;
 use App\Models\Room;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,13 @@ class HotelController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('city', 'like', "%{$search}%");
             });
+        }
+
+        // Used by the superadmin/admin "acting as" oversight view — opening
+        // a vendor's detail and clicking "Manage Hotels" pre-filters to
+        // just that vendor's listings.
+        if ($request->has('user_id')) {
+            $query->where('user_id', $request->user_id);
         }
 
         $hotels = $query->orderBy('created_at', 'desc')
@@ -98,7 +106,18 @@ class HotelController extends Controller
             $validated['slug'] = Str::slug($validated['name']) . '-' . uniqid();
         }
 
+        $before = $hotel->only(array_keys($validated));
         $hotel->update($validated);
+
+        AdminAuditLog::record(
+            $request->user(),
+            'update',
+            'Hotel',
+            $hotel->id,
+            $hotel->user_id,
+            $before,
+            $hotel->only(array_keys($validated))
+        );
 
         return response()->json([
             'hotel' => $hotel,
@@ -106,8 +125,10 @@ class HotelController extends Controller
         ]);
     }
 
-    public function destroy(Hotel $hotel): JsonResponse
+    public function destroy(Request $request, Hotel $hotel): JsonResponse
     {
+        AdminAuditLog::record($request->user(), 'delete', 'Hotel', $hotel->id, $hotel->user_id);
+
         $hotel->delete();
 
         return response()->json([

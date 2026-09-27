@@ -5,11 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TourGuide;
 use App\Models\TourGuideBooking;
+use App\Notifications\NewTourGuideBookingRequest;
+use App\Services\BookingAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class TourGuideController extends Controller
 {
+    public function __construct(private BookingAlertService $alerts)
+    {
+    }
+
     public function index(): JsonResponse
     {
         $guides = TourGuide::active()
@@ -25,6 +32,12 @@ class TourGuideController extends Controller
         if (!$tourGuide->is_active) {
             return response()->json(['message' => 'Tour guide not found'], 404);
         }
+
+        $tourGuide->load(['vendor' => function ($q) {
+            $q->select(['id', 'name', 'slug', 'company_name', 'avatar'])
+                ->where('role', 'vendor')
+                ->where('status', 'active');
+        }]);
 
         return response()->json($tourGuide);
     }
@@ -55,7 +68,13 @@ class TourGuideController extends Controller
             'message' => $validated['message'] ?? null,
             'total_price' => $totalPrice,
             'status' => 'pending',
+            'response_due_at' => now()->addMinutes((int) config('booking.response_sla_minutes')),
         ]);
+
+        Notification::send(
+            $this->alerts->recipientsFor($tourGuide->vendor),
+            new NewTourGuideBookingRequest($booking->load('tourGuide', 'user'))
+        );
 
         return response()->json([
             'message' => 'Booking request sent successfully',

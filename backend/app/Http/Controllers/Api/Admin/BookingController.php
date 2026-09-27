@@ -3,13 +3,20 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Notifications\BookingStatusChanged;
+use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
+    public function __construct(private LoyaltyService $loyalty)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Booking::with(['user', 'bookable', 'payment']);
@@ -56,7 +63,17 @@ class BookingController extends Controller
             $updateData['cancelled_at'] = now();
         }
 
+        $before = ['status' => $booking->status];
+        $wasConfirmedOrLater = in_array($before['status'], ['confirmed', 'checked_in', 'checked_out']);
         $booking->update($updateData);
+
+        AdminAuditLog::record($request->user(), 'status_change', 'Booking', $booking->id, $booking->user_id, $before, ['status' => $booking->status]);
+
+        if ($wasConfirmedOrLater && in_array($request->status, ['cancelled', 'refunded']) && $booking->user) {
+            $this->loyalty->reverseForBooking($booking->user, $booking->id, null);
+        }
+
+        $booking->user?->notify(new BookingStatusChanged($booking->fresh('bookable')));
 
         return response()->json([
             'booking' => $booking,
@@ -86,10 +103,15 @@ class BookingController extends Controller
         ]);
 
         // Update booking status
+        $wasConfirmedOrLater = in_array($booking->status, ['confirmed', 'checked_in', 'checked_out']);
         $booking->update([
             'status' => Booking::STATUS_REFUNDED,
             'cancellation_reason' => $request->refund_reason,
         ]);
+
+        if ($wasConfirmedOrLater && $booking->user) {
+            $this->loyalty->reverseForBooking($booking->user, $booking->id, null);
+        }
 
         return response()->json([
             'booking' => $booking->load('payment'),

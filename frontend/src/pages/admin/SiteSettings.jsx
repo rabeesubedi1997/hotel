@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  Settings, 
-  Save, 
-  Globe, 
-  Image, 
-  Palette, 
-  Menu, 
-  Contact, 
-  Share2, 
+import {
+  Settings,
+  Save,
+  Globe,
+  Image,
+  Palette,
+  Menu,
+  Contact,
+  Share2,
   Code,
   Plus,
   Trash2,
@@ -17,10 +17,14 @@ import {
   AlertCircle,
   Type,
   Check,
-  Upload
+  Upload,
+  Loader2,
+  PanelBottom,
+  Gift,
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import MediaPicker from '../../components/MediaPicker';
+import { Button, Input, Textarea, Select } from '../../components/ui';
 
 const GROUP_ICONS = {
   general: Globe,
@@ -28,6 +32,8 @@ const GROUP_ICONS = {
   navigation: Menu,
   contact: Contact,
   social: Share2,
+  footer: PanelBottom,
+  loyalty: Gift,
   advanced: Code,
 };
 
@@ -96,7 +102,7 @@ const SiteSettings = () => {
     setMessage('');
 
     try {
-      const settingsArray = Object.entries(settings).flatMap(([group, items]) => 
+      const settingsArray = Object.entries(settings).flatMap(([group, items]) =>
         items.map(item => ({
           key: item.key,
           value: item.value,
@@ -117,7 +123,7 @@ const SiteSettings = () => {
   const updateSettingValue = (group, key, value) => {
     setSettings(prev => ({
       ...prev,
-      [group]: prev[group].map(item => 
+      [group]: prev[group].map(item =>
         item.key === key ? { ...item, value } : item
       )
     }));
@@ -153,7 +159,7 @@ const SiteSettings = () => {
   const moveMenuItem = (group, key, index, direction) => {
     const currentValue = [...(settings[group]?.find(i => i.key === key)?.value || [])];
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    
+
     if (newIndex >= 0 && newIndex < currentValue.length) {
       [currentValue[index], currentValue[newIndex]] = [currentValue[newIndex], currentValue[index]];
       updateSettingValue(group, key, currentValue);
@@ -170,64 +176,62 @@ const SiteSettings = () => {
       case 'number':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <input
+            <Input
+              label={label}
               type={type}
               value={value || ''}
               onChange={(e) => updateSettingValue(group, key, e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               placeholder={description}
             />
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-xs text-neutral-500 mt-1.5">{description}</p>
           </div>
         );
 
       case 'textarea':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <textarea
+            <Textarea
+              label={label}
               value={value || ''}
               onChange={(e) => updateSettingValue(group, key, e.target.value)}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               placeholder={description}
             />
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-xs text-neutral-500 mt-1.5">{description}</p>
           </div>
         );
 
       case 'image':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <div className="flex gap-4 items-start">
-              <div className="flex-1 space-y-2">
-                <input
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">{label}</label>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="flex-1 w-full space-y-2">
+                <Input
                   type="text"
                   value={value || ''}
                   onChange={(e) => updateSettingValue(group, key, e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   placeholder="https://example.com/image.png or select from Media Library"
                 />
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => openMediaPicker(group, key)}
-                    className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
                   >
-                    <Image className="h-4 w-4 mr-2" />
+                    <Image className="h-4 w-4" />
                     Select from Media Library
-                  </button>
+                  </Button>
                 </div>
-                <p className="text-xs text-gray-500">{description}</p>
+                <p className="text-xs text-neutral-500">{description}</p>
               </div>
               {value && (
-                <div className="relative">
-                  <img 
-                    src={value} 
+                <div className="relative shrink-0">
+                  <img
+                    src={value}
                     alt={label}
-                    className="h-20 w-20 object-cover rounded-lg border"
+                    className="h-20 w-20 object-cover rounded-xl border border-neutral-200"
                     onError={(e) => e.target.style.display = 'none'}
                   />
                   <button
@@ -245,69 +249,71 @@ const SiteSettings = () => {
       case 'color':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">{label}</label>
             <div className="flex items-center gap-4">
               <input
                 type="color"
                 value={value || '#000000'}
                 onChange={(e) => updateSettingValue(group, key, e.target.value)}
-                className="h-10 w-20 rounded cursor-pointer"
+                className="h-11 w-20 rounded-lg cursor-pointer border border-neutral-300"
               />
-              <input
+              <Input
                 type="text"
                 value={value || ''}
                 onChange={(e) => updateSettingValue(group, key, e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="flex-1"
                 placeholder="#4f46e5"
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-xs text-neutral-500 mt-1.5">{description}</p>
           </div>
         );
 
       case 'boolean':
         return (
-          <div className="flex items-center">
+          <label className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-100 cursor-pointer">
             <input
               type="checkbox"
               checked={value || false}
               onChange={(e) => updateSettingValue(group, key, e.target.checked)}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              className="h-4 w-4 mt-0.5 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
             />
-            <label className="ml-2 text-sm font-medium text-gray-700">{label}</label>
-            <p className="ml-4 text-xs text-gray-500">{description}</p>
-          </div>
+            <span>
+              <span className="block text-sm font-medium text-neutral-700">{label}</span>
+              {description && <span className="block text-xs text-neutral-500 mt-0.5">{description}</span>}
+            </span>
+          </label>
         );
 
       case 'menu':
         const menuItems = value || [];
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-            <div className="bg-gray-50 rounded-lg p-4">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">{label}</label>
+            <div className="bg-neutral-50 rounded-xl p-4">
               {menuItems.length === 0 ? (
-                <p className="text-sm text-gray-500 mb-4">No menu items</p>
+                <p className="text-sm text-neutral-500 mb-4">No menu items</p>
               ) : (
                 <div className="space-y-2 mb-4">
                   {menuItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 bg-white p-3 rounded-lg border">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.label}</p>
-                        <p className="text-xs text-gray-500">{item.url}</p>
-                        {item.icon && <p className="text-xs text-gray-400">Icon: {item.icon}</p>}
+                    <div key={index} className="flex items-center gap-2 bg-white p-3 rounded-xl border border-neutral-200">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-neutral-900 truncate">{item.label}</p>
+                        <p className="text-xs text-neutral-500 truncate">{item.url}</p>
+                        {item.icon && <p className="text-xs text-neutral-400">Icon: {item.icon}</p>}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => moveMenuItem(group, key, index, 'up')}
                           disabled={index === 0}
-                          className="p-1 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30"
+                          className="p-1 text-neutral-500 hover:bg-neutral-100 rounded disabled:opacity-30"
                         >
                           <ChevronUp className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => moveMenuItem(group, key, index, 'down')}
                           disabled={index === menuItems.length - 1}
-                          className="p-1 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30"
+                          className="p-1 text-neutral-500 hover:bg-neutral-100 rounded disabled:opacity-30"
                         >
                           <ChevronDown className="h-4 w-4" />
                         </button>
@@ -322,43 +328,40 @@ const SiteSettings = () => {
                   ))}
                 </div>
               )}
-              
+
               {/* Add New Menu Item */}
-              <div className="bg-white p-3 rounded-lg border border-dashed">
-                <p className="text-sm font-medium mb-2">Add Menu Item</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <input
+              <div className="bg-white p-3 rounded-xl border border-dashed border-neutral-300">
+                <p className="text-sm font-medium text-neutral-700 mb-2">Add Menu Item</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input
                     type="text"
                     value={newMenuItem.label}
                     onChange={(e) => setNewMenuItem(prev => ({ ...prev, label: e.target.value }))}
                     placeholder="Label"
-                    className="px-3 py-2 border border-gray-300 rounded text-sm"
                   />
-                  <input
+                  <Input
                     type="text"
                     value={newMenuItem.url}
                     onChange={(e) => setNewMenuItem(prev => ({ ...prev, url: e.target.value }))}
                     placeholder="URL (/hotels)"
-                    className="px-3 py-2 border border-gray-300 rounded text-sm"
                   />
-                  <input
+                  <Input
                     type="text"
                     value={newMenuItem.icon}
                     onChange={(e) => setNewMenuItem(prev => ({ ...prev, icon: e.target.value }))}
                     placeholder="Icon (optional)"
-                    className="px-3 py-2 border border-gray-300 rounded text-sm"
                   />
                 </div>
                 <button
                   onClick={() => addMenuItem(group, key)}
-                  className="mt-2 flex items-center text-sm text-primary-600 hover:text-primary-700"
+                  className="mt-2 flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add Item
                 </button>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
+            <p className="text-xs text-neutral-500 mt-1.5">{description}</p>
           </div>
         );
 
@@ -370,60 +373,49 @@ const SiteSettings = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-          <Settings className="h-6 w-6 mr-2" />
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="font-display text-2xl font-bold text-neutral-900 flex items-center gap-2">
+          <Settings className="h-6 w-6 text-primary-600" />
           Site Settings
-        </h1>
+        </h2>
         <div className="flex items-center gap-2">
-          <button
-            onClick={initializeDefaults}
-            className="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button type="button" variant="ghost" onClick={initializeDefaults}>
+            <RefreshCw className="h-4 w-4" />
             Reset to Defaults
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
+          </Button>
+          <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
+            {!saving && <Save className="h-4 w-4" />}
             Save Changes
-          </button>
+          </Button>
         </div>
       </div>
 
       {message && (
-        <div className={`mb-4 p-4 rounded-lg flex items-center ${message.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-          {message.includes('Error') ? <AlertCircle className="h-5 w-5 mr-2" /> : <Check className="h-5 w-5 mr-2" />}
+        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm font-medium ${message.includes('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
+          {message.includes('Error') ? <AlertCircle className="h-5 w-5 shrink-0" /> : <Check className="h-5 w-5 shrink-0" />}
           {message}
         </div>
       )}
 
       {/* Group Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap gap-2">
         {Object.entries(groups).map(([key, label]) => {
           const Icon = GROUP_ICONS[key] || Settings;
           return (
             <button
               key={key}
               onClick={() => setActiveGroup(key)}
-              className={`flex items-center px-4 py-2 rounded-lg font-medium ${
+              className={`flex items-center px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
                 activeGroup === key
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
             >
               <Icon className="h-4 w-4 mr-2" />
@@ -434,29 +426,29 @@ const SiteSettings = () => {
       </div>
 
       {/* Settings Form */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-6 flex items-center">
+      <div className="bg-white rounded-2xl shadow-card p-4 sm:p-6">
+        <h3 className="font-display text-xl font-semibold text-neutral-900 mb-6 flex items-center gap-2">
           {(() => {
             const Icon = GROUP_ICONS[activeGroup] || Settings;
-            return <Icon className="h-5 w-5 mr-2" />;
+            return <Icon className="h-5 w-5 text-primary-600" />;
           })()}
           {groups[activeGroup]}
-        </h2>
+        </h3>
 
         <div className="space-y-6">
           {(settings[activeGroup] || []).map((setting) => (
-            <div key={setting.key} className="border-b border-gray-200 pb-6 last:border-0">
+            <div key={setting.key} className="border-b border-neutral-100 pb-6 last:border-0 last:pb-0">
               {renderField(setting, activeGroup)}
             </div>
           ))}
 
           {(!settings[activeGroup] || settings[activeGroup].length === 0) && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-neutral-500">
               <Settings className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>No settings in this group</p>
               <button
                 onClick={initializeDefaults}
-                className="mt-4 text-primary-600 hover:underline"
+                className="mt-4 text-primary-600 hover:underline font-medium"
               >
                 Initialize default settings
               </button>
@@ -466,9 +458,9 @@ const SiteSettings = () => {
       </div>
 
       {/* Info Box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-800 mb-2">About Site Settings</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
+      <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 sm:p-6">
+        <h3 className="text-sm font-semibold text-primary-800 mb-2">About Site Settings</h3>
+        <ul className="text-sm text-primary-700 space-y-1">
           <li>• Changes are applied immediately after saving</li>
           <li>• Menu items can be reordered using the up/down arrows</li>
           <li>• Images should be valid URLs (use Upload feature for local images)</li>

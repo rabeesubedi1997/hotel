@@ -25,6 +25,7 @@ class Payment extends Model
 
     protected $fillable = [
         'booking_id',
+        'package_booking_id',
         'method',
         'transaction_id',
         'payment_intent_id',
@@ -48,6 +49,11 @@ class Payment extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    public function packageBooking(): BelongsTo
+    {
+        return $this->belongsTo(PackageBooking::class);
     }
 
     public function isCompleted(): bool

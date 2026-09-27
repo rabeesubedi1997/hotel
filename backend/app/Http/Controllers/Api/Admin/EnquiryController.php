@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Mail\EnquiryResponseSent;
+use App\Models\AdminAuditLog;
 use App\Models\Enquiry;
+use App\Notifications\EnquiryResponded;
 use App\Services\DevEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,6 +63,22 @@ class EnquiryController extends Controller
             'status' => 'responded',
         ]);
 
+        AdminAuditLog::record(
+            $request->user(),
+            'respond',
+            'Enquiry',
+            $enquiry->id,
+            $enquiry->user_id,
+            null,
+            ['status' => 'responded']
+        );
+
+        // In-app notification for registered users (guests without an
+        // account only get the email below).
+        if ($enquiry->user_id) {
+            $enquiry->user?->notify(new EnquiryResponded($enquiry));
+        }
+
         // Send email to user
         $emailPath = null;
         try {
@@ -102,7 +120,18 @@ class EnquiryController extends Controller
             'status' => 'required|string|in:new,in_progress,responded,closed,spam',
         ]);
 
+        $before = $enquiry->status;
         $enquiry->update(['status' => $validated['status']]);
+
+        AdminAuditLog::record(
+            $request->user(),
+            'update_status',
+            'Enquiry',
+            $enquiry->id,
+            $enquiry->user_id,
+            ['status' => $before],
+            ['status' => $validated['status']]
+        );
 
         return response()->json([
             'message' => 'Status updated successfully',
@@ -119,8 +148,10 @@ class EnquiryController extends Controller
         ]);
     }
 
-    public function destroy(Enquiry $enquiry): JsonResponse
+    public function destroy(Request $request, Enquiry $enquiry): JsonResponse
     {
+        AdminAuditLog::record($request->user(), 'delete', 'Enquiry', $enquiry->id, $enquiry->user_id, $enquiry->toArray(), null);
+
         $enquiry->delete();
 
         return response()->json([

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class TourGuide extends Model
@@ -14,6 +15,7 @@ class TourGuide extends Model
     protected $fillable = [
         'name',
         'slug',
+        'vendor_id',
         'image',
         'role',
         'bio',
@@ -63,6 +65,11 @@ class TourGuide extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(TourGuideBooking::class);
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'vendor_id');
     }
 
     public function getDefaultImageAttribute(): string

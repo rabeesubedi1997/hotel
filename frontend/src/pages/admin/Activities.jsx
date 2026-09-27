@@ -1,87 +1,125 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { adminAPI } from '../../services/api';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, Check, UserCog } from 'lucide-react';
+import { adminAPI, vendorAPI } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 import { getActivityImage } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
+import useAuthStore from '../../stores/authStore';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
 
-  const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, getDifficultyColor, getActivityImage }) => {
+  const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, onApprove, onReject, getDifficultyColor, getActivityImage, user }) => {
     const handleImageError = useCallback((e) => {
       e.target.src = getActivityImage(activity.type);
     }, [activity.type, getActivityImage]);
 
     return (
       <tr>
-        <td className="px-6 py-4">
-          <div className="flex items-center">
+        <Td>
+          <div className="flex items-center" style={{ whiteSpace: 'normal' }}>
             <div className="h-10 w-10 rounded-lg mr-3 overflow-hidden flex-shrink-0">
               {activity.featured_image ? (
-                <img 
-                  src={activity.featured_image} 
-                  alt={activity.name} 
-                  className="h-full w-full object-cover" 
+                <img
+                  src={activity.featured_image}
+                  alt={activity.name}
+                  className="h-full w-full object-cover"
                   loading="lazy"
                   onError={handleImageError}
                 />
               ) : (
-                <img 
-                  src={getActivityImage(activity.type)} 
-                  alt={activity.name} 
-                  className="h-full w-full object-cover" 
+                <img
+                  src={getActivityImage(activity.type)}
+                  alt={activity.name}
+                  className="h-full w-full object-cover"
                   loading="lazy"
                 />
               )}
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">{activity.name}</p>
-              <p className="text-sm text-gray-500">{activity.duration}</p>
+              <p className="text-sm font-semibold text-neutral-900">{activity.name}</p>
+              <p className="text-sm text-neutral-500">{activity.duration}</p>
             </div>
           </div>
-        </td>
-        <td className="px-6 py-4">
-          <span className={`px-2 py-1 text-xs rounded-full ${getDifficultyColor(activity.difficulty_level)}`}>
+        </Td>
+        <Td>
+          <Badge tone={getDifficultyColor(activity.difficulty_level)}>
             {activity.type}
-          </span>
-        </td>
-        <td className="px-6 py-4 text-sm text-gray-500">{activity.city}</td>
-        <td className="px-6 py-4 text-sm text-gray-900">${activity.price}</td>
-        <td className="px-6 py-4">
-          <div className="flex items-center space-x-2">
-            <span className={`px-2 py-1 text-xs rounded-full ${
-              activity.status === 'active' ? 'bg-green-100 text-green-800' :
-              activity.status === 'inactive' ? 'bg-red-100 text-red-800' :
-              'bg-yellow-100 text-yellow-800'
-            }`}>
+          </Badge>
+        </Td>
+        <Td className="!text-neutral-500">{activity.city}</Td>
+        <Td className="font-semibold !text-primary-600">${activity.price}</Td>
+        <Td>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={activity.status === 'active' ? 'success' : activity.status === 'inactive' ? 'danger' : 'warning'}>
               {activity.status}
-            </span>
+            </Badge>
             {activity.is_featured && (
-              <span className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-800">
-                Featured
-              </span>
+              <Badge tone="primary">Featured</Badge>
             )}
-          </div>
-        </td>
-        <td className="px-6 py-4 text-right">
-          <div className="flex items-center justify-end space-x-2">
-            <button
-              onClick={() => onToggleFeatured(activity.id)}
-              className={`p-2 rounded ${activity.is_featured ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
-              title="Toggle Featured"
+            <span
+              title={activity.approval_status === 'rejected' && activity.rejection_reason ? activity.rejection_reason : undefined}
             >
-              <Star className={`h-5 w-5 ${activity.is_featured ? 'fill-current' : ''}`} />
-            </button>
-            <button onClick={() => onEdit(activity)} className="p-2 text-blue-600 hover:text-blue-800" title="Edit">
-              <Edit className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => onDelete(activity.id)}
-              className="p-2 text-red-600 hover:text-red-800"
-              title="Delete"
-            >
-              <Trash2 className="h-5 w-5" />
-            </button>
+              <Badge status={activity.approval_status || 'pending'}>
+                {activity.approval_status || 'pending'}
+              </Badge>
+            </span>
           </div>
-        </td>
+        </Td>
+        <Td className="text-right">
+          {user && ['admin', 'manager', 'super_admin'].includes(user.role) && (
+            <div className="flex items-center justify-end gap-1">
+              {activity.approval_status === 'pending' && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onApprove(activity.id)}
+                    title="Approve"
+                    className="!p-2 !text-green-600 hover:!bg-green-50 hover:!text-green-700"
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onReject(activity)}
+                    title="Reject"
+                    className="!p-2 !text-red-600 hover:!bg-red-50 hover:!text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleFeatured(activity.id)}
+                title="Toggle Featured"
+                className={`!p-2 ${activity.is_featured ? '!text-amber-500' : '!text-neutral-400 hover:!text-amber-500'}`}
+              >
+                <Star className={`h-4 w-4 ${activity.is_featured ? 'fill-current' : ''}`} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(activity)}
+                title="Edit"
+                className="!p-2 !text-primary-600 hover:!bg-primary-50 hover:!text-primary-700"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(activity.id)}
+                title="Delete"
+                className="!p-2 !text-red-600 hover:!bg-red-50 hover:!text-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </Td>
       </tr>
     );
   }, (prevProps, nextProps) => {
@@ -89,16 +127,30 @@ import MediaPicker from '../../components/MediaPicker';
     return prevProps.activity.id === nextProps.activity.id &&
            prevProps.activity.featured_image === nextProps.activity.featured_image &&
            prevProps.activity.is_featured === nextProps.activity.is_featured &&
-           prevProps.activity.status === nextProps.activity.status;
+           prevProps.activity.status === nextProps.activity.status &&
+           prevProps.activity.approval_status === nextProps.activity.approval_status &&
+           prevProps.activity.rejection_reason === nextProps.activity.rejection_reason;
   });
 
 const AdminActivities = () => {
+  const { user } = useAuthStore();
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const vendorId = searchParams.get('vendor_id');
+  const vendorName = searchParams.get('vendor_name');
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Determine which API to use based on user role
+  const isVendor = user?.role === 'vendor';
+  const api = isVendor ? vendorAPI : adminAPI;
   const [editModal, setEditModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState(null);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [rejectModal, setRejectModal] = useState(false);
+  const [rejectingActivity, setRejectingActivity] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const handleImageSelect = useCallback((url) => {
     setFormData(prev => ({ ...prev, featured_image: url }));
@@ -132,8 +184,9 @@ const AdminActivities = () => {
   const fetchActivities = useCallback(async (params = {}) => {
     try {
       setLoading(true);
-      const response = await adminAPI.getActivities({
+      const response = await api.getActivities({
         ...params,
+        ...(vendorId ? { user_id: vendorId } : {}),
         page: currentPageRef.current,
         per_page: pagination.per_page,
       });
@@ -149,7 +202,7 @@ const AdminActivities = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.per_page]);
+  }, [pagination.per_page, vendorId]);
 
   useEffect(() => {
     if (hasFetchedRef.current && currentPageRef.current === pagination.current_page) return;
@@ -161,7 +214,7 @@ const AdminActivities = () => {
   const handleDelete = useCallback(async (id) => {
     if (!confirm('Are you sure you want to delete this activity?')) return;
     try {
-      await adminAPI.deleteActivity(id);
+      await api.deleteActivity(id);
       setActivities((prev) => prev.filter((activity) => activity.id !== id));
     } catch (error) {
       console.error('Error deleting activity:', error);
@@ -170,7 +223,7 @@ const AdminActivities = () => {
 
   const toggleFeatured = useCallback(async (id) => {
     try {
-      const response = await adminAPI.toggleActivityFeatured(id);
+      const response = await api.toggleActivityFeatured(id);
       setActivities((prev) =>
         prev.map((activity) =>
           activity.id === id ? { ...activity, is_featured: response.data.activity.is_featured } : activity
@@ -181,13 +234,58 @@ const AdminActivities = () => {
     }
   }, []);
 
+  const handleApprove = useCallback(async (id) => {
+    try {
+      await adminAPI.approveActivity(id, { status: 'approved' });
+      setActivities((prev) =>
+        prev.map((activity) => (activity.id === id ? { ...activity, approval_status: 'approved' } : activity))
+      );
+      toast.success('Activity approved successfully!');
+    } catch (error) {
+      console.error('Error approving activity:', error);
+      toast.error('Failed to approve activity');
+    }
+  }, [toast]);
+
+  const openRejectModal = useCallback((activity) => {
+    setRejectingActivity(activity);
+    setRejectReason('');
+    setRejectModal(true);
+  }, []);
+
+  const closeRejectModal = () => {
+    setRejectModal(false);
+    setRejectingActivity(null);
+    setRejectReason('');
+  };
+
+  const handleReject = async (e) => {
+    e.preventDefault();
+    if (!rejectReason.trim()) return;
+    try {
+      await adminAPI.approveActivity(rejectingActivity.id, { status: 'rejected', rejection_reason: rejectReason });
+      setActivities((prev) =>
+        prev.map((activity) =>
+          activity.id === rejectingActivity.id
+            ? { ...activity, approval_status: 'rejected', rejection_reason: rejectReason }
+            : activity
+        )
+      );
+      toast.success('Activity rejected.');
+      closeRejectModal();
+    } catch (error) {
+      console.error('Error rejecting activity:', error);
+      toast.error('Failed to reject activity');
+    }
+  };
+
   const getDifficultyColor = useCallback((level) => {
     switch (level) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'moderate': return 'bg-yellow-100 text-yellow-800';
-      case 'challenging': return 'bg-orange-100 text-orange-800';
-      case 'extreme': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'easy': return 'success';
+      case 'moderate': return 'warning';
+      case 'challenging': return 'accent';
+      case 'extreme': return 'danger';
+      default: return 'neutral';
     }
   }, []);
 
@@ -217,7 +315,7 @@ const AdminActivities = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.updateActivity(editingActivity.id, formData);
+      await api.updateActivity(editingActivity.id, formData);
       setActivities(activities.map((a) => (a.id === editingActivity.id ? { ...a, ...formData } : a)));
       closeEditModal();
       alert('Activity updated successfully!');
@@ -248,7 +346,7 @@ const AdminActivities = () => {
   const getPageNumbers = () => {
     const pages = [];
     const { current_page, last_page } = pagination;
-    
+
     for (let i = Math.max(1, current_page - 2); i <= Math.min(last_page, current_page + 2); i++) {
       pages.push(i);
     }
@@ -265,252 +363,280 @@ const AdminActivities = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Manage Activities</h2>
-        <button className="bg-primary-600 text-white px-4 py-2 rounded-md flex items-center hover:bg-primary-700">
-          <Plus className="h-5 w-5 mr-2" />
-          Add Activity
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="font-display text-2xl font-bold text-neutral-900">Manage Activities</h2>
+        {user && ['admin', 'manager', 'super_admin'].includes(user.role) && (
+          <Button variant="primary">
+            <Plus className="h-5 w-5" />
+            Add Activity
+          </Button>
+        )}
       </div>
 
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search activities..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-          />
+      {vendorId && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <UserCog className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-medium">
+              Viewing {vendorName || 'this vendor'}'s activities — superadmin oversight
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setSearchParams({})}>
+            Exit oversight view
+          </Button>
         </div>
-      </div>
+      )}
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Activity</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredActivities.map((activity) => (
-              <ActivityRow 
-                key={activity.id}
-                activity={activity}
-                onToggleFeatured={toggleFeatured}
-                onEdit={openEditModal}
-                onDelete={handleDelete}
-                getDifficultyColor={getDifficultyColor}
-                getActivityImage={getActivityImage}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Input
+        icon={Search}
+        type="text"
+        placeholder="Search activities..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Activity</Th>
+            <Th>Type</Th>
+            <Th>Location</Th>
+            <Th>Price</Th>
+            <Th>Status</Th>
+            <Th className="text-right">Actions</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {filteredActivities.map((activity) => (
+            <ActivityRow
+              key={activity.id}
+              activity={activity}
+              onToggleFeatured={toggleFeatured}
+              onEdit={openEditModal}
+              onDelete={handleDelete}
+              onApprove={handleApprove}
+              onReject={openRejectModal}
+              getDifficultyColor={getDifficultyColor}
+              getActivityImage={getActivityImage}
+              user={user}
+            />
+          ))}
+        </tbody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md">
-        <p className="text-gray-600 mb-4 sm:mb-0">
+      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-card gap-4">
+        <p className="text-neutral-600">
           Showing {activities.length} of {pagination.total} activities
         </p>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-gray-600">Rows per page:</span>
-            <select
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-neutral-600 text-sm">Rows per page:</span>
+            <Select
               value={pagination.per_page}
               onChange={(e) => handlePerPageChange(Number(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              className="w-20"
             >
               <option value={10}>10</option>
               <option value={20}>20</option>
               <option value={50}>50</option>
-            </select>
+            </Select>
           </div>
-          
+
           {pagination.last_page > 1 && (
-            <div className="flex items-center space-x-2">
-              <button
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => handlePageChange(pagination.current_page - 1)}
                 disabled={pagination.current_page === 1}
-                className="px-3 py-2 rounded-md border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
               {getPageNumbers().map((page) => (
-                <button
+                <Button
                   key={page}
+                  variant={page === pagination.current_page ? 'primary' : 'secondary'}
+                  size="sm"
                   onClick={() => handlePageChange(page)}
-                  className={`px-4 py-2 rounded-md ${
-                    page === pagination.current_page
-                      ? 'bg-primary-600 text-white'
-                      : 'border border-gray-300 hover:bg-gray-100'
-                  }`}
+                  className="!px-4"
                 >
                   {page}
-                </button>
+                </Button>
               ))}
-              
-              <button
+
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => handlePageChange(pagination.current_page + 1)}
                 disabled={pagination.current_page === pagination.last_page}
-                className="px-3 py-2 rounded-md border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <ChevronRight className="h-5 w-5" />
-              </button>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>
       </div>
 
       {/* Edit Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold text-gray-900">Edit Activity</h3>
-              <button onClick={closeEditModal} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleUpdate} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Activity Name</label>
-                <input type="text" required value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea rows="3" value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                  <select value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="bungee">Bungee</option>
-                    <option value="paragliding">Paragliding</option>
-                    <option value="rafting">Rafting</option>
-                    <option value="trekking">Trekking</option>
-                    <option value="zipline">Zipline</option>
-                    <option value="skydiving">Skydiving</option>
-                    <option value="canyoning">Canyoning</option>
-                    <option value="rock_climbing">Rock Climbing</option>
-                    <option value="hot_air_balloon">Hot Air Balloon</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty Level</label>
-                  <select value={formData.difficulty_level}
-                    onChange={(e) => setFormData({ ...formData, difficulty_level: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="easy">Easy</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="challenging">Challenging</option>
-                    <option value="extreme">Extreme</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input type="text" required value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                  <input type="text" required value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                  <input type="number" required min="0" step="0.01" value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-                  <input type="text" required value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="e.g., 2 hours, 1 day" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Participants</label>
-                  <input type="number" required min="1" value={formData.max_participants}
-                    onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="seasonal">Seasonal</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image</label>
-                <div className="flex space-x-2">
-                  <input 
-                    type="text" 
-                    value={formData.featured_image || ''}
-                    onChange={(e) => setFormData({ ...formData, featured_image: e.target.value })}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="Image URL or select from gallery..." 
-                  />
-                <button
-                    type="button"
-                    onClick={() => setMediaPickerOpen(true)}
-                    className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
-                  >
-                    <ImageIcon className="h-4 w-4 mr-2" />
-                    Select from Media Library
-                  </button>
-                </div>
-                {formData.featured_image && (
-                  <div className="mt-2 relative">
-                    <img 
-                      src={formData.featured_image} 
-                      alt="Preview" 
-                      className="h-32 w-full object-cover rounded-lg"
-                      onError={(e) => { e.target.src = getActivityImage(formData.type); }}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="flex space-x-3 pt-4">
-                <button type="button" onClick={closeEditModal}
-                  className="flex-1 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
-                  Cancel
-                </button>
-                <button type="submit"
-                  className="flex-1 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700">
-                  Save Changes
-                </button>
-              </div>
-            </form>
+      <Modal open={editModal} onClose={closeEditModal} title="Edit Activity" size="lg">
+        <form onSubmit={handleUpdate} className="space-y-4">
+          <Input
+            label="Activity Name"
+            type="text"
+            required
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          />
+          <Textarea
+            label="Description"
+            rows={3}
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Type"
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            >
+              <option value="bungee">Bungee</option>
+              <option value="paragliding">Paragliding</option>
+              <option value="rafting">Rafting</option>
+              <option value="trekking">Trekking</option>
+              <option value="zipline">Zipline</option>
+              <option value="skydiving">Skydiving</option>
+              <option value="canyoning">Canyoning</option>
+              <option value="rock_climbing">Rock Climbing</option>
+              <option value="hot_air_balloon">Hot Air Balloon</option>
+              <option value="other">Other</option>
+            </Select>
+            <Select
+              label="Difficulty Level"
+              value={formData.difficulty_level}
+              onChange={(e) => setFormData({ ...formData, difficulty_level: e.target.value })}
+            >
+              <option value="easy">Easy</option>
+              <option value="moderate">Moderate</option>
+              <option value="challenging">Challenging</option>
+              <option value="extreme">Extreme</option>
+            </Select>
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Location"
+              type="text"
+              required
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            />
+            <Input
+              label="City"
+              type="text"
+              required
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Input
+              label="Price ($)"
+              type="number"
+              required
+              min="0"
+              step="0.01"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            />
+            <Input
+              label="Duration"
+              type="text"
+              required
+              value={formData.duration}
+              onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+              placeholder="e.g., 2 hours, 1 day"
+            />
+            <Input
+              label="Max Participants"
+              type="number"
+              required
+              min="1"
+              value={formData.max_participants}
+              onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })}
+            />
+          </div>
+          <Select
+            label="Status"
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="seasonal">Seasonal</option>
+          </Select>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">Featured Image</label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={formData.featured_image || ''}
+                onChange={(e) => setFormData({ ...formData, featured_image: e.target.value })}
+                className="flex-1"
+                placeholder="Image URL or select from gallery..."
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMediaPickerOpen(true)}
+              >
+                <ImageIcon className="h-4 w-4" />
+                Select from Media Library
+              </Button>
+            </div>
+            {formData.featured_image && (
+              <div className="mt-2 relative">
+                <img
+                  src={formData.featured_image}
+                  alt="Preview"
+                  className="h-32 w-full object-cover rounded-xl"
+                  onError={(e) => { e.target.src = getActivityImage(formData.type); }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={closeEditModal} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1">
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reject Modal */}
+      <Modal open={rejectModal} onClose={closeRejectModal} title="Reject Activity" size="sm">
+        <form onSubmit={handleReject} className="space-y-4">
+          <Textarea
+            label="Rejection Reason"
+            rows={3}
+            required
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Explain why this activity is being rejected..."
+          />
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={closeRejectModal} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" className="flex-1">
+              Reject Activity
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <MediaPicker
         isOpen={mediaPickerOpen}

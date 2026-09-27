@@ -22,6 +22,8 @@ class Booking extends Model
 
     protected $fillable = [
         'user_id',
+        'itinerary_id',
+        'package_booking_id',
         'booking_number',
         'bookable_type',
         'bookable_id',
@@ -38,6 +40,8 @@ class Booking extends Model
         'cancellation_reason',
         'cancelled_at',
         'confirmed_at',
+        'response_due_at',
+        'escalated_at',
     ];
 
     protected $casts = [
@@ -46,6 +50,8 @@ class Booking extends Model
         'activity_datetime' => 'datetime',
         'cancelled_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'response_due_at' => 'datetime',
+        'escalated_at' => 'datetime',
         'total_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
     ];
@@ -77,6 +83,16 @@ class Booking extends Model
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
+    }
+
+    public function itinerary(): BelongsTo
+    {
+        return $this->belongsTo(Itinerary::class);
+    }
+
+    public function packageBooking(): BelongsTo
+    {
+        return $this->belongsTo(PackageBooking::class);
     }
 
     public function scopeActive($query)

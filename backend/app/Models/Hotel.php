@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -16,9 +17,14 @@ class Hotel extends Model
     const STATUS_INACTIVE = 'inactive';
     const STATUS_MAINTENANCE = 'maintenance';
 
+    const APPROVAL_STATUS_PENDING = 'pending';
+    const APPROVAL_STATUS_APPROVED = 'approved';
+    const APPROVAL_STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'name',
         'slug',
+        'user_id',
         'description',
         'address',
         'city',
@@ -35,6 +41,10 @@ class Hotel extends Model
         'show_in_banner',
         'banner_order',
         'status',
+        'approval_status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
         'phone',
         'email',
         'policies',
@@ -59,6 +69,31 @@ class Hotel extends Model
     public function rooms(): HasMany
     {
         return $this->hasMany(Room::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_APPROVED);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_PENDING);
+    }
+
+    public function scopeRejected($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_REJECTED);
     }
 
     public function bookings(): MorphMany
@@ -89,5 +124,18 @@ class Hotel extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    public function scopeNearLocation($query, $latitude, $longitude, $radiusInKm = 50)
+    {
+        $haversine = "(6371 * acos(cos(radians(?)) 
+                        * cos(radians(latitude)) 
+                        * cos(radians(longitude) - radians(?)) 
+                        + sin(radians(?)) 
+                        * sin(radians(latitude))))";
+
+        return $query->selectRaw("*, {$haversine} AS distance", [$latitude, $longitude, $latitude])
+                     ->having('distance', '<', $radiusInKm)
+                     ->orderBy('distance');
     }
 }

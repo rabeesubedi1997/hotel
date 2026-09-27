@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import useAuthStore from './stores/authStore';
 import useSiteSettingsStore from './stores/siteSettingsStore';
@@ -21,13 +21,21 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import GetQuote from './pages/GetQuote';
 import ContactEnquiry from './pages/ContactEnquiry';
+import Itineraries from './pages/Itineraries';
+import ItineraryDetails from './pages/ItineraryDetails';
+import VendorProfile from './pages/VendorProfile';
+import Messages from './pages/Messages';
+import Loyalty from './pages/Loyalty';
 
 // Protected Pages
 import Profile from './pages/Profile';
 import Bookings from './pages/Bookings';
 import BookingDetails from './pages/BookingDetails';
 import Checkout from './pages/Checkout';
+import PackageBookingDetails from './pages/PackageBookingDetails';
 import Wishlist from './pages/Wishlist';
+import TripPlanner from './pages/TripPlanner';
+import TripPlannerDetail from './pages/TripPlannerDetail';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -43,7 +51,37 @@ import AdminAbout from './pages/admin/AboutManagement';
 import AdminEnquiries from './pages/admin/EnquiriesManagement';
 import AdminTourGuides from './pages/admin/TourGuideManagement';
 import AdminMediaLibrary from './pages/admin/MediaLibrary';
+import AdminVendors from './pages/admin/VendorsManagement';
 import PagesManagement from './pages/admin/PagesManagement';
+import AdminItineraries from './pages/admin/Itineraries';
+import AdminAuditLog from './pages/admin/AuditLog';
+import AdminMessages from './pages/admin/Messages';
+import AdminPromotions from './pages/admin/PromotionsManagement';
+import AdminCoupons from './pages/admin/Coupons';
+import AdminPackageBookings from './pages/admin/PackageBookings';
+import AdminExchangeRates from './pages/admin/ExchangeRates';
+import AdminLoyalty from './pages/admin/Loyalty';
+
+// Vendor Pages
+import VendorLayout from './layouts/VendorLayout';
+import VendorDashboard from './pages/vendor/Dashboard';
+import VendorHotels from './pages/vendor/Hotels';
+import VendorActivities from './pages/vendor/Activities';
+import VendorBookings from './pages/vendor/Bookings';
+import VendorMessages from './pages/vendor/Messages';
+
+// React Router doesn't reset scroll position on navigation the way a full
+// page load does — without this, clicking a link while scrolled halfway
+// down a page leaves the next page open at that same scroll offset.
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
 
 // Maintenance Mode Component
 const MaintenanceMode = () => {
@@ -110,7 +148,21 @@ const AdminRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
   
   if (!isAuthenticated) return <Navigate to="/login" />;
-  if (user?.role !== 'admin' && user?.role !== 'manager') return <Navigate to="/" />;
+  
+  // Allow admin, manager, and vendor roles
+  if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'vendor') {
+    return <Navigate to="/" />;
+  }
+  
+  return children;
+};
+
+// Vendor Route Component
+const VendorRoute = ({ children }) => {
+  const { isAuthenticated, user } = useAuthStore();
+  
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (user?.role !== 'vendor') return <Navigate to="/" />;
   return children;
 };
 
@@ -118,6 +170,7 @@ function App() {
   return (
     <ToastProvider>
       <Router>
+        <ScrollToTop />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<MaintenanceRoute><MainLayout /></MaintenanceRoute>}>
@@ -133,13 +186,22 @@ function App() {
             <Route path="contact" element={<ContactEnquiry />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
+            <Route path="itineraries" element={<Itineraries />} />
+            <Route path="itineraries/:slug" element={<ItineraryDetails />} />
+            <Route path="vendors/:slug" element={<VendorProfile />} />
 
             {/* Protected Routes */}
             <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
             <Route path="bookings/:id" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
             <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+            <Route path="package-bookings/:id" element={<ProtectedRoute><PackageBookingDetails /></ProtectedRoute>} />
             <Route path="wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
+            <Route path="trip-planner" element={<ProtectedRoute><TripPlanner /></ProtectedRoute>} />
+            <Route path="trip-planner/:id" element={<ProtectedRoute><TripPlannerDetail /></ProtectedRoute>} />
+            <Route path="loyalty" element={<ProtectedRoute><Loyalty /></ProtectedRoute>} />
+            <Route path="messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="messages/:id" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
           </Route>
 
           {/* Admin Routes */}
@@ -149,6 +211,7 @@ function App() {
             <Route path="activities" element={<AdminActivities />} />
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="vendors" element={<AdminVendors />} />
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="banner" element={<AdminBanner />} />
             <Route path="seo" element={<AdminSEO />} />
@@ -156,8 +219,27 @@ function App() {
             <Route path="about" element={<AdminAbout />} />
             <Route path="media-library" element={<AdminMediaLibrary />} />
             <Route path="tour-guides" element={<AdminTourGuides />} />
+            <Route path="itineraries" element={<AdminItineraries />} />
+            <Route path="audit-log" element={<AdminAuditLog />} />
+            <Route path="promotions" element={<AdminPromotions />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="package-bookings" element={<AdminPackageBookings />} />
+            <Route path="exchange-rates" element={<AdminExchangeRates />} />
+            <Route path="loyalty" element={<AdminLoyalty />} />
+            <Route path="messages" element={<AdminMessages />} />
+            <Route path="messages/:id" element={<AdminMessages />} />
             <Route path="enquiries" element={<AdminEnquiries />} />
             <Route path="pages" element={<PagesManagement />} />
+          </Route>
+
+          {/* Vendor Routes */}
+          <Route path="/vendor" element={<VendorRoute><VendorLayout /></VendorRoute>}>
+            <Route index element={<VendorDashboard />} />
+            <Route path="hotels" element={<VendorHotels />} />
+            <Route path="activities" element={<VendorActivities />} />
+            <Route path="bookings" element={<VendorBookings />} />
+            <Route path="messages" element={<VendorMessages />} />
+            <Route path="messages/:id" element={<VendorMessages />} />
           </Route>
         </Routes>
       </Router>

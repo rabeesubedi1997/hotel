@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, ChevronRight, Loader2, Trash2, Filter } from 'lucide-react';
-import { bookingsAPI } from '../services/api';
+import { Calendar, ChevronRight, Loader2, Trash2, Filter, Route } from 'lucide-react';
+import { bookingsAPI, packageBookingsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
 
 const Bookings = () => {
+  const [tab, setTab] = useState('individual'); // 'individual' | 'packages'
   const [bookings, setBookings] = useState([]);
+  const [packageBookings, setPackageBookings] = useState([]);
+  const [packagesLoaded, setPackagesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'refunded'
 
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  useEffect(() => {
+    if (tab === 'packages' && !packagesLoaded) {
+      fetchPackageBookings();
+    }
+  }, [tab, packagesLoaded]);
 
   const fetchBookings = async () => {
     try {
@@ -21,6 +30,17 @@ const Bookings = () => {
       console.error('Error fetching bookings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPackageBookings = async () => {
+    try {
+      const response = await packageBookingsAPI.getAll();
+      setPackageBookings(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching package bookings:', error);
+    } finally {
+      setPackagesLoaded(true);
     }
   };
 
@@ -63,8 +83,73 @@ const Bookings = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">My Bookings</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">My Bookings</h1>
 
+      {/* Individual vs Package tabs */}
+      <div className="inline-flex bg-gray-100 rounded-xl p-1 mb-6">
+        <button
+          onClick={() => setTab('individual')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'individual' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600'}`}
+        >
+          Individual Bookings
+        </button>
+        <button
+          onClick={() => setTab('packages')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'packages' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600'}`}
+        >
+          Package Trips
+        </button>
+      </div>
+
+      {tab === 'packages' ? (
+        !packagesLoaded ? (
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+          </div>
+        ) : packageBookings.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 text-center">
+            <Route className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No package bookings yet</h3>
+            <p className="text-gray-500 mt-2">Book a holiday package for an all-in-one priced trip.</p>
+            <Link to="/itineraries" className="mt-6 inline-block bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700">
+              Browse Packages
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {packageBookings.map((pb) => (
+              <Link
+                key={pb.id}
+                to={`/package-bookings/${pb.id}`}
+                className="block bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-16 w-16 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {pb.itinerary?.cover_image ? (
+                        <img src={pb.itinerary.cover_image} alt={pb.itinerary.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <Route className="h-8 w-8 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-500 truncate">{pb.booking_number}</p>
+                      <h3 className="text-lg font-semibold text-gray-900 truncate">{pb.itinerary?.title}</h3>
+                      <p className="text-gray-600 truncate">{new Date(pb.travel_date).toLocaleDateString()} · {pb.travelers} traveler{pb.travelers === 1 ? '' : 's'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 sm:space-x-4">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(pb.status)}`}>{pb.status}</span>
+                    <p className="text-lg font-semibold text-gray-900">${pb.total_amount}</p>
+                    <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )
+      ) : (
+      <>
       {/* Filter Buttons */}
       <div className="flex flex-wrap gap-2 mb-6">
         <button
@@ -201,6 +286,8 @@ const Bookings = () => {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );

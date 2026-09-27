@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -42,27 +44,48 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'nullable|string|min:8',
             'phone' => 'nullable|string|max:20',
-            'role' => 'required|in:admin,manager,customer',
+            'role' => 'required|in:admin,manager,customer,vendor',
             'status' => 'in:active,inactive,suspended',
             'address' => 'nullable|string',
             'city' => 'nullable|string',
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
+        // Generate password if not provided
+        $password = $validated['password'] ?? Str::upper(Str::random(8));
+        $validated['password'] = Hash::make($password);
 
         $user = User::create($validated);
 
         return response()->json([
             'user' => $user,
+            'password' => $password, // Return plain password for admin to share
             'message' => 'User created successfully.',
         ], 201);
     }
 
-    public function show(User $user): JsonResponse
+    public function show(Request $request, User $user): JsonResponse
     {
-        $user->load(['bookings', 'reviews']);
+        $user->loadCount(['bookings', 'reviews', 'wishlists', 'tripPlans']);
+        $user->load([
+            'bookings' => function ($q) {
+                $q->with('bookable')->latest()->limit(10);
+            },
+            'reviews' => function ($q) {
+                $q->with('reviewable')->latest()->limit(10);
+            },
+            'wishlists' => function ($q) {
+                $q->with('wishlistable')->latest()->limit(10);
+            },
+            'tripPlans' => function ($q) {
+                $q->withCount('items')->latest()->limit(10);
+            },
+        ]);
+
+        // Superadmin/admin oversight into a specific user's data — this is
+        // the "view" half of the view+edit-as-superadmin feature.
+        AdminAuditLog::record($request->user(), 'view', 'User', $user->id, $user->id);
 
         return response()->json($user);
     }
@@ -84,7 +107,18 @@ class UserController extends Controller
             $validated['password'] = Hash::make($validated['password']);
         }
 
+        $before = $user->only(array_keys($validated));
         $user->update($validated);
+
+        AdminAuditLog::record(
+            $request->user(),
+            'update',
+            'User',
+            $user->id,
+            $user->id,
+            $before,
+            $user->only(array_keys($validated))
+        );
 
         return response()->json([
             'user' => $user,
@@ -92,8 +126,10 @@ class UserController extends Controller
         ]);
     }
 
-    public function destroy(User $user): JsonResponse
+    public function destroy(Request $request, User $user): JsonResponse
     {
+        AdminAuditLog::record($request->user(), 'delete', 'User', $user->id, $user->id);
+
         $user->delete();
 
         return response()->json([
@@ -107,7 +143,10 @@ class UserController extends Controller
             'role' => 'required|in:admin,manager,customer',
         ]);
 
+        $before = ['role' => $user->role];
         $user->update(['role' => $request->role]);
+
+        AdminAuditLog::record($request->user(), 'update_role', 'User', $user->id, $user->id, $before, ['role' => $user->role]);
 
         return response()->json([
             'user' => $user,
@@ -117,15 +156,36 @@ class UserController extends Controller
 
     public function updateStatus(Request $request, User $user): JsonResponse
     {
-        $request->validate([
-            'status' => 'required|in:active,inactive,suspended',
+        $validated = $request->validate([
+            'status' => 'required|in:active,inactive,suspended'
         ]);
 
-        $user->update(['status' => $request->status]);
+        $before = ['status' => $user->status];
+        $user->update(['status' => $validated['status']]);
+
+        AdminAuditLog::record($request->user(), 'status_change', 'User', $user->id, $user->id, $before, ['status' => $user->status]);
 
         return response()->json([
-            'user' => $user,
-            'message' => 'User status updated successfully.',
+            'message' => 'User status updated successfully',
+            'user' => $user
+        ]);
+    }
+
+    public function resetPassword(Request $request, User $user): JsonResponse
+    {
+        // Generate new random password
+        $newPassword = Str::upper(Str::random(8));
+
+        $user->update([
+            'password' => Hash::make($newPassword)
+        ]);
+
+        // Deliberately don't record the password itself in the audit log.
+        AdminAuditLog::record($request->user(), 'reset_password', 'User', $user->id, $user->id);
+
+        return response()->json([
+            'message' => 'Password reset successfully',
+            'password' => $newPassword
         ]);
     }
 }

@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class AdminDashboardMiddleware
+{
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized. Authentication required.'], 401);
+        }
+
+        if (!$user->canAccessAdminDashboard()) {
+            return response()->json([
+                'message' => 'Forbidden. Admin dashboard access required.',
+                'user_role' => $user->role,
+                'user_permissions' => $user->getAllPermissions()
+            ], 403);
+        }
+
+        return $next($request);
+    }
+}

@@ -11,7 +11,12 @@ class HotelController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Hotel::active();
+        $query = Hotel::active()->approved();
+
+        if ($request->has('lat') && $request->has('lng')) {
+            $radius = $request->get('radius', 50); // Default 50km
+            $query->nearLocation($request->lat, $request->lng, $radius);
+        }
 
         if ($request->has('city')) {
             $query->where('city', $request->city);
@@ -76,7 +81,12 @@ class HotelController extends Controller
             },
             'reviews' => function ($q) {
                 $q->where('status', 'approved')->with('user');
-            }
+            },
+            'user' => function ($q) {
+                $q->select(['id', 'name', 'slug', 'company_name', 'avatar'])
+                    ->where('role', 'vendor')
+                    ->where('status', 'active');
+            },
         ]);
 
         return response()->json($hotel);
@@ -91,5 +101,43 @@ class HotelController extends Controller
             ->values();
 
         return response()->json($cities);
+    }
+
+    // City shortcut cards (Home/Hotels destination bands) — one row per
+    // city with its cheapest active listing, so the card can show a
+    // real "From $X" price instead of a flat placeholder.
+    public function destinations(): JsonResponse
+    {
+        $destinations = Hotel::active()->approved()
+            ->selectRaw('city, MIN(price_per_night) as price_from, COUNT(*) as listings_count')
+            ->groupBy('city')
+            ->orderByDesc('listings_count')
+            ->get();
+
+        return response()->json($destinations);
+    }
+
+    public function filters(): JsonResponse
+    {
+        $minPrice = Hotel::active()->min('price_per_night') ?? 0;
+        $maxPrice = Hotel::active()->max('price_per_night') ?? 1000;
+
+        // Fetch all unique amenities
+        $allAmenities = Hotel::active()
+            ->whereNotNull('amenities')
+            ->pluck('amenities')
+            ->map(function ($amenities) {
+                return is_string($amenities) ? json_decode($amenities, true) : $amenities;
+            })
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values();
+
+        return response()->json([
+            'min_price' => $minPrice,
+            'max_price' => $maxPrice,
+            'amenities' => $allAmenities
+        ]);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Activity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,6 +29,11 @@ class ActivityController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('location', 'like', "%{$search}%");
             });
+        }
+
+        // Used by the superadmin/admin "acting as" oversight view.
+        if ($request->has('user_id')) {
+            $query->where('user_id', $request->user_id);
         }
 
         $activities = $query->orderBy('created_at', 'desc')
@@ -101,7 +107,18 @@ class ActivityController extends Controller
             $validated['slug'] = Str::slug($validated['name']) . '-' . uniqid();
         }
 
+        $before = $activity->only(array_keys($validated));
         $activity->update($validated);
+
+        AdminAuditLog::record(
+            $request->user(),
+            'update',
+            'Activity',
+            $activity->id,
+            $activity->user_id,
+            $before,
+            $activity->only(array_keys($validated))
+        );
 
         return response()->json([
             'activity' => $activity,
@@ -109,8 +126,10 @@ class ActivityController extends Controller
         ]);
     }
 
-    public function destroy(Activity $activity): JsonResponse
+    public function destroy(Request $request, Activity $activity): JsonResponse
     {
+        AdminAuditLog::record($request->user(), 'delete', 'Activity', $activity->id, $activity->user_id);
+
         $activity->delete();
 
         return response()->json([

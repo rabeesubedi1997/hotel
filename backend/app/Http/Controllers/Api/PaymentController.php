@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\PackageBooking;
 use App\Models\Payment;
+use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
+    public function __construct(private LoyaltyService $loyalty)
+    {
+    }
+
     public function methods(): JsonResponse
     {
         return response()->json([
@@ -24,24 +29,64 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function initiateKhalti(Request $request): JsonResponse
+    /**
+     * Resolve the payable target from either `booking_id` or
+     * `package_booking_id` — exactly one must be provided and owned by the
+     * requesting user. Returns [payable, isPackage, error] where error is a
+     * JsonResponse to return immediately, or null if resolution succeeded.
+     */
+    private function resolvePayable(Request $request): array
     {
         $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
-            'return_url' => 'required|url',
+            'booking_id' => 'required_without:package_booking_id|nullable|exists:bookings,id',
+            'package_booking_id' => 'required_without:booking_id|nullable|exists:package_bookings,id',
         ]);
 
-        $booking = Booking::findOrFail($request->booking_id);
-
-        if ($booking->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+        if ($request->filled('package_booking_id')) {
+            $packageBooking = PackageBooking::findOrFail($request->package_booking_id);
+            if ($packageBooking->user_id !== Auth::id()) {
+                return [null, true, response()->json(['message' => 'Unauthorized.'], 403)];
+            }
+            return [$packageBooking, true, null];
         }
 
-        // Create payment record
+        $booking = Booking::findOrFail($request->booking_id);
+        if ($booking->user_id !== Auth::id()) {
+            return [null, false, response()->json(['message' => 'Unauthorized.'], 403)];
+        }
+        return [$booking, false, null];
+    }
+
+    private function confirmPayable($payable, bool $isPackage): void
+    {
+        $payable->update([
+            'status' => $isPackage ? PackageBooking::STATUS_CONFIRMED : Booking::STATUS_CONFIRMED,
+            'confirmed_at' => now(),
+        ]);
+
+        if ($isPackage) {
+            $payable->bookings()->update(['status' => Booking::STATUS_CONFIRMED, 'confirmed_at' => now()]);
+        }
+
+        $this->loyalty->earnForBooking(
+            $payable->user,
+            (float) $payable->total_amount,
+            $isPackage ? null : $payable->id,
+            $isPackage ? $payable->id : null
+        );
+    }
+
+    public function initiateKhalti(Request $request): JsonResponse
+    {
+        $request->validate(['return_url' => 'required|url']);
+        [$payable, $isPackage, $error] = $this->resolvePayable($request);
+        if ($error) return $error;
+
         $payment = Payment::create([
-            'booking_id' => $booking->id,
+            'booking_id' => $isPackage ? null : $payable->id,
+            'package_booking_id' => $isPackage ? $payable->id : null,
             'method' => Payment::METHOD_KHALTI,
-            'amount' => $booking->total_amount,
+            'amount' => $payable->total_amount,
             'currency' => 'NPR',
             'status' => Payment::STATUS_PENDING,
             'request_data' => $request->all(),
@@ -53,9 +98,9 @@ class PaymentController extends Controller
             'payment' => $payment,
             'khalti_config' => [
                 'public_key' => config('services.khalti.public_key'),
-                'amount' => $booking->total_amount * 100, // Paisa
-                'product_identity' => $booking->booking_number,
-                'product_name' => 'Booking ' . $booking->booking_number,
+                'amount' => $payable->total_amount * 100, // Paisa
+                'product_identity' => $payable->booking_number,
+                'product_name' => 'Booking ' . $payable->booking_number,
                 'return_url' => $request->return_url,
             ],
         ]);
@@ -79,21 +124,14 @@ class PaymentController extends Controller
 
     public function createStripeIntent(Request $request): JsonResponse
     {
-        $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
-        ]);
+        [$payable, $isPackage, $error] = $this->resolvePayable($request);
+        if ($error) return $error;
 
-        $booking = Booking::findOrFail($request->booking_id);
-
-        if ($booking->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
-        // Create payment record
         $payment = Payment::create([
-            'booking_id' => $booking->id,
+            'booking_id' => $isPackage ? null : $payable->id,
+            'package_booking_id' => $isPackage ? $payable->id : null,
             'method' => Payment::METHOD_STRIPE,
-            'amount' => $booking->total_amount,
+            'amount' => $payable->total_amount,
             'currency' => 'USD',
             'status' => Payment::STATUS_PENDING,
             'request_data' => $request->all(),
@@ -109,21 +147,14 @@ class PaymentController extends Controller
 
     public function paypalCreateOrder(Request $request): JsonResponse
     {
-        $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
-        ]);
+        [$payable, $isPackage, $error] = $this->resolvePayable($request);
+        if ($error) return $error;
 
-        $booking = Booking::findOrFail($request->booking_id);
-
-        if ($booking->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
-        // Create payment record
         $payment = Payment::create([
-            'booking_id' => $booking->id,
+            'booking_id' => $isPackage ? null : $payable->id,
+            'package_booking_id' => $isPackage ? $payable->id : null,
             'method' => Payment::METHOD_PAYPAL,
-            'amount' => $booking->total_amount,
+            'amount' => $payable->total_amount,
             'currency' => 'USD',
             'status' => Payment::STATUS_PENDING,
             'request_data' => $request->all(),
@@ -138,7 +169,10 @@ class PaymentController extends Controller
 
     public function confirmPayment(Request $request, Payment $payment): JsonResponse
     {
-        if ($payment->booking->user_id !== Auth::id()) {
+        $isPackage = (bool) $payment->package_booking_id;
+        $payable = $isPackage ? $payment->packageBooking : $payment->booking;
+
+        if ($payable->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -147,11 +181,7 @@ class PaymentController extends Controller
             'paid_at' => now(),
         ]);
 
-        // Confirm booking
-        $payment->booking->update([
-            'status' => Booking::STATUS_CONFIRMED,
-            'confirmed_at' => now(),
-        ]);
+        $this->confirmPayable($payable, $isPackage);
 
         return response()->json([
             'payment' => $payment,
@@ -161,36 +191,26 @@ class PaymentController extends Controller
 
     public function createCODPayment(Request $request): JsonResponse
     {
-        $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
-        ]);
-
-        $booking = Booking::findOrFail($request->booking_id);
-
-        if ($booking->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
+        [$payable, $isPackage, $error] = $this->resolvePayable($request);
+        if ($error) return $error;
 
         // Create COD payment record - auto-confirmed
         $payment = Payment::create([
-            'booking_id' => $booking->id,
+            'booking_id' => $isPackage ? null : $payable->id,
+            'package_booking_id' => $isPackage ? $payable->id : null,
             'method' => Payment::METHOD_CASH,
-            'amount' => $booking->total_amount,
+            'amount' => $payable->total_amount,
             'currency' => 'NPR',
             'status' => Payment::STATUS_COMPLETED,
             'paid_at' => now(),
             'request_data' => $request->all(),
         ]);
 
-        // Confirm booking immediately for COD
-        $booking->update([
-            'status' => Booking::STATUS_CONFIRMED,
-            'confirmed_at' => now(),
-        ]);
+        $this->confirmPayable($payable, $isPackage);
 
         return response()->json([
             'payment' => $payment,
-            'booking' => $booking,
+            'booking' => $payable,
             'message' => 'Booking confirmed with Cash on Delivery. Please pay at the venue.',
         ]);
     }

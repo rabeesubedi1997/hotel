@@ -7,12 +7,25 @@ use App\Models\Activity;
 use App\Models\Booking;
 use App\Models\Hotel;
 use App\Models\Room;
+use App\Notifications\NewBookingRequest;
+use App\Services\BookingAlertService;
+use App\Services\CouponService;
+use App\Services\InvoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 
 class BookingController extends Controller
 {
+    public function __construct(
+        private CouponService $coupons,
+        private InvoiceService $invoices,
+        private BookingAlertService $alerts,
+    ) {
+    }
+
+
     public function index(Request $request): JsonResponse
     {
         $bookings = $request->user()
@@ -47,7 +60,23 @@ class BookingController extends Controller
             'participants' => 'required_if:bookable_type,activity|integer|min:1',
             'room_id' => 'nullable|integer|exists:rooms,id',
             'special_requests' => 'nullable|string',
+            // Optional — set when this booking is one item of a "book this
+            // whole itinerary" action, so related bookings can be grouped.
+            'itinerary_id' => 'nullable|integer|exists:itineraries,id',
+            'coupon_code' => 'nullable|string',
         ]);
+
+        if ($request->itinerary_id) {
+            $itinerary = \App\Models\Itinerary::find($request->itinerary_id);
+            $ownsPersonalTrip = $itinerary && $itinerary->type === \App\Models\Itinerary::TYPE_PERSONAL
+                && $itinerary->user_id === $request->user()->id;
+            $isBookableCuratedTrip = $itinerary && $itinerary->type === \App\Models\Itinerary::TYPE_CURATED
+                && $itinerary->status === \App\Models\Itinerary::STATUS_PUBLISHED;
+
+            if (!$ownsPersonalTrip && !$isBookableCuratedTrip) {
+                return response()->json(['message' => 'Invalid itinerary.'], 422);
+            }
+        }
 
         $bookableClass = $request->bookable_type === 'hotel' ? Hotel::class : Activity::class;
         $bookable = $bookableClass::find($request->bookable_id);
@@ -66,8 +95,24 @@ class BookingController extends Controller
             $totalAmount = $bookable->price * $request->participants;
         }
 
+        // Re-validate the coupon server-side — never trust a client-computed
+        // discount. A code that stops being valid between "Apply" and submit
+        // (limit reached, expired) silently drops rather than failing the
+        // whole booking, since the total already reflects the checked amount.
+        $discountAmount = 0;
+        $appliedCoupon = null;
+        if ($request->filled('coupon_code')) {
+            $scope = $request->bookable_type === 'hotel' ? 'hotels' : 'activities';
+            $result = $this->coupons->evaluate($request->coupon_code, $request->user(), $totalAmount, $scope);
+            if ($result['valid']) {
+                $discountAmount = $result['discount_amount'];
+                $appliedCoupon = $result['coupon'];
+            }
+        }
+
         $booking = Booking::create([
             'user_id' => $request->user()->id,
+            'itinerary_id' => $request->itinerary_id,
             'bookable_type' => $bookableClass,
             'bookable_id' => $request->bookable_id,
             'check_in_date' => $request->check_in_date,
@@ -77,14 +122,36 @@ class BookingController extends Controller
             'participants' => $request->participants ?? 1,
             'room_id' => $request->room_id,
             'status' => Booking::STATUS_PENDING,
-            'total_amount' => $totalAmount,
+            'total_amount' => $totalAmount - $discountAmount,
+            'discount_amount' => $discountAmount,
             'special_requests' => $request->special_requests,
+            'response_due_at' => now()->addMinutes((int) config('booking.response_sla_minutes')),
         ]);
+
+        if ($appliedCoupon) {
+            $this->coupons->recordRedemption($appliedCoupon, $request->user(), $discountAmount, $booking->id);
+        }
+
+        // Notify the listing owner + admins instantly so a real person can
+        // respond right away, rather than the request sitting unseen.
+        Notification::send(
+            $this->alerts->recipientsFor($bookable->user),
+            new NewBookingRequest($booking->load('bookable', 'user'))
+        );
 
         return response()->json([
             'booking' => $booking->load('bookable'),
             'message' => 'Booking created successfully.',
         ], 201);
+    }
+
+    public function downloadInvoice(Booking $booking)
+    {
+        if ($booking->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        return $this->invoices->generateForBooking($booking);
     }
 
     public function cancel(Request $request, Booking $booking): JsonResponse

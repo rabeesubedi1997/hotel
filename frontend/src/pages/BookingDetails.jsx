@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, Loader2, CreditCard, MapPin } from 'lucide-react';
+import { Calendar, Download, Loader2, CreditCard, MapPin } from 'lucide-react';
 import { bookingsAPI } from '../services/api';
 
 const BookingDetails = () => {
   const { id } = useParams();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   useEffect(() => {
     fetchBooking();
@@ -20,6 +21,23 @@ const BookingDetails = () => {
       console.error('Error fetching booking:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    setDownloadingInvoice(true);
+    try {
+      const response = await bookingsAPI.downloadInvoice(booking.id);
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${booking.booking_number}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+    } finally {
+      setDownloadingInvoice(false);
     }
   };
 
@@ -107,8 +125,8 @@ const BookingDetails = () => {
           </div>
         )}
 
-        {booking.status === 'pending' && (
-          <div className="flex space-x-4">
+        <div className="flex flex-wrap gap-4">
+          {booking.status === 'pending' && (
             <Link
               to={`/checkout?booking=${booking.id}`}
               className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700"
@@ -116,8 +134,23 @@ const BookingDetails = () => {
               <CreditCard className="inline-block h-4 w-4 mr-2" />
               Complete Payment
             </Link>
-          </div>
-        )}
+          )}
+          {booking.status !== 'pending' && (
+            <button
+              type="button"
+              onClick={handleDownloadInvoice}
+              disabled={downloadingInvoice}
+              className="inline-flex items-center bg-white border border-neutral-300 text-neutral-700 px-6 py-2 rounded-md hover:bg-neutral-50 disabled:opacity-50"
+            >
+              {downloadingInvoice ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Download Invoice
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

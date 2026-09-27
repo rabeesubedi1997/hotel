@@ -8,11 +8,13 @@ import {
   Check,
   Trash2
 } from 'lucide-react';
-import { adminAPI } from '../services/api';
+import { adminAPI, vendorAPI } from '../services/api';
 import { resizeImage, getFileSizeMB } from '../utils/imageResizer';
 import { useRef } from 'react';
+import useAuthStore from '../stores/authStore';
 
 const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
+  const { user } = useAuthStore();
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
   const [currentFolder, setCurrentFolder] = useState(folder);
@@ -24,6 +26,10 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
   const [resizeProgress, setResizeProgress] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Determine which API to use based on user role
+  const isVendor = user?.role === 'vendor';
+  const api = isVendor ? vendorAPI : adminAPI;
+
   useEffect(() => {
     if (isOpen) {
       fetchMedia();
@@ -33,7 +39,7 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
   const fetchMedia = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getMediaLibrary({ 
+      const response = await api.getMediaLibrary({ 
         folder: currentFolder,
         search 
       });
@@ -51,25 +57,22 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
     if (!file) return;
 
     setUploading(true);
-    setResizeProgress('Checking image...');
+    setResizeProgress('Processing...');
     
     try {
+      // Validate file
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Only images are allowed.');
+      }
+      
       // Resize image if needed
       const resizedFile = await resizeImage(file);
-      
-      if (resizedFile !== file) {
-        const originalSize = getFileSizeMB(file.size);
-        const newSize = getFileSizeMB(resizedFile.size);
-        setResizeProgress(`Resized: ${originalSize}MB → ${newSize}MB`);
-      } else {
-        setResizeProgress('Image already optimized');
-      }
-
       const formData = new FormData();
       formData.append('image', resizedFile);
       formData.append('folder', currentFolder || 'general');
       
-      const response = await adminAPI.uploadToMediaLibrary(formData);
+      const response = await api.uploadToMediaLibrary(formData);
       onSelect(response.data.url);
       onClose();
     } catch (error) {
@@ -97,7 +100,7 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
     if (!confirm('Delete this image?')) return;
 
     try {
-      await adminAPI.deleteFromMediaLibrary(path);
+      await api.deleteMedia(path);
       fetchMedia();
       if (selectedFile?.path === path) {
         setSelectedFile(null);

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Loader2, X, Save, Eye, Layout, Type, Image as ImageIcon } from 'lucide-react';
+import {
+  Edit2, Loader2, X, Save, Layout, Image as ImageIcon,
+  Shield, Hotel, Compass, Activity, Mail, Building, Target, BarChart3,
+  Filter, List, Inbox, User, MapPin, Users, Sparkles,
+} from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import MediaPicker from '../../components/MediaPicker';
+import { Button, Input, Textarea, Select, Table, Th, Td, Badge } from '../../components/ui';
 
 const PagesManagement = () => {
   const [pages, setPages] = useState([]);
@@ -82,7 +87,7 @@ const PagesManagement = () => {
   const handleEdit = (page) => {
     setEditingPage(page);
     setActiveTab('hero');
-    
+
     // Default sections based on page type
     const defaultSections = page.slug === 'about' ? {
       hero: {
@@ -244,9 +249,9 @@ const PagesManagement = () => {
       // Handle team member images specially
       if (mediaPickerTarget.section === 'team_member') {
         const newMembers = [...formData.sections.team_members];
-        newMembers[mediaPickerTarget.field] = { 
-          ...newMembers[mediaPickerTarget.field], 
-          image: url 
+        newMembers[mediaPickerTarget.field] = {
+          ...newMembers[mediaPickerTarget.field],
+          image: url
         };
         handleSectionChange('team_members', null, newMembers);
       } else {
@@ -302,97 +307,94 @@ const PagesManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Pages Management</h2>
+        <h2 className="font-display text-2xl font-bold text-neutral-900">Pages Management</h2>
       </div>
 
       {message && (
-        <div className={`p-4 rounded-lg ${message.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+        <div className={`p-4 rounded-2xl ${message.includes('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
           {message}
         </div>
       )}
 
       {/* Pages List */}
       {!editingPage && (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Page</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Slug</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+        <Table>
+          <thead>
+            <tr>
+              <Th>Page</Th>
+              <Th>Slug</Th>
+              <Th>Status</Th>
+              <Th className="text-right">Actions</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100">
+            {pages.map((page) => (
+              <tr key={page.id}>
+                <Td>
+                  <p className="text-sm font-medium text-neutral-900">{page.title}</p>
+                </Td>
+                <Td className="text-neutral-500">{page.slug}</Td>
+                <Td>
+                  <Badge tone={page.is_active ? 'success' : 'neutral'}>
+                    {page.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </Td>
+                <Td className="text-right">
+                  <button
+                    onClick={() => handleEdit(page)}
+                    className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 hover:text-primary-800"
+                    title="Edit"
+                  >
+                    <Edit2 className="h-5 w-5" />
+                  </button>
+                </Td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {pages.map((page) => (
-                <tr key={page.id}>
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-gray-900">{page.title}</p>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{page.slug}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full ${page.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {page.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleEdit(page)}
-                      className="p-2 text-blue-600 hover:text-blue-800"
-                      title="Edit"
-                    >
-                      <Edit2 className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </Table>
       )}
 
       {/* Edit Page */}
       {editingPage && (
-        <div className="bg-white rounded-lg shadow-md">
-          <div className="flex items-center justify-between p-6 border-b">
-            <h3 className="text-xl font-bold text-gray-900">Edit {editingPage.title}</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={handleSave}
-                className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
+        <div className="bg-white rounded-2xl shadow-card">
+          <div className="flex items-center justify-between p-6 border-b border-neutral-100">
+            <h3 className="font-display text-xl font-bold text-neutral-900">Edit {editingPage.title}</h3>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleSave}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes
-              </button>
+              </Button>
               <button
                 onClick={() => setEditingPage(null)}
-                className="p-2 text-gray-600 hover:text-gray-800"
+                className="p-2 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
           </div>
 
-          <div className="flex">
+          <div className="flex flex-col lg:flex-row">
             {/* Sidebar Tabs */}
-            <div className="w-64 border-r bg-gray-50">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center px-4 py-3 text-sm font-medium transition ${
-                      activeTab === tab.id
-                        ? 'bg-white text-primary-600 border-r-2 border-primary-600'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 mr-3" />
-                    {tab.label}
-                  </button>
-                );
-              })}
+            <div className="lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-neutral-100 bg-neutral-50 rounded-t-2xl lg:rounded-tr-none lg:rounded-bl-2xl overflow-x-auto lg:overflow-visible">
+              <div className="flex lg:block">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-white text-primary-600 lg:border-r-2 border-primary-600'
+                          : 'text-neutral-600 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 mr-3 shrink-0" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Content Area */}
@@ -400,89 +402,67 @@ const PagesManagement = () => {
               {/* Hero Section */}
               {activeTab === 'hero' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Hero Section</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
+                  <h4 className="font-display font-semibold text-neutral-900">Hero Section</h4>
+                  <Input
+                    label="Title"
+                    type="text"
+                    value={formData.sections.hero.title}
+                    onChange={(e) => handleSectionChange('hero', 'title', e.target.value)}
+                  />
+                  <Input
+                    label="Subtitle"
+                    type="text"
+                    value={formData.sections.hero.subtitle}
+                    onChange={(e) => handleSectionChange('hero', 'subtitle', e.target.value)}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Primary Button Text"
                       type="text"
-                      value={formData.sections.hero.title}
-                      onChange={(e) => handleSectionChange('hero', 'title', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      value={formData.sections.hero.button_text}
+                      onChange={(e) => handleSectionChange('hero', 'button_text', e.target.value)}
+                    />
+                    <Input
+                      label="Primary Button Link"
+                      type="text"
+                      value={formData.sections.hero.button_link}
+                      onChange={(e) => handleSectionChange('hero', 'button_link', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Secondary Button Text"
+                      type="text"
+                      value={formData.sections.hero.secondary_button_text}
+                      onChange={(e) => handleSectionChange('hero', 'secondary_button_text', e.target.value)}
+                    />
+                    <Input
+                      label="Secondary Button Link"
+                      type="text"
+                      value={formData.sections.hero.secondary_button_link}
+                      onChange={(e) => handleSectionChange('hero', 'secondary_button_link', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
-                    <input
-                      type="text"
-                      value={formData.sections.hero.subtitle}
-                      onChange={(e) => handleSectionChange('hero', 'subtitle', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Primary Button Text</label>
-                      <input
-                        type="text"
-                        value={formData.sections.hero.button_text}
-                        onChange={(e) => handleSectionChange('hero', 'button_text', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Primary Button Link</label>
-                      <input
-                        type="text"
-                        value={formData.sections.hero.button_link}
-                        onChange={(e) => handleSectionChange('hero', 'button_link', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Button Text</label>
-                      <input
-                        type="text"
-                        value={formData.sections.hero.secondary_button_text}
-                        onChange={(e) => handleSectionChange('hero', 'secondary_button_text', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Button Link</label>
-                      <input
-                        type="text"
-                        value={formData.sections.hero.secondary_button_link}
-                        onChange={(e) => handleSectionChange('hero', 'secondary_button_link', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Background Image</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">Background Image</label>
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         type="text"
                         value={formData.sections.hero.background_image || ''}
                         onChange={(e) => handleSectionChange('hero', 'background_image', e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        className="flex-1"
                         placeholder="Image URL..."
                       />
-                      <button
-                        type="button"
-                        onClick={() => openMediaPicker('hero', 'background_image')}
-                        className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
-                      >
+                      <Button type="button" variant="secondary" onClick={() => openMediaPicker('hero', 'background_image')}>
                         <ImageIcon className="h-4 w-4 mr-2" />
                         Select
-                      </button>
+                      </Button>
                     </div>
                     {formData.sections.hero.background_image && (
                       <img
                         src={formData.sections.hero.background_image}
                         alt="Hero background"
-                        className="mt-2 h-32 w-full object-cover rounded-lg"
+                        className="mt-2 h-32 w-full object-cover rounded-xl"
                       />
                     )}
                   </div>
@@ -492,44 +472,35 @@ const PagesManagement = () => {
               {/* Trust Badges */}
               {activeTab === 'trust_badges' && (
                 <div className="space-y-6">
-                  <h4 className="font-semibold text-gray-900">Trust Badges</h4>
+                  <h4 className="font-display font-semibold text-neutral-900">Trust Badges</h4>
                   {formData.sections.trust_badges.map((badge, index) => (
-                    <div key={index} className="p-4 border rounded-lg bg-gray-50">
-                      <h5 className="font-medium text-gray-700 mb-3">Badge {index + 1}</h5>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
-                          <select
-                            value={badge.icon}
-                            onChange={(e) => handleTrustBadgeChange(index, 'icon', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          >
-                            <option value="shield">Shield</option>
-                            <option value="clock">Clock</option>
-                            <option value="star">Star</option>
-                            <option value="check">Check</option>
-                            <option value="heart">Heart</option>
-                            <option value="award">Award</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={badge.title}
-                            onChange={(e) => handleTrustBadgeChange(index, 'title', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
-                          <input
-                            type="text"
-                            value={badge.subtitle}
-                            onChange={(e) => handleTrustBadgeChange(index, 'subtitle', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
+                    <div key={index} className="p-4 rounded-xl bg-neutral-50">
+                      <h5 className="font-medium text-neutral-700 mb-3">Badge {index + 1}</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <Select
+                          label="Icon"
+                          value={badge.icon}
+                          onChange={(e) => handleTrustBadgeChange(index, 'icon', e.target.value)}
+                        >
+                          <option value="shield">Shield</option>
+                          <option value="clock">Clock</option>
+                          <option value="star">Star</option>
+                          <option value="check">Check</option>
+                          <option value="heart">Heart</option>
+                          <option value="award">Award</option>
+                        </Select>
+                        <Input
+                          label="Title"
+                          type="text"
+                          value={badge.title}
+                          onChange={(e) => handleTrustBadgeChange(index, 'title', e.target.value)}
+                        />
+                        <Input
+                          label="Subtitle"
+                          type="text"
+                          value={badge.subtitle}
+                          onChange={(e) => handleTrustBadgeChange(index, 'subtitle', e.target.value)}
+                        />
                       </div>
                     </div>
                   ))}
@@ -539,69 +510,53 @@ const PagesManagement = () => {
               {/* Adventure Banner - The "Ready for Adventure?" section */}
               {activeTab === 'adventure_banner' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Adventure Banner (Ready for Adventure?)</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
+                  <h4 className="font-display font-semibold text-neutral-900">Adventure Banner (Ready for Adventure?)</h4>
+                  <Input
+                    label="Title"
+                    type="text"
+                    value={formData.sections.adventure_banner.title}
+                    onChange={(e) => handleSectionChange('adventure_banner', 'title', e.target.value)}
+                  />
+                  <Textarea
+                    label="Description"
+                    rows={3}
+                    value={formData.sections.adventure_banner.description}
+                    onChange={(e) => handleSectionChange('adventure_banner', 'description', e.target.value)}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Button Text"
                       type="text"
-                      value={formData.sections.adventure_banner.title}
-                      onChange={(e) => handleSectionChange('adventure_banner', 'title', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      value={formData.sections.adventure_banner.button_text}
+                      onChange={(e) => handleSectionChange('adventure_banner', 'button_text', e.target.value)}
+                    />
+                    <Input
+                      label="Button Link"
+                      type="text"
+                      value={formData.sections.adventure_banner.button_link}
+                      onChange={(e) => handleSectionChange('adventure_banner', 'button_link', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      rows="3"
-                      value={formData.sections.adventure_banner.description}
-                      onChange={(e) => handleSectionChange('adventure_banner', 'description', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
-                      <input
-                        type="text"
-                        value={formData.sections.adventure_banner.button_text}
-                        onChange={(e) => handleSectionChange('adventure_banner', 'button_text', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Button Link</label>
-                      <input
-                        type="text"
-                        value={formData.sections.adventure_banner.button_link}
-                        onChange={(e) => handleSectionChange('adventure_banner', 'button_link', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Background Image</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">Background Image</label>
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         type="text"
                         value={formData.sections.adventure_banner.background_image || ''}
                         onChange={(e) => handleSectionChange('adventure_banner', 'background_image', e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        className="flex-1"
                         placeholder="Image URL..."
                       />
-                      <button
-                        type="button"
-                        onClick={() => openMediaPicker('adventure_banner', 'background_image')}
-                        className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
-                      >
+                      <Button type="button" variant="secondary" onClick={() => openMediaPicker('adventure_banner', 'background_image')}>
                         <ImageIcon className="h-4 w-4 mr-2" />
                         Select
-                      </button>
+                      </Button>
                     </div>
                     {formData.sections.adventure_banner.background_image && (
                       <img
                         src={formData.sections.adventure_banner.background_image}
                         alt="Adventure banner"
-                        className="mt-2 h-32 w-full object-cover rounded-lg"
+                        className="mt-2 h-32 w-full object-cover rounded-xl"
                       />
                     )}
                   </div>
@@ -611,82 +566,89 @@ const PagesManagement = () => {
               {/* Other sections follow similar pattern */}
               {['hotels_section', 'activities_section', 'newsletter'].includes(activeTab) && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">
+                  <h4 className="font-display font-semibold text-neutral-900">
                     {activeTab === 'hotels_section' && 'Hotels Section'}
                     {activeTab === 'activities_section' && 'Activities Section'}
                     {activeTab === 'newsletter' && 'Newsletter Section'}
                   </h4>
-                  {Object.entries(formData.sections[activeTab]).map(([key, value]) => (
-                    <div key={key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
-                        {key.replace(/_/g, ' ')}
-                      </label>
-                      {key === 'description' ? (
-                        <textarea
-                          rows="3"
-                          value={value}
-                          onChange={(e) => handleSectionChange(activeTab, key, e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={value}
-                          onChange={(e) => handleSectionChange(activeTab, key, e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                        />
-                      )}
-                    </div>
-                  ))}
+                  {Object.entries(formData.sections[activeTab]).map(([key, value]) => {
+                    const fieldLabel = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                    return key === 'description' ? (
+                      <Textarea
+                        key={key}
+                        label={fieldLabel}
+                        rows={3}
+                        value={value}
+                        onChange={(e) => handleSectionChange(activeTab, key, e.target.value)}
+                      />
+                    ) : (
+                      <Input
+                        key={key}
+                        label={fieldLabel}
+                        type="text"
+                        value={value}
+                        onChange={(e) => handleSectionChange(activeTab, key, e.target.value)}
+                      />
+                    );
+                  })}
                 </div>
               )}
 
               {/* About Page - Company Info */}
               {activeTab === 'company_info' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Company Information</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
-                      type="text"
-                      value={formData.sections.company_info?.title || ''}
-                      onChange={(e) => handleSectionChange('company_info', 'title', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                    <textarea
-                      rows="5"
-                      value={formData.sections.company_info?.content || ''}
-                      onChange={(e) => handleSectionChange('company_info', 'content', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
+                  <h4 className="font-display font-semibold text-neutral-900">Company Information</h4>
+                  <Input
+                    label="Title"
+                    type="text"
+                    value={formData.sections.company_info?.title || ''}
+                    onChange={(e) => handleSectionChange('company_info', 'title', e.target.value)}
+                  />
+                  <Textarea
+                    label="Content"
+                    rows={5}
+                    value={formData.sections.company_info?.content || ''}
+                    onChange={(e) => handleSectionChange('company_info', 'content', e.target.value)}
+                  />
                 </div>
               )}
 
               {/* About Page - Mission & Vision */}
               {activeTab === 'mission' && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Mission & Vision</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mission Title</label>
-                    <input
-                      type="text"
-                      value={formData.sections.mission?.title || ''}
-                      onChange={(e) => handleSectionChange('mission', 'title', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
+                <div className="space-y-6">
+                  <div className="border-b border-neutral-100 pb-6">
+                    <h4 className="font-display font-semibold text-neutral-900 mb-4">Mission</h4>
+                    <div className="space-y-4">
+                      <Input
+                        label="Mission Title"
+                        type="text"
+                        value={formData.sections.mission?.title || ''}
+                        onChange={(e) => handleSectionChange('mission', 'title', e.target.value)}
+                      />
+                      <Textarea
+                        label="Mission Content"
+                        rows={3}
+                        value={formData.sections.mission?.content || ''}
+                        onChange={(e) => handleSectionChange('mission', 'content', e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mission Content</label>
-                    <textarea
-                      rows="3"
-                      value={formData.sections.mission?.content || ''}
-                      onChange={(e) => handleSectionChange('mission', 'content', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    />
+                    <h4 className="font-display font-semibold text-neutral-900 mb-4">Vision</h4>
+                    <div className="space-y-4">
+                      <Input
+                        label="Vision Title"
+                        type="text"
+                        value={formData.sections.vision?.title || ''}
+                        onChange={(e) => handleSectionChange('vision', 'title', e.target.value)}
+                      />
+                      <Textarea
+                        label="Vision Content"
+                        rows={3}
+                        value={formData.sections.vision?.content || ''}
+                        onChange={(e) => handleSectionChange('vision', 'content', e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -694,37 +656,31 @@ const PagesManagement = () => {
               {/* About Page - Statistics */}
               {activeTab === 'stats' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Statistics</h4>
+                  <h4 className="font-display font-semibold text-neutral-900">Statistics</h4>
                   {(formData.sections.stats || []).map((stat, index) => (
-                    <div key={index} className="p-4 border rounded-lg bg-gray-50">
-                      <h5 className="font-medium text-gray-700 mb-3">Stat {index + 1}</h5>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
-                          <input
-                            type="text"
-                            value={stat.label}
-                            onChange={(e) => {
-                              const newStats = [...formData.sections.stats];
-                              newStats[index] = { ...stat, label: e.target.value };
-                              handleSectionChange('stats', null, newStats);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                          <input
-                            type="text"
-                            value={stat.value}
-                            onChange={(e) => {
-                              const newStats = [...formData.sections.stats];
-                              newStats[index] = { ...stat, value: e.target.value };
-                              handleSectionChange('stats', null, newStats);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
+                    <div key={index} className="p-4 rounded-xl bg-neutral-50">
+                      <h5 className="font-medium text-neutral-700 mb-3">Stat {index + 1}</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input
+                          label="Label"
+                          type="text"
+                          value={stat.label}
+                          onChange={(e) => {
+                            const newStats = [...formData.sections.stats];
+                            newStats[index] = { ...stat, label: e.target.value };
+                            handleSectionChange('stats', null, newStats);
+                          }}
+                        />
+                        <Input
+                          label="Value"
+                          type="text"
+                          value={stat.value}
+                          onChange={(e) => {
+                            const newStats = [...formData.sections.stats];
+                            newStats[index] = { ...stat, value: e.target.value };
+                            handleSectionChange('stats', null, newStats);
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -734,100 +690,80 @@ const PagesManagement = () => {
               {/* About Page - Contact CTA */}
               {activeTab === 'contact_cta' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Contact Call-to-Action</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
+                  <h4 className="font-display font-semibold text-neutral-900">Contact Call-to-Action</h4>
+                  <Input
+                    label="Title"
+                    type="text"
+                    value={formData.sections.contact_cta?.title || ''}
+                    onChange={(e) => handleSectionChange('contact_cta', 'title', e.target.value)}
+                  />
+                  <Textarea
+                    label="Description"
+                    rows={3}
+                    value={formData.sections.contact_cta?.description || ''}
+                    onChange={(e) => handleSectionChange('contact_cta', 'description', e.target.value)}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Button Text"
                       type="text"
-                      value={formData.sections.contact_cta?.title || ''}
-                      onChange={(e) => handleSectionChange('contact_cta', 'title', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      value={formData.sections.contact_cta?.button_text || ''}
+                      onChange={(e) => handleSectionChange('contact_cta', 'button_text', e.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      rows="3"
-                      value={formData.sections.contact_cta?.description || ''}
-                      onChange={(e) => handleSectionChange('contact_cta', 'description', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    <Input
+                      label="Button Link"
+                      type="text"
+                      value={formData.sections.contact_cta?.button_link || ''}
+                      onChange={(e) => handleSectionChange('contact_cta', 'button_link', e.target.value)}
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
-                      <input
-                        type="text"
-                        value={formData.sections.contact_cta?.button_text || ''}
-                        onChange={(e) => handleSectionChange('contact_cta', 'button_text', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Button Link</label>
-                      <input
-                        type="text"
-                        value={formData.sections.contact_cta?.button_link || ''}
-                        onChange={(e) => handleSectionChange('contact_cta', 'button_link', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
                   </div>
                 </div>
               )}
+
               {/* About Page - Features */}
               {activeTab === 'features' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Features (Why Choose Us)</h4>
+                  <h4 className="font-display font-semibold text-neutral-900">Features (Why Choose Us)</h4>
                   {(formData.sections.features || []).map((feature, index) => (
-                    <div key={index} className="p-4 border rounded-lg bg-gray-50">
-                      <h5 className="font-medium text-gray-700 mb-3">Feature {index + 1}</h5>
+                    <div key={index} className="p-4 rounded-xl bg-neutral-50">
+                      <h5 className="font-medium text-neutral-700 mb-3">Feature {index + 1}</h5>
                       <div className="grid grid-cols-1 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
-                          <select
-                            value={feature.icon}
-                            onChange={(e) => {
-                              const newFeatures = [...formData.sections.features];
-                              newFeatures[index] = { ...feature, icon: e.target.value };
-                              handleSectionChange('features', null, newFeatures);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          >
-                            <option value="shield">Shield</option>
-                            <option value="clock">Clock</option>
-                            <option value="star">Star</option>
-                            <option value="check">Check</option>
-                            <option value="heart">Heart</option>
-                            <option value="award">Award</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={feature.title}
-                            onChange={(e) => {
-                              const newFeatures = [...formData.sections.features];
-                              newFeatures[index] = { ...feature, title: e.target.value };
-                              handleSectionChange('features', null, newFeatures);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                          <input
-                            type="text"
-                            value={feature.description}
-                            onChange={(e) => {
-                              const newFeatures = [...formData.sections.features];
-                              newFeatures[index] = { ...feature, description: e.target.value };
-                              handleSectionChange('features', null, newFeatures);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
+                        <Select
+                          label="Icon"
+                          value={feature.icon}
+                          onChange={(e) => {
+                            const newFeatures = [...formData.sections.features];
+                            newFeatures[index] = { ...feature, icon: e.target.value };
+                            handleSectionChange('features', null, newFeatures);
+                          }}
+                        >
+                          <option value="shield">Shield</option>
+                          <option value="clock">Clock</option>
+                          <option value="star">Star</option>
+                          <option value="check">Check</option>
+                          <option value="heart">Heart</option>
+                          <option value="award">Award</option>
+                        </Select>
+                        <Input
+                          label="Title"
+                          type="text"
+                          value={feature.title}
+                          onChange={(e) => {
+                            const newFeatures = [...formData.sections.features];
+                            newFeatures[index] = { ...feature, title: e.target.value };
+                            handleSectionChange('features', null, newFeatures);
+                          }}
+                        />
+                        <Input
+                          label="Description"
+                          type="text"
+                          value={feature.description}
+                          onChange={(e) => {
+                            const newFeatures = [...formData.sections.features];
+                            newFeatures[index] = { ...feature, description: e.target.value };
+                            handleSectionChange('features', null, newFeatures);
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -837,54 +773,45 @@ const PagesManagement = () => {
               {/* About Page - Team Members */}
               {activeTab === 'team_members' && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Team Members</h4>
+                  <h4 className="font-display font-semibold text-neutral-900">Team Members</h4>
                   {(formData.sections.team_members || []).map((member, index) => (
-                    <div key={index} className="p-4 border rounded-lg bg-gray-50">
-                      <h5 className="font-medium text-gray-700 mb-3">Member {index + 1}</h5>
+                    <div key={index} className="p-4 rounded-xl bg-neutral-50">
+                      <h5 className="font-medium text-neutral-700 mb-3">Member {index + 1}</h5>
                       <div className="grid grid-cols-1 gap-4">
+                        <Input
+                          label="Name"
+                          type="text"
+                          value={member.name}
+                          onChange={(e) => {
+                            const newMembers = [...formData.sections.team_members];
+                            newMembers[index] = { ...member, name: e.target.value };
+                            handleSectionChange('team_members', null, newMembers);
+                          }}
+                        />
+                        <Input
+                          label="Role"
+                          type="text"
+                          value={member.role}
+                          onChange={(e) => {
+                            const newMembers = [...formData.sections.team_members];
+                            newMembers[index] = { ...member, role: e.target.value };
+                            handleSectionChange('team_members', null, newMembers);
+                          }}
+                        />
+                        <Input
+                          label="Bio"
+                          type="text"
+                          value={member.bio}
+                          onChange={(e) => {
+                            const newMembers = [...formData.sections.team_members];
+                            newMembers[index] = { ...member, bio: e.target.value };
+                            handleSectionChange('team_members', null, newMembers);
+                          }}
+                        />
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                          <input
-                            type="text"
-                            value={member.name}
-                            onChange={(e) => {
-                              const newMembers = [...formData.sections.team_members];
-                              newMembers[index] = { ...member, name: e.target.value };
-                              handleSectionChange('team_members', null, newMembers);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                          <input
-                            type="text"
-                            value={member.role}
-                            onChange={(e) => {
-                              const newMembers = [...formData.sections.team_members];
-                              newMembers[index] = { ...member, role: e.target.value };
-                              handleSectionChange('team_members', null, newMembers);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-                          <input
-                            type="text"
-                            value={member.bio}
-                            onChange={(e) => {
-                              const newMembers = [...formData.sections.team_members];
-                              newMembers[index] = { ...member, bio: e.target.value };
-                              handleSectionChange('team_members', null, newMembers);
-                            }}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
+                          <label className="block text-sm font-medium text-neutral-700 mb-1.5">Image</label>
                           <div className="flex gap-2">
-                            <input
+                            <Input
                               type="text"
                               value={member.image || ''}
                               onChange={(e) => {
@@ -892,26 +819,26 @@ const PagesManagement = () => {
                                 newMembers[index] = { ...member, image: e.target.value };
                                 handleSectionChange('team_members', null, newMembers);
                               }}
-                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                              className="flex-1"
                               placeholder="Image URL..."
                             />
-                            <button
+                            <Button
                               type="button"
+                              variant="secondary"
                               onClick={() => {
                                 setMediaPickerTarget({ section: 'team_member', field: index });
                                 setMediaPickerOpen(true);
                               }}
-                              className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm text-blue-700"
                             >
                               <ImageIcon className="h-4 w-4 mr-2" />
                               Select
-                            </button>
+                            </Button>
                           </div>
                           {member.image && (
                             <img
                               src={member.image}
                               alt={member.name}
-                              className="mt-2 h-32 w-full object-cover rounded-lg"
+                              className="mt-2 h-32 w-full object-cover rounded-xl"
                             />
                           )}
                         </div>
@@ -934,8 +861,5 @@ const PagesManagement = () => {
     </div>
   );
 };
-
-// Icon imports for tabs
-import { Shield, Hotel, Compass, Activity, Mail, Building, Target, BarChart3, Filter, List, Inbox, User, MapPin, Users, Sparkles } from 'lucide-react';
 
 export default PagesManagement;

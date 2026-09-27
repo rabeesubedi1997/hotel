@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { 
-  Image, 
-  Upload, 
-  Trash2, 
-  Search, 
-  Folder, 
+import {
+  Image,
+  Upload,
+  Trash2,
+  Search,
+  Folder,
   X,
   Grid,
   List,
@@ -14,6 +14,7 @@ import {
 import { adminAPI } from '../../services/api';
 import { resizeMultipleImages, getFileSizeMB } from '../../utils/imageResizer';
 import { useRef } from 'react';
+import { Button, Input, Modal } from '../../components/ui';
 
 const MediaLibrary = () => {
   const [files, setFiles] = useState([]);
@@ -36,9 +37,9 @@ const MediaLibrary = () => {
   const fetchMedia = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getMediaLibrary({ 
+      const response = await adminAPI.getMediaLibrary({
         folder: currentFolder,
-        search 
+        search
       });
       setFiles(response.data.files || []);
       setFolders(response.data.folders || []);
@@ -61,15 +62,15 @@ const MediaLibrary = () => {
 
     setUploading(true);
     setResizeProgress({ current: 0, total: selectedFiles.length, status: 'Resizing images...' });
-    
+
     try {
       // Resize all images first
       const resizedFiles = await resizeMultipleImages(selectedFiles, (current, total) => {
         setResizeProgress({ current, total, status: `Resizing ${current}/${total}...` });
       });
-      
+
       setResizeProgress({ current: 0, total: resizedFiles.length, status: 'Uploading...' });
-      
+
       let successCount = 0;
       let totalOriginalSize = 0;
       let totalNewSize = 0;
@@ -77,15 +78,15 @@ const MediaLibrary = () => {
       for (let i = 0; i < resizedFiles.length; i++) {
         const file = resizedFiles[i];
         const originalFile = selectedFiles[i];
-        
+
         totalOriginalSize += originalFile.size;
         totalNewSize += file.size;
-        
+
         try {
           const formData = new FormData();
           formData.append('image', file);
           formData.append('folder', currentFolder || 'general');
-          
+
           await adminAPI.uploadToMediaLibrary(formData);
           successCount++;
           setResizeProgress(prev => ({ ...prev, current: i + 1 }));
@@ -142,51 +143,48 @@ const MediaLibrary = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-          <Image className="h-6 w-6 mr-2" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <h2 className="font-display text-2xl font-bold text-neutral-900 flex items-center">
+          <Image className="h-6 w-6 mr-2 text-primary-600" />
           Media Library
-        </h1>
+        </h2>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-            className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
+            className="p-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-xl transition-all"
             title={viewMode === 'grid' ? 'List View' : 'Grid View'}
           >
             {viewMode === 'grid' ? <List className="h-5 w-5" /> : <Grid className="h-5 w-5" />}
           </button>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:shadow-lg hover:-translate-y-0.5 transition-all"
-          >
+          <Button onClick={() => setShowUploadModal(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Images
-          </button>
+          </Button>
         </div>
       </div>
 
       {message && (
-        <div className={`mb-4 p-4 rounded-lg flex items-center ${message.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-          {message.includes('Error') ? <AlertCircle className="h-5 w-5 mr-2" /> : <Check className="h-5 w-5 mr-2" />}
+        <div className={`p-4 rounded-2xl flex items-center text-sm font-medium ${message.toLowerCase().includes('error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+          {message.toLowerCase().includes('error') ? <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" /> : <Check className="h-5 w-5 mr-2 flex-shrink-0" />}
           {message}
         </div>
       )}
 
       {/* Breadcrumb & Search */}
-      <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <button
             onClick={() => setCurrentFolder('')}
-            className={`px-3 py-1 rounded ${currentFolder === '' ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-3 py-1.5 rounded-lg transition-colors ${currentFolder === '' ? 'bg-primary-100 text-primary-700' : 'text-neutral-600 hover:bg-neutral-100'}`}
           >
             <Folder className="h-4 w-4 inline mr-1" />
             Root
           </button>
           {currentFolder && (
             <>
-              <span className="text-gray-400">/</span>
-              <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded">
+              <span className="text-neutral-400">/</span>
+              <span className="px-3 py-1.5 bg-primary-100 text-primary-700 rounded-lg">
                 {currentFolder}
               </span>
             </>
@@ -194,38 +192,33 @@ const MediaLibrary = () => {
         </div>
 
         <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search images..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 w-64"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
-          >
+          <Input
+            icon={Search}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search images..."
+            className="w-64"
+          />
+          <Button type="submit" variant="secondary">
             Search
-          </button>
+          </Button>
         </form>
       </div>
 
       {/* Folders */}
       {folders.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Folders</h3>
+        <div>
+          <h3 className="text-sm font-medium text-neutral-700 mb-3">Folders</h3>
           <div className="flex flex-wrap gap-2">
             {folders.map((folder) => (
               <button
                 key={folder.path}
                 onClick={() => setCurrentFolder(folder.path)}
-                className={`flex items-center px-4 py-2 rounded-lg transition-all ${
-                  currentFolder === folder.path 
-                    ? 'bg-primary-100 text-primary-700' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  currentFolder === folder.path
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
                 <Folder className="h-4 w-4 mr-2" />
@@ -238,25 +231,22 @@ const MediaLibrary = () => {
 
       {/* Files */}
       {files.length === 0 ? (
-        <div className="text-center py-16">
-          <Image className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500 mb-4">No images found</p>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:shadow-lg hover:-translate-y-0.5 transition-all"
-          >
+        <div className="bg-white rounded-2xl shadow-card text-center py-16">
+          <Image className="h-16 w-16 mx-auto text-neutral-300 mb-4" />
+          <p className="text-neutral-500 mb-4">No images found</p>
+          <Button onClick={() => setShowUploadModal(true)}>
             Upload Images
-          </button>
+          </Button>
         </div>
       ) : viewMode === 'grid' ? (
         <>
-          <div className="mb-4 p-2 bg-yellow-50 text-xs">
+          <div className="p-3 bg-amber-50 text-amber-800 rounded-xl text-xs">
             <div className="font-mono break-all mb-1">Debug URL: {files[0]?.url}</div>
-            <a 
-              href={files[0]?.url} 
-              target="_blank" 
+            <a
+              href={files[0]?.url}
+              target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-primary-700 hover:underline font-medium"
             >
               Click to test URL
             </a>
@@ -266,8 +256,8 @@ const MediaLibrary = () => {
               <div
                 key={file.path}
                 onClick={() => setSelectedFile(file)}
-                className={`group relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer border-2 transition-all ${
-                  selectedFile?.path === file.path ? 'border-primary-600' : 'border-transparent hover:border-gray-300'
+                className={`group relative aspect-square rounded-xl overflow-hidden bg-neutral-100 cursor-pointer border-2 transition-all ${
+                  selectedFile?.path === file.path ? 'border-primary-600' : 'border-transparent hover:border-neutral-300'
                 }`}
               >
               <img
@@ -280,7 +270,7 @@ const MediaLibrary = () => {
                   e.target.onerror = null;
                   e.target.style.display = 'none';
                   const placeholder = document.createElement('div');
-                  placeholder.className = 'w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 text-xs text-center p-2';
+                  placeholder.className = 'w-full h-full flex items-center justify-center bg-neutral-200 text-neutral-500 text-xs text-center p-2';
                   placeholder.innerHTML = 'Failed to load<br/>Check console';
                   e.target.parentElement.appendChild(placeholder);
                 }}
@@ -291,7 +281,7 @@ const MediaLibrary = () => {
                     e.stopPropagation();
                     copyToClipboard(file.url);
                   }}
-                  className="p-2 bg-white rounded-full mr-2 hover:bg-gray-100"
+                  className="p-2 bg-white rounded-full mr-2 hover:bg-neutral-100 text-neutral-700"
                   title="Copy URL"
                 >
                   <Check className="h-4 w-4" />
@@ -315,11 +305,11 @@ const MediaLibrary = () => {
         </div>
       </>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white rounded-2xl shadow-card border border-neutral-100 overflow-hidden">
           {files.map((file, index) => (
             <div
               key={file.path}
-              className={`flex items-center p-4 ${index !== files.length - 1 ? 'border-b border-gray-100' : ''}`}
+              className={`flex items-center p-4 ${index !== files.length - 1 ? 'border-b border-neutral-100' : ''}`}
             >
               <img
                 src={file.url}
@@ -327,13 +317,13 @@ const MediaLibrary = () => {
                 className="h-12 w-12 object-cover rounded-lg mr-4"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                <p className="text-xs text-gray-500">{file.size} • {file.modified}</p>
+                <p className="text-sm font-medium text-neutral-900 truncate">{file.name}</p>
+                <p className="text-xs text-neutral-500">{file.size} • {file.modified}</p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => copyToClipboard(file.url)}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                  className="p-2 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-all"
                   title="Copy URL"
                 >
                   <Check className="h-4 w-4" />
@@ -352,68 +342,61 @@ const MediaLibrary = () => {
       )}
 
       {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-bold">Upload Images</h2>
-              <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-4">Drag and drop images here, or click to browse</p>
-                <label className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? (resizeProgress.status || 'Processing...') : 'Select Files'}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleUpload}
-                    className="hidden"
-                    disabled={uploading}
-                  />
-                </label>
-                <p className="text-xs text-gray-500 mt-4">Supports: JPG, PNG, GIF, WebP (auto-resized if &gt;2MB)</p>
-              </div>
-            </div>
-          </div>
+      <Modal
+        open={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        title="Upload Images"
+        size="sm"
+      >
+        <div className="border-2 border-dashed border-neutral-300 rounded-2xl p-8 text-center">
+          <Upload className="h-12 w-12 mx-auto text-neutral-400 mb-4" />
+          <p className="text-neutral-600 mb-4">Drag and drop images here, or click to browse</p>
+          <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-primary-600 text-white rounded-xl cursor-pointer hover:bg-primary-700 shadow-sm transition-colors">
+            <Upload className="h-4 w-4" />
+            {uploading ? (resizeProgress.status || 'Processing...') : 'Select Files'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+          </label>
+          <p className="text-xs text-neutral-500 mt-4">Supports: JPG, PNG, GIF, WebP (auto-resized if &gt;2MB)</p>
         </div>
-      )}
+      </Modal>
 
       {/* Selected File Preview */}
       {selectedFile && (
-        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-sm z-40">
+        <div className="fixed bottom-4 right-4 bg-white rounded-2xl shadow-card-hover border border-neutral-100 p-4 max-w-sm z-40">
           <div className="flex items-start gap-3">
             <img
               src={selectedFile.url}
               alt={selectedFile.name}
-              className="h-20 w-20 object-cover rounded-lg"
+              className="h-20 w-20 object-cover rounded-xl flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{selectedFile.name}</p>
-              <p className="text-xs text-gray-500">{selectedFile.size}</p>
-              <p className="text-xs text-gray-500">{selectedFile.modified}</p>
+              <p className="text-sm font-medium text-neutral-900 truncate">{selectedFile.name}</p>
+              <p className="text-xs text-neutral-500">{selectedFile.size}</p>
+              <p className="text-xs text-neutral-500">{selectedFile.modified}</p>
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={() => copyToClipboard(selectedFile.url)}
-                  className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded hover:bg-primary-200"
+                  className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 font-medium"
                 >
                   Copy URL
                 </button>
                 <button
                   onClick={() => handleDelete(selectedFile.path)}
-                  className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                  className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
                 >
                   Delete
                 </button>
               </div>
             </div>
-            <button onClick={() => setSelectedFile(null)} className="p-1 hover:bg-gray-100 rounded">
+            <button onClick={() => setSelectedFile(null)} className="p-1 hover:bg-neutral-100 rounded text-neutral-500 flex-shrink-0">
               <X className="h-4 w-4" />
             </button>
           </div>

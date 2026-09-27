@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Image, GripVertical, ArrowUp, ArrowDown, Eye, EyeOff, Star, Loader2, Save } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { getHotelImage, getActivityImage } from '../../utils/images';
+import { StatCard, Th, Td } from '../../components/ui';
 
 const BannerManagement = () => {
   const [hotels, setHotels] = useState([]);
@@ -36,12 +37,12 @@ const BannerManagement = () => {
     try {
       if (type === 'hotel') {
         await adminAPI.toggleHotelBanner(item.id);
-        setHotels(hotels.map(h => 
+        setHotels(hotels.map(h =>
           h.id === item.id ? { ...h, show_in_banner: !h.show_in_banner } : h
         ));
       } else {
         await adminAPI.toggleActivityBanner(item.id);
-        setActivities(activities.map(a => 
+        setActivities(activities.map(a =>
           a.id === item.id ? { ...a, show_in_banner: !a.show_in_banner } : a
         ));
       }
@@ -57,12 +58,12 @@ const BannerManagement = () => {
     try {
       if (type === 'hotel') {
         await adminAPI.updateHotelBannerOrder(item.id, newOrder);
-        setHotels(hotels.map(h => 
+        setHotels(hotels.map(h =>
           h.id === item.id ? { ...h, banner_order: newOrder } : h
         ));
       } else {
         await adminAPI.updateActivityBannerOrder(item.id, newOrder);
-        setActivities(activities.map(a => 
+        setActivities(activities.map(a =>
           a.id === item.id ? { ...a, banner_order: newOrder } : a
         ));
       }
@@ -95,46 +96,30 @@ const BannerManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Banner Management</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="font-display text-2xl font-bold text-neutral-900">Banner Management</h2>
         {message && (
-          <div className="bg-green-100 text-green-800 px-4 py-2 rounded-md">
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-xl text-sm font-medium">
             {message}
           </div>
         )}
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Hotels in Banner</p>
-              <p className="text-3xl font-bold text-primary-600">{bannerHotels.length}</p>
-            </div>
-            <Image className="h-10 w-10 text-gray-400" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Activities in Banner</p>
-              <p className="text-3xl font-bold text-primary-600">{bannerActivities.length}</p>
-            </div>
-            <Star className="h-10 w-10 text-gray-400" />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <StatCard icon={Image} title="Hotels in Banner" value={bannerHotels.length} tone="primary" />
+        <StatCard icon={Star} title="Activities in Banner" value={bannerActivities.length} tone="accent" />
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-neutral-200">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('hotels')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'hotels'
                 ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
             }`}
           >
             Hotels ({bannerHotels.length} in banner)
@@ -144,7 +129,7 @@ const BannerManagement = () => {
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'activities'
                 ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
             }`}
           >
             Activities ({bannerActivities.length} in banner)
@@ -153,53 +138,54 @@ const BannerManagement = () => {
       </div>
 
       {/* Banner Items (Ordered) */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="px-6 py-4 border-b bg-gray-50">
-          <h3 className="font-semibold text-gray-900">
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-100 bg-neutral-50">
+          <h3 className="font-display font-semibold text-neutral-900">
             {activeTab === 'hotels' ? 'Hotels in Banner Sequence' : 'Activities in Banner Sequence'}
           </h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-500">
             Drag items to reorder or use arrows. Items appear in this order on the homepage banner.
           </p>
         </div>
-        
+
         {(activeTab === 'hotels' ? bannerHotels : bannerActivities).length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-neutral-500">
             No {activeTab} added to banner yet. Toggle items below to add them.
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-neutral-100">
             {(activeTab === 'hotels' ? bannerHotels : bannerActivities).map((item, index) => (
-              <div key={item.id} className="flex items-center px-6 py-4 hover:bg-gray-50">
-                <div className="flex items-center space-x-4 flex-1">
-                  <span className="text-gray-400 font-mono w-6">{index + 1}</span>
-                  <img 
-                    src={item.featured_image || (activeTab === 'hotels' ? getHotelImage(item.id) : getActivityImage(item.type))} 
+              <div key={item.id} className="flex items-center px-4 sm:px-6 py-4 hover:bg-neutral-50">
+                <div className="flex items-center space-x-4 flex-1 min-w-0">
+                  <GripVertical className="h-4 w-4 text-neutral-300 shrink-0 hidden sm:block" />
+                  <span className="text-neutral-400 font-mono w-6 shrink-0">{index + 1}</span>
+                  <img
+                    src={item.featured_image || (activeTab === 'hotels' ? getHotelImage(item.id) : getActivityImage(item.type))}
                     alt={item.name}
-                    className="h-12 w-12 rounded-lg object-cover"
+                    className="h-12 w-12 rounded-xl object-cover shrink-0"
                   />
-                  <div>
-                    <p className="font-medium text-gray-900">{item.name}</p>
-                    <p className="text-sm text-gray-500">{item.city || item.location}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-neutral-900 truncate">{item.name}</p>
+                    <p className="text-sm text-neutral-500 truncate">{item.city || item.location}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
                   <button
                     onClick={() => moveItem(item, activeTab.slice(0, -1), 'up')}
                     disabled={index === 0}
-                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    className="p-2 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 disabled:opacity-30 transition"
                   >
                     <ArrowUp className="h-5 w-5" />
                   </button>
                   <button
                     onClick={() => moveItem(item, activeTab.slice(0, -1), 'down')}
                     disabled={index === (activeTab === 'hotels' ? bannerHotels : bannerActivities).length - 1}
-                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    className="p-2 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 disabled:opacity-30 transition"
                   >
                     <ArrowDown className="h-5 w-5" />
                   </button>
-                  <div className="border-l pl-2 ml-2">
-                    <span className="text-sm text-gray-400">Order: {item.banner_order || 0}</span>
+                  <div className="border-l border-neutral-200 pl-2 ml-1 hidden sm:block">
+                    <span className="text-sm text-neutral-400">Order: {item.banner_order || 0}</span>
                   </div>
                 </div>
               </div>
@@ -209,58 +195,58 @@ const BannerManagement = () => {
       </div>
 
       {/* All Items List */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="px-6 py-4 border-b bg-gray-50">
-          <h3 className="font-semibold text-gray-900">
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-100 bg-neutral-50">
+          <h3 className="font-display font-semibold text-neutral-900">
             All {activeTab === 'hotels' ? 'Hotels' : 'Activities'}
           </h3>
-          <p className="text-sm text-gray-500">Toggle items to show/hide in banner</p>
+          <p className="text-sm text-neutral-500">Toggle items to show/hide in banner</p>
         </div>
-        
-        <div className="max-h-96 overflow-y-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 sticky top-0">
+
+        <div className="max-h-96 overflow-y-auto overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">In Banner</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Order</th>
+                <Th className="sticky top-0">Item</Th>
+                <Th className="sticky top-0">Location</Th>
+                <Th className="sticky top-0 text-center">In Banner</Th>
+                <Th className="sticky top-0 text-center">Order</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-neutral-100">
               {(activeTab === 'hotels' ? hotels : activities).map((item) => (
                 <tr key={item.id} className={item.show_in_banner ? 'bg-primary-50' : ''}>
-                  <td className="px-6 py-4">
+                  <Td className="whitespace-normal">
                     <div className="flex items-center">
-                      <img 
-                        src={item.featured_image || (activeTab === 'hotels' ? getHotelImage(item.id) : getActivityImage(item.type))} 
+                      <img
+                        src={item.featured_image || (activeTab === 'hotels' ? getHotelImage(item.id) : getActivityImage(item.type))}
                         alt={item.name}
                         className="h-10 w-10 rounded-lg object-cover mr-3"
                       />
                       <div>
-                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="font-medium text-neutral-900">{item.name}</p>
                         {item.is_featured && (
                           <span className="text-xs text-primary-600">Featured</span>
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{item.city || item.location}</td>
-                  <td className="px-6 py-4 text-center">
+                  </Td>
+                  <Td>{item.city || item.location}</Td>
+                  <Td className="text-center">
                     <button
                       onClick={() => toggleBanner(item, activeTab.slice(0, -1))}
                       className={`p-2 rounded-full transition ${
-                        item.show_in_banner 
-                          ? 'bg-primary-100 text-primary-600 hover:bg-primary-200' 
-                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                        item.show_in_banner
+                          ? 'bg-primary-100 text-primary-600 hover:bg-primary-200'
+                          : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200'
                       }`}
                     >
                       {item.show_in_banner ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                     </button>
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-500">
+                  </Td>
+                  <Td className="text-center">
                     {item.show_in_banner ? (item.banner_order || 0) : '-'}
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>

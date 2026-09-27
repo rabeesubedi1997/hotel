@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\Admin\AboutPageController as AdminAboutPageController;
 use App\Http\Controllers\Api\Admin\ActivityController as AdminActivityController;
+use App\Http\Controllers\Api\Admin\ApprovalController;
 use App\Http\Controllers\Api\Admin\BookingController as AdminBookingController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\EnquiryController as AdminEnquiryController;
@@ -17,15 +18,18 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\HotelController;
+use App\Http\Controllers\Api\ItineraryController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\QuoteController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\TourGuideController;
 use App\Http\Controllers\Api\WishlistController;
+use App\Http\Controllers\Api\Admin\ItineraryController as AdminItineraryController;
 use App\Http\Controllers\Api\Admin\MediaLibraryController;
 use App\Http\Controllers\Api\Admin\PageController;
 use App\Http\Controllers\Api\Admin\TourGuideController as AdminTourGuideController;
 use App\Http\Controllers\Api\Admin\TourGuideSeederController;
+use App\Http\Controllers\Api\Customer\TripPlanController;
 use Illuminate\Support\Facades\Route;
 
 // Public Routes
@@ -36,7 +40,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/hotels', [HotelController::class, 'index']);
 Route::get('/hotels/featured', [HotelController::class, 'featured']);
 Route::get('/hotels/cities', [HotelController::class, 'cities']);
+Route::get('/hotels/destinations', [HotelController::class, 'destinations']);
 Route::get('/hotels/banner', [AdminHotelController::class, 'getBannerItems']);
+Route::get('/hotels/filters', [HotelController::class, 'filters']);
 Route::get('/hotels/{hotel:slug}', [HotelController::class, 'show']);
 
 // Activities (Public)
@@ -44,7 +50,9 @@ Route::get('/activities', [ActivityController::class, 'index']);
 Route::get('/activities/featured', [ActivityController::class, 'featured']);
 Route::get('/activities/types', [ActivityController::class, 'types']);
 Route::get('/activities/cities', [ActivityController::class, 'cities']);
+Route::get('/activities/destinations', [ActivityController::class, 'destinations']);
 Route::get('/activities/banner', [AdminActivityController::class, 'getBannerItems']);
+Route::get('/activities/filters', [ActivityController::class, 'filters']);
 Route::get('/activities/{activity:slug}', [ActivityController::class, 'show']);
 
 // Reviews (Public - approved only)
@@ -62,6 +70,27 @@ Route::get('/pages/{slug}', [PageController::class, 'showBySlug']);
 Route::get('/tour-guides', [TourGuideController::class, 'index']);
 Route::get('/tour-guides/{tourGuide:slug}', [TourGuideController::class, 'show']);
 
+// Itineraries (Public — published curated packages only)
+Route::get('/itineraries', [ItineraryController::class, 'index']);
+Route::get('/itineraries/{itinerary:slug}', [ItineraryController::class, 'show']);
+
+// Vendor storefronts (Public — active vendors only)
+Route::get('/vendors/{user:slug}', [\App\Http\Controllers\Api\VendorProfileController::class, 'show']);
+
+// Currency (Public — display-time conversion rates, admin-configurable)
+Route::get('/currency/rates', [\App\Http\Controllers\Api\CurrencyController::class, 'rates']);
+
+// Promotions (Public — active promotions for a given placement slot)
+Route::get('/promotions', [\App\Http\Controllers\Api\PromotionController::class, 'index']);
+Route::post('/promotions/{promotion}/click', [\App\Http\Controllers\Api\PromotionController::class, 'click']);
+
+// Guest chat (Public — floating widget for anonymous visitors)
+Route::post('/chat/guest-start', [\App\Http\Controllers\Api\ChatController::class, 'guestStart']);
+
+// iCal Exports (Public)
+Route::get('/ical/room/{token}.ics', [\App\Http\Controllers\Api\ICalController::class, 'exportRoom']);
+Route::get('/ical/activity/{token}.ics', [\App\Http\Controllers\Api\ICalController::class, 'exportActivity']);
+
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
@@ -70,6 +99,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
+    // Broadcasting auth — this SPA uses Bearer-token (Sanctum) auth, not
+    // cookies/sessions, so the default `/broadcasting/auth` (registered
+    // under the `web` middleware by `withRouting(channels: ...)`) can't
+    // authenticate our users. This route, under `/api` + `auth:sanctum`,
+    // is what the frontend's Echo client actually points at.
+    Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+        return \Illuminate\Support\Facades\Broadcast::auth($request);
+    });
+
+    // Notifications (bell — database history; live push arrives via Reverb)
+    Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [\App\Http\Controllers\Api\NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [\App\Http\Controllers\Api\NotificationController::class, 'markAllAsRead']);
+
+    // Direct chat (customer↔vendor inquiries, customer↔support)
+    Route::get('/chat/conversations', [\App\Http\Controllers\Api\ChatController::class, 'index']);
+    Route::post('/chat/conversations', [\App\Http\Controllers\Api\ChatController::class, 'store']);
+    Route::get('/chat/conversations/{conversation}', [\App\Http\Controllers\Api\ChatController::class, 'show']);
+    Route::post('/chat/conversations/{conversation}/messages', [\App\Http\Controllers\Api\ChatController::class, 'sendMessage']);
+    Route::post('/chat/conversations/{conversation}/read', [\App\Http\Controllers\Api\ChatController::class, 'markRead']);
+
     // Bookings - Fixed route order for calendar endpoint
     Route::get('/bookings', [BookingController::class, 'index']);
     Route::post('/bookings', [BookingController::class, 'store']);
@@ -77,6 +128,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/bookings/check-availability', [BookingController::class, 'checkAvailability']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+    Route::get('/bookings/{booking}/invoice', [BookingController::class, 'downloadInvoice']);
+
+    // Package Bookings (fixed-price holiday packages)
+    Route::get('/package-bookings', [\App\Http\Controllers\Api\PackageBookingController::class, 'index']);
+    Route::post('/package-bookings', [\App\Http\Controllers\Api\PackageBookingController::class, 'store']);
+    Route::get('/package-bookings/{packageBooking}', [\App\Http\Controllers\Api\PackageBookingController::class, 'show']);
+    Route::post('/package-bookings/{packageBooking}/cancel', [\App\Http\Controllers\Api\PackageBookingController::class, 'cancel']);
+    Route::get('/package-bookings/{packageBooking}/invoice', [\App\Http\Controllers\Api\PackageBookingController::class, 'downloadInvoice']);
+
+    // Hotels and Rooms
+    Route::get('/hotels/{hotel}/rooms', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'index']);
 
     // Payments
     Route::get('/payments/methods', [PaymentController::class, 'methods']);
@@ -102,6 +164,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tour-guides/{tourGuide:slug}/book', [TourGuideController::class, 'storeBooking']);
     Route::post('/tour-guide-bookings/{bookingId}/cancel', [TourGuideController::class, 'cancelBooking']);
 
+    // Coupons
+    Route::post('/coupons/validate', [\App\Http\Controllers\Api\CouponController::class, 'validate']);
+
+    // Loyalty points
+    Route::get('/loyalty/account', [\App\Http\Controllers\Api\LoyaltyController::class, 'account']);
+    Route::post('/loyalty/redeem', [\App\Http\Controllers\Api\LoyaltyController::class, 'redeem']);
+
     // Quotes
     Route::get('/quotes/package-options', [QuoteController::class, 'getPackageOptions']);
     Route::post('/quotes', [QuoteController::class, 'store']);
@@ -110,123 +179,211 @@ Route::middleware('auth:sanctum')->group(function () {
     // Enquiries
     Route::post('/enquiries', [EnquiryController::class, 'store']);
     Route::get('/my-enquiries', [EnquiryController::class, 'myEnquiries']);
+
+    // Trip Planner (personal itineraries)
+    Route::get('/trip-plans', [TripPlanController::class, 'index']);
+    Route::post('/trip-plans', [TripPlanController::class, 'store']);
+    Route::get('/trip-plans/{itinerary:id}', [TripPlanController::class, 'show']);
+    Route::put('/trip-plans/{itinerary:id}', [TripPlanController::class, 'update']);
+    Route::delete('/trip-plans/{itinerary:id}', [TripPlanController::class, 'destroy']);
+    Route::post('/trip-plans/{itinerary:id}/items', [TripPlanController::class, 'addItem']);
+    Route::put('/trip-plans/{itinerary:id}/items/{item}', [TripPlanController::class, 'updateItem']);
+    Route::delete('/trip-plans/{itinerary:id}/items/{item}', [TripPlanController::class, 'removeItem']);
 });
 
-// Admin Routes
-Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+// Vendor Routes (Vendors access admin panel but see only their data)
+Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function () {
     // Dashboard
-    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
-    Route::get('/dashboard/recent-bookings', [DashboardController::class, 'recentBookings']);
-    Route::get('/dashboard/popular-items', [DashboardController::class, 'popularItems']);
+    Route::get('/dashboard/stats', [\App\Http\Controllers\Api\Vendor\DashboardController::class, 'stats']);
 
-    // Users
-    Route::get('/users', [AdminUserController::class, 'index']);
-    Route::post('/users', [AdminUserController::class, 'store']);
-    Route::get('/users/{user}', [AdminUserController::class, 'show']);
-    Route::put('/users/{user}', [AdminUserController::class, 'update']);
-    Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
-    Route::post('/users/{user}/role', [AdminUserController::class, 'updateRole']);
-    Route::post('/users/{user}/status', [AdminUserController::class, 'updateStatus']);
+    // Hotels Management (Vendor sees only their hotels)
+    Route::get('/hotels', [\App\Http\Controllers\Api\Vendor\HotelController::class, 'index'])->middleware('permission:hotels.view.own');
+    Route::post('/hotels', [\App\Http\Controllers\Api\Vendor\HotelController::class, 'store'])->middleware('permission:hotels.create');
+    Route::get('/hotels/{hotel}', [\App\Http\Controllers\Api\Vendor\HotelController::class, 'show'])->middleware('permission:hotels.view.own');
+    Route::put('/hotels/{hotel}', [\App\Http\Controllers\Api\Vendor\HotelController::class, 'update'])->middleware('permission:hotels.edit.own');
+    Route::delete('/hotels/{hotel}', [\App\Http\Controllers\Api\Vendor\HotelController::class, 'destroy'])->middleware('permission:hotels.delete.own');
 
-    // Hotels
-    Route::get('/hotels', [AdminHotelController::class, 'index']);
-    Route::post('/hotels', [AdminHotelController::class, 'store']);
-    Route::get('/hotels/{hotel:id}', [AdminHotelController::class, 'show']);
-    Route::put('/hotels/{hotel:id}', [AdminHotelController::class, 'update']);
-    Route::delete('/hotels/{hotel:id}', [AdminHotelController::class, 'destroy']);
-    Route::post('/hotels/{hotel:id}/toggle-featured', [AdminHotelController::class, 'toggleFeatured']);
-    Route::post('/hotels/{hotel:id}/toggle-banner', [AdminHotelController::class, 'toggleBanner']);
-    Route::post('/hotels/{hotel:id}/banner-order', [AdminHotelController::class, 'updateBannerOrder']);
-    Route::get('/hotels/banner-items', [AdminHotelController::class, 'getBannerItems']);
+    // Activities Management (Vendor sees only their activities)
+    Route::get('/activities', [\App\Http\Controllers\Api\Vendor\ActivityController::class, 'index'])->middleware('permission:activities.view.own');
+    Route::post('/activities', [\App\Http\Controllers\Api\Vendor\ActivityController::class, 'store'])->middleware('permission:activities.create');
+    Route::get('/activities/{activity}', [\App\Http\Controllers\Api\Vendor\ActivityController::class, 'show'])->middleware('permission:activities.view.own');
+    Route::put('/activities/{activity}', [\App\Http\Controllers\Api\Vendor\ActivityController::class, 'update'])->middleware('permission:activities.edit.own');
+    Route::delete('/activities/{activity}', [\App\Http\Controllers\Api\Vendor\ActivityController::class, 'destroy'])->middleware('permission:activities.delete.own');
 
-    // Activities
-    Route::get('/activities', [AdminActivityController::class, 'index']);
-    Route::post('/activities', [AdminActivityController::class, 'store']);
-    Route::get('/activities/{activity:id}', [AdminActivityController::class, 'show']);
-    Route::put('/activities/{activity:id}', [AdminActivityController::class, 'update']);
-    Route::delete('/activities/{activity:id}', [AdminActivityController::class, 'destroy']);
-    Route::post('/activities/{activity:id}/toggle-featured', [AdminActivityController::class, 'toggleFeatured']);
-    Route::post('/activities/{activity:id}/toggle-banner', [AdminActivityController::class, 'toggleBanner']);
-    Route::post('/activities/{activity:id}/banner-order', [AdminActivityController::class, 'updateBannerOrder']);
-    Route::get('/activities/banner-items', [AdminActivityController::class, 'getBannerItems']);
+    // Bookings Management (Vendor sees only their bookings)
+    Route::get('/bookings', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'index'])->middleware('permission:bookings.view.own');
+    Route::get('/bookings/stats', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'stats'])->middleware('permission:bookings.view.own');
+    Route::get('/bookings/{booking}', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'show'])->middleware('permission:bookings.view.own');
+    Route::put('/bookings/{booking}/status', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'updateStatus'])->middleware('permission:bookings.edit.own');
 
-    // Bookings
-    Route::get('/bookings', [AdminBookingController::class, 'index']);
-    Route::get('/bookings/{booking}', [AdminBookingController::class, 'show']);
-    Route::post('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus']);
-    Route::post('/bookings/{booking}/confirm', [AdminBookingController::class, 'confirmBooking']);
-    Route::post('/bookings/{booking}/refund', [AdminBookingController::class, 'processRefund']);
-    Route::get('/bookings/calendar/data', [AdminBookingController::class, 'getCalendarData']);
+    // Room Management (Vendor needs to manage rooms for their hotels)
+    Route::get('/hotels/{hotel}/rooms', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'index'])->middleware('permission:hotels.view.own');
+    Route::post('/hotels/{hotel}/rooms', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'store'])->middleware('permission:hotels.edit.own');
+    Route::put('/rooms/{room}', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'update'])->middleware('permission:hotels.edit.own');
+    Route::delete('/rooms/{room}', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'destroy'])->middleware('permission:hotels.delete.own');
 
-    // Reviews
+    // Media Library (Vendor needs to upload images too)
+    Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');
+    Route::post('/media-library/upload', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'upload'])->middleware('permission:media.upload');
+    Route::delete('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'destroy'])->middleware('permission:media.delete.own');
+});
+
+// Admin Routes (Admin and Manager only - full access)
+Route::middleware(['auth:sanctum', 'admin.dashboard'])->prefix('admin')->group(function () {
+    // Dashboard
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->middleware('permission:system.analytics');
+    Route::get('/dashboard/recent-bookings', [DashboardController::class, 'recentBookings'])->middleware('permission:bookings.view.all');
+    Route::get('/dashboard/pending-requests', [DashboardController::class, 'pendingRequests'])->middleware('permission:bookings.view.all');
+    Route::get('/dashboard/popular-items', [DashboardController::class, 'popularItems'])->middleware('permission:system.analytics');
+
+    // Hotels Management (Admin sees all hotels)
+    Route::get('/hotels', [AdminHotelController::class, 'index'])->middleware('permission:hotels.view.all');
+    Route::post('/hotels', [AdminHotelController::class, 'store'])->middleware('permission:hotels.create');
+    Route::get('/hotels/{hotel:id}', [AdminHotelController::class, 'show'])->middleware('permission:hotels.view.all');
+    Route::put('/hotels/{hotel:id}', [AdminHotelController::class, 'update'])->middleware('permission:hotels.edit.all');
+    Route::delete('/hotels/{hotel:id}', [AdminHotelController::class, 'destroy'])->middleware('permission:hotels.delete.all');
+    Route::post('/hotels/{hotel:id}/toggle-featured', [AdminHotelController::class, 'toggleFeatured'])->middleware('permission:hotels.edit.all');
+    Route::post('/hotels/{hotel:id}/toggle-banner', [AdminHotelController::class, 'toggleBanner'])->middleware('permission:hotels.edit.all');
+    Route::post('/hotels/{hotel:id}/banner-order', [AdminHotelController::class, 'updateBannerOrder'])->middleware('permission:hotels.edit.all');
+    Route::get('/hotels/banner-items', [AdminHotelController::class, 'getBannerItems'])->middleware('permission:hotels.view.all');
+
+    // Activities Management (Admin sees all activities)
+    Route::get('/activities', [AdminActivityController::class, 'index'])->middleware('permission:activities.view.all');
+    Route::post('/activities', [AdminActivityController::class, 'store'])->middleware('permission:activities.create');
+    Route::get('/activities/{activity:id}', [AdminActivityController::class, 'show'])->middleware('permission:activities.view.all');
+    Route::put('/activities/{activity:id}', [AdminActivityController::class, 'update'])->middleware('permission:activities.edit.all');
+    Route::delete('/activities/{activity:id}', [AdminActivityController::class, 'destroy'])->middleware('permission:activities.delete.all');
+    Route::post('/activities/{activity:id}/toggle-featured', [AdminActivityController::class, 'toggleFeatured'])->middleware('permission:activities.edit.all');
+    Route::post('/activities/{activity:id}/toggle-banner', [AdminActivityController::class, 'toggleBanner'])->middleware('permission:activities.edit.all');
+    Route::post('/activities/{activity:id}/banner-order', [AdminActivityController::class, 'updateBannerOrder'])->middleware('permission:activities.edit.all');
+    Route::get('/activities/banner-items', [AdminActivityController::class, 'getBannerItems'])->middleware('permission:activities.view.all');
+
+    // Approvals (vendor-submitted hotels/activities awaiting review)
+    Route::get('/approvals/dashboard', [ApprovalController::class, 'dashboard'])->middleware('permission:hotels.approve');
+    Route::get('/approvals/pending-hotels', [ApprovalController::class, 'pendingHotels'])->middleware('permission:hotels.approve');
+    Route::get('/approvals/pending-activities', [ApprovalController::class, 'pendingActivities'])->middleware('permission:activities.approve');
+    Route::post('/approvals/hotels/{id}/approve', [ApprovalController::class, 'approveHotel'])->middleware('permission:hotels.approve');
+    Route::post('/approvals/activities/{id}/approve', [ApprovalController::class, 'approveActivity'])->middleware('permission:activities.approve');
+    Route::post('/approvals/hotels/bulk-approve', [ApprovalController::class, 'bulkApproveHotels'])->middleware('permission:hotels.approve');
+    Route::post('/approvals/activities/bulk-approve', [ApprovalController::class, 'bulkApproveActivities'])->middleware('permission:activities.approve');
+
+    // Bookings Management (Admin sees all bookings)
+    Route::get('/bookings', [AdminBookingController::class, 'index'])->middleware('permission:bookings.view.all');
+    Route::get('/bookings/{booking}', [AdminBookingController::class, 'show'])->middleware('permission:bookings.view.all');
+    Route::put('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->middleware('permission:bookings.edit.all');
+    Route::post('/bookings/{booking}/confirm', [AdminBookingController::class, 'confirmBooking'])->middleware('permission:bookings.manage');
+    Route::delete('/bookings/{booking}', [AdminBookingController::class, 'deleteBooking'])->middleware('permission:bookings.delete.all');
+    Route::post('/bookings/{booking}/refund', [AdminBookingController::class, 'processRefund'])->middleware('permission:bookings.manage');
+
+    // Users Management
+    Route::get('/users', [AdminUserController::class, 'index'])->middleware('permission:users.view.all');
+    Route::post('/users', [AdminUserController::class, 'store'])->middleware('permission:users.create');
+    Route::get('/users/{user}', [AdminUserController::class, 'show'])->middleware('permission:users.view.all');
+    Route::put('/users/{user}', [AdminUserController::class, 'update'])->middleware('permission:users.edit.all');
+    Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->middleware('permission:users.delete.all');
+    Route::post('/users/{user}/role', [AdminUserController::class, 'updateRole'])->middleware('permission:users.assign_roles');
+    Route::post('/users/{user}/status', [AdminUserController::class, 'updateStatus'])->middleware('permission:users.edit.all');
+    Route::post('/users/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->middleware('permission:users.edit.all');
+
+    // Reviews Management
     Route::get('/reviews', [AdminReviewController::class, 'index']);
-    Route::get('/reviews/{review}', [AdminReviewController::class, 'show']);
-    Route::post('/reviews/{review}/approve', [AdminReviewController::class, 'approve']);
-    Route::post('/reviews/{review}/reject', [AdminReviewController::class, 'reject']);
-    Route::delete('/reviews/{review}', [AdminReviewController::class, 'destroy']);
+    Route::put('/reviews/{review}/approve', [AdminReviewController::class, 'approve']);
+    Route::delete('/reviews/{review}', [AdminReviewController::class, 'delete']);
 
-    // SEO Settings
-    Route::get('/seo', [SeoController::class, 'index']);
-    Route::get('/seo/{page}', [SeoController::class, 'show']);
-    Route::post('/seo', [SeoController::class, 'store']);
-    Route::put('/seo/{page}', [SeoController::class, 'update']);
-    Route::delete('/seo/{page}', [SeoController::class, 'destroy']);
+    // Audit Log (superadmin/admin oversight trail)
+    Route::get('/audit-log', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'index']);
 
-    // Site Settings
-    Route::get('/settings', [SiteSettingController::class, 'index']);
-    Route::get('/settings/groups', [SiteSettingController::class, 'getGroups']);
-    Route::get('/settings/initialize', [SiteSettingController::class, 'initializeDefaults']);
-    Route::get('/settings/group/{group}', [SiteSettingController::class, 'getByGroup']);
-    Route::get('/settings/all', [SiteSettingController::class, 'getAll']);
-    Route::get('/settings/{key}', [SiteSettingController::class, 'show']);
-    Route::post('/settings', [SiteSettingController::class, 'store']);
-    Route::put('/settings/bulk', [SiteSettingController::class, 'bulkUpdate']);
-    Route::put('/settings/{key}', [SiteSettingController::class, 'update']);
-    Route::delete('/settings/{key}', [SiteSettingController::class, 'destroy']);
+    // Promotions (advertising / promotional banners)
+    Route::get('/promotions', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'index']);
+    Route::post('/promotions', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'store']);
+    Route::get('/promotions/{promotion}', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'show']);
+    Route::put('/promotions/{promotion}', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'update']);
+    Route::delete('/promotions/{promotion}', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'destroy']);
+    Route::post('/promotions/{promotion}/toggle-active', [\App\Http\Controllers\Api\Admin\PromotionController::class, 'toggleActive']);
 
-    // Upload
-    Route::post('/upload', [UploadController::class, 'upload']);
+    // Exchange Rates (multi-currency display)
+    Route::get('/exchange-rates', [\App\Http\Controllers\Api\Admin\ExchangeRateController::class, 'index']);
+    Route::post('/exchange-rates', [\App\Http\Controllers\Api\Admin\ExchangeRateController::class, 'upsert']);
+    Route::delete('/exchange-rates/{exchangeRate}', [\App\Http\Controllers\Api\Admin\ExchangeRateController::class, 'destroy']);
 
-    // About Page Management
-    Route::get('/about', [AdminAboutPageController::class, 'index']);
-    Route::post('/about', [AdminAboutPageController::class, 'store']);
-    Route::put('/about', [AdminAboutPageController::class, 'update']);
-    Route::post('/about/upload-image', [AdminAboutPageController::class, 'uploadImage']);
+    // Package Bookings (fixed-price holiday packages)
+    Route::get('/package-bookings', [\App\Http\Controllers\Api\Admin\PackageBookingController::class, 'index']);
+    Route::get('/package-bookings/{packageBooking}', [\App\Http\Controllers\Api\Admin\PackageBookingController::class, 'show']);
+    Route::post('/package-bookings/{packageBooking}/status', [\App\Http\Controllers\Api\Admin\PackageBookingController::class, 'updateStatus']);
+    Route::post('/package-bookings/{packageBooking}/refund', [\App\Http\Controllers\Api\Admin\PackageBookingController::class, 'processRefund']);
 
-    // Enquiries Management
-    Route::get('/enquiries', [AdminEnquiryController::class, 'index']);
-    Route::get('/enquiries/{enquiry}', [AdminEnquiryController::class, 'show']);
-    Route::post('/enquiries/{enquiry}/respond', [AdminEnquiryController::class, 'respond']);
-    Route::post('/enquiries/{enquiry}/status', [AdminEnquiryController::class, 'updateStatus']);
-    Route::delete('/enquiries/{enquiry}', [AdminEnquiryController::class, 'destroy']);
-    Route::get('/dev-emails', [AdminEnquiryController::class, 'devEmails']);
+    // Loyalty points
+    Route::get('/loyalty/accounts', [\App\Http\Controllers\Api\Admin\LoyaltyController::class, 'accounts']);
+    Route::post('/loyalty/accounts/{user}/adjust', [\App\Http\Controllers\Api\Admin\LoyaltyController::class, 'adjust']);
+    Route::get('/loyalty/transactions', [\App\Http\Controllers\Api\Admin\LoyaltyController::class, 'transactions']);
 
-    // Pages Management
-    Route::get('/pages', [PageController::class, 'index']);
-    Route::get('/pages/{page}', [PageController::class, 'show']);
-    Route::post('/pages', [PageController::class, 'store']);
-    Route::put('/pages/{page}', [PageController::class, 'update']);
-    Route::delete('/pages/{page}', [PageController::class, 'destroy']);
+    // Coupons (promo/discount codes)
+    Route::get('/coupons', [\App\Http\Controllers\Api\Admin\CouponController::class, 'index']);
+    Route::post('/coupons', [\App\Http\Controllers\Api\Admin\CouponController::class, 'store']);
+    Route::get('/coupons/{coupon}', [\App\Http\Controllers\Api\Admin\CouponController::class, 'show']);
+    Route::put('/coupons/{coupon}', [\App\Http\Controllers\Api\Admin\CouponController::class, 'update']);
+    Route::delete('/coupons/{coupon}', [\App\Http\Controllers\Api\Admin\CouponController::class, 'destroy']);
+    Route::post('/coupons/{coupon}/toggle-active', [\App\Http\Controllers\Api\Admin\CouponController::class, 'toggleActive']);
+    Route::get('/coupons/{coupon}/redemptions', [\App\Http\Controllers\Api\Admin\CouponController::class, 'redemptions']);
+
+    // Vendors Management (Admin only)
+    Route::get('/vendors', [\App\Http\Controllers\Api\Admin\VendorController::class, 'index']);
+    Route::post('/vendors', [\App\Http\Controllers\Api\Admin\VendorController::class, 'store']);
+    Route::get('/vendors/{vendor}', [\App\Http\Controllers\Api\Admin\VendorController::class, 'show']);
+    Route::put('/vendors/{vendor}', [\App\Http\Controllers\Api\Admin\VendorController::class, 'update']);
+    Route::delete('/vendors/{vendor}', [\App\Http\Controllers\Api\Admin\VendorController::class, 'destroy']);
+    Route::post('/vendors/{vendor}/toggle-status', [\App\Http\Controllers\Api\Admin\VendorController::class, 'toggleStatus']);
+    Route::post('/vendors/{vendor}/reset-password', [\App\Http\Controllers\Api\Admin\VendorController::class, 'resetPassword']);
 
     // Media Library
-    Route::get('/media-library', [MediaLibraryController::class, 'index']);
-    Route::post('/media-library/upload', [MediaLibraryController::class, 'upload']);
-    Route::delete('/media-library', [MediaLibraryController::class, 'destroy']);
+    Route::get('/media-library', [\App\Http\Controllers\Api\Admin\MediaLibraryController::class, 'index']);
+    Route::post('/media-library/upload', [\App\Http\Controllers\Api\Admin\MediaLibraryController::class, 'upload']);
+    Route::delete('/media-library', [\App\Http\Controllers\Api\Admin\MediaLibraryController::class, 'destroy']);
 
-    // Tour Guides Management
-    Route::get('/tour-guides', [AdminTourGuideController::class, 'index']);
-    Route::post('/tour-guides', [AdminTourGuideController::class, 'store']);
-    Route::get('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'show']);
-    Route::put('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'update']);
-    Route::delete('/tour-guides/{tourGuide}', [AdminTourGuideController::class, 'destroy']);
-    Route::post('/tour-guides/upload-image', [AdminTourGuideController::class, 'uploadImage']);
-    Route::get('/tour-guide-bookings', [AdminTourGuideController::class, 'getBookings']);
-    Route::post('/tour-guide-bookings/{bookingId}/status', [AdminTourGuideController::class, 'updateBookingStatus']);
+    // Other admin routes...
+    Route::get('/seo', [\App\Http\Controllers\Api\Admin\SeoController::class, 'index']);
+    Route::post('/seo', [\App\Http\Controllers\Api\Admin\SeoController::class, 'store']);
+    Route::put('/seo/{seo}', [\App\Http\Controllers\Api\Admin\SeoController::class, 'update']);
+    Route::delete('/seo/{seo}', [\App\Http\Controllers\Api\Admin\SeoController::class, 'destroy']);
+    Route::get('/settings', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'index']);
+    Route::get('/settings/groups', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'getGroups']);
+    Route::get('/settings/initialize', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'initializeDefaults']);
+    Route::get('/settings/all', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'getAll']);
+    Route::get('/settings/group/{group}', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'getByGroup']);
+    Route::put('/settings/bulk', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'bulkUpdate']);
+    Route::post('/settings', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'store']);
+    Route::put('/settings/{setting}', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'update']);
+    Route::delete('/settings/{setting}', [\App\Http\Controllers\Api\Admin\SiteSettingController::class, 'destroy']);
+    Route::get('/about', [\App\Http\Controllers\Api\Admin\AboutPageController::class, 'index']);
+    Route::post('/about', [\App\Http\Controllers\Api\Admin\AboutPageController::class, 'store']);
+    Route::put('/about/{about}', [\App\Http\Controllers\Api\Admin\AboutPageController::class, 'update']);
+    Route::get('/tour-guides', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'index']);
+    Route::post('/tour-guides', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'store']);
+    Route::post('/tour-guides/upload-image', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'uploadImage']);
     Route::post('/tour-guides/seed-defaults', [TourGuideSeederController::class, 'seedDefaultGuides']);
+    Route::get('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'show']);
+    Route::put('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'update']);
+    Route::delete('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'destroy']);
+    Route::get('/tour-guide-bookings', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'getBookings']);
+    Route::post('/tour-guide-bookings/{bookingId}/status', [\App\Http\Controllers\Api\Admin\TourGuideController::class, 'updateBookingStatus']);
 
-    // Room Management
-    Route::get('/hotels/{hotelId}/rooms', [AdminHotelController::class, 'getRooms']);
-    Route::post('/hotels/{hotelId}/rooms', [AdminHotelController::class, 'storeRoom']);
-    Route::put('/rooms/{room}', [AdminHotelController::class, 'updateRoom']);
-    Route::delete('/rooms/{room}', [AdminHotelController::class, 'destroyRoom']);
+    // Itineraries Management (curated packages)
+    Route::get('/itineraries', [AdminItineraryController::class, 'index']);
+    Route::post('/itineraries', [AdminItineraryController::class, 'store']);
+    Route::get('/itineraries/{itinerary:id}', [AdminItineraryController::class, 'show']);
+    Route::put('/itineraries/{itinerary:id}', [AdminItineraryController::class, 'update']);
+    Route::delete('/itineraries/{itinerary:id}', [AdminItineraryController::class, 'destroy']);
+    Route::post('/itineraries/{itinerary:id}/items', [AdminItineraryController::class, 'addItem']);
+    Route::put('/itineraries/{itinerary:id}/items/{item}', [AdminItineraryController::class, 'updateItem']);
+    Route::delete('/itineraries/{itinerary:id}/items/{item}', [AdminItineraryController::class, 'removeItem']);
+    Route::get('/enquiries', [\App\Http\Controllers\Api\Admin\EnquiryController::class, 'index']);
+    Route::get('/enquiries/{enquiry}', [\App\Http\Controllers\Api\Admin\EnquiryController::class, 'show']);
+    Route::put('/enquiries/{enquiry}/status', [\App\Http\Controllers\Api\Admin\EnquiryController::class, 'updateStatus']);
+    Route::post('/enquiries/{enquiry}/respond', [\App\Http\Controllers\Api\Admin\EnquiryController::class, 'respond']);
+    Route::delete('/enquiries/{enquiry}', [\App\Http\Controllers\Api\Admin\EnquiryController::class, 'destroy']);
+    Route::get('/pages', [\App\Http\Controllers\Api\Admin\PageController::class, 'index']);
+    Route::post('/pages', [\App\Http\Controllers\Api\Admin\PageController::class, 'store']);
+    Route::get('/pages/{page}', [\App\Http\Controllers\Api\Admin\PageController::class, 'show']);
+    Route::put('/pages/{page}', [\App\Http\Controllers\Api\Admin\PageController::class, 'update']);
+    Route::delete('/pages/{page}', [\App\Http\Controllers\Api\Admin\PageController::class, 'destroy']);
 });

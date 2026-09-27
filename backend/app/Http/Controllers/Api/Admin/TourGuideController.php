@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\TourGuide;
+use App\Notifications\TourGuideBookingStatusChanged;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -152,6 +153,8 @@ class TourGuideController extends Controller
         }
 
         $booking->update($updateData);
+
+        $booking->user?->notify(new TourGuideBookingStatusChanged($booking->fresh('tourGuide')));
 
         return response()->json([
             'message' => 'Booking status updated',

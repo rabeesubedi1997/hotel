@@ -47,8 +47,8 @@ const SEO = ({
       {/* Viewport for Mobile */}
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
       
-      {/* Theme Color */}
-      <meta name="theme-color" content="#4f46e5" />
+      {/* Theme Color — matches the primary-600 brand token */}
+      <meta name="theme-color" content="#005f50" />
       
       {/* Structured Data (JSON-LD) */}
       {jsonLd && (

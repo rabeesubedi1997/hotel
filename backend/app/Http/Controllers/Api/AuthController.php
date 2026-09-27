@@ -35,6 +35,7 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
+            'permissions' => $user->getAllPermissions(),
         ], 201);
     }
 
@@ -65,6 +66,7 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
+            'permissions' => $user->getAllPermissions(),
         ]);
     }
 
@@ -79,8 +81,11 @@ class AuthController extends Controller
 
     public function profile(Request $request): JsonResponse
     {
+        $user = $request->user();
+        
         return response()->json([
-            'user' => $request->user()->load(['bookings', 'reviews', 'wishlists']),
+            'user' => $user->load(['bookings', 'reviews', 'wishlists', 'roles']),
+            'permissions' => $user->getAllPermissions(),
         ]);
     }
 
