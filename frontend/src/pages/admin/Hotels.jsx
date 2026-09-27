@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble, Check, UserCog, UtensilsCrossed } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble, Check, UserCog, UtensilsCrossed, LogIn } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { getHotelImage } from '../../utils/images';
@@ -26,6 +26,19 @@ const AdminHotels = () => {
   const openRestaurantPos = (hotel) => {
     setActingVendor(hotel.user_id || user.id, hotel.name);
     navigate(`/vendor/hotels/${hotel.id}/restaurant`);
+  };
+
+  // "Login as" — enters this hotel owner's full Management System panel
+  // (dashboard, hotels, bookings, restaurant POS, everything) exactly as
+  // they'd see it themselves. Only meaningful when the hotel actually has
+  // a vendor account behind it.
+  const loginAsHotelOwner = (hotel) => {
+    if (!hotel.user_id) {
+      toast.error('This hotel has no vendor account to log in as.');
+      return;
+    }
+    setActingVendor(hotel.user_id, hotel.user?.company_name || hotel.user?.name || hotel.name);
+    navigate('/vendor');
   };
   const [searchParams, setSearchParams] = useSearchParams();
   const vendorId = searchParams.get('vendor_id');
@@ -479,6 +492,9 @@ const AdminHotels = () => {
                     </button>
                     <button onClick={() => openRestaurantPos(hotel)} className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 hover:text-orange-800" title="Restaurant POS">
                       <UtensilsCrossed className="h-5 w-5" />
+                    </button>
+                    <button onClick={() => loginAsHotelOwner(hotel)} className="p-2 rounded-lg text-secondary-600 hover:bg-secondary-50 hover:text-secondary-800" title="Login as Vendor">
+                      <LogIn className="h-5 w-5" />
                     </button>
                     <button onClick={() => toggleFeatured(hotel.id)} className="p-2 rounded-lg text-amber-600 hover:bg-amber-50 hover:text-amber-800" title="Toggle Featured">
                       <Star className={`h-5 w-5 ${hotel.is_featured ? 'fill-current' : ''}`} />

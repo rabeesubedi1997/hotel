@@ -14,7 +14,7 @@ class HotelController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Hotel::with('rooms');
+        $query = Hotel::with(['rooms', 'user:id,name,company_name']);
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
