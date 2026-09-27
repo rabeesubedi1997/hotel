@@ -2,8 +2,13 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
 // Reverb speaks the Pusher protocol, so pusher-js is the client library —
-// this mirrors Laravel's own documented Reverb + Echo setup.
+// this mirrors Laravel's own documented Reverb + Echo setup. The same
+// client also talks to hosted Pusher Channels directly (VITE_BROADCASTER=
+// pusher), which is what shared/cPanel hosting uses instead of self-hosted
+// Reverb, since that can't run a persistent WebSocket process.
 window.Pusher = Pusher;
+
+const BROADCASTER = import.meta.env.VITE_BROADCASTER || 'reverb';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 // The API base already ends in `/api`; broadcasting auth lives alongside
@@ -25,22 +30,33 @@ export const getEcho = () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
 
-  echoInstance = new Echo({
-    broadcaster: 'reverb',
-    key: import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost: import.meta.env.VITE_REVERB_HOST || 'localhost',
-    wsPort: import.meta.env.VITE_REVERB_PORT || 8080,
-    wssPort: import.meta.env.VITE_REVERB_PORT || 8080,
-    forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'http') === 'https',
-    enabledTransports: ['ws', 'wss'],
-    authEndpoint: AUTH_ENDPOINT,
-    auth: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
     },
-  });
+  };
+
+  echoInstance = BROADCASTER === 'pusher'
+    ? new Echo({
+        broadcaster: 'pusher',
+        key: import.meta.env.VITE_PUSHER_APP_KEY,
+        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+        forceTLS: true,
+        authEndpoint: AUTH_ENDPOINT,
+        auth,
+      })
+    : new Echo({
+        broadcaster: 'reverb',
+        key: import.meta.env.VITE_REVERB_APP_KEY,
+        wsHost: import.meta.env.VITE_REVERB_HOST || 'localhost',
+        wsPort: import.meta.env.VITE_REVERB_PORT || 8080,
+        wssPort: import.meta.env.VITE_REVERB_PORT || 8080,
+        forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'http') === 'https',
+        enabledTransports: ['ws', 'wss'],
+        authEndpoint: AUTH_ENDPOINT,
+        auth,
+      });
 
   return echoInstance;
 };
