@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\SpaController;
 use Illuminate\Support\Facades\Route;
 
 // Serves the built React SPA (backend/public/spa.html + public/assets/*,
@@ -8,6 +9,6 @@ use Illuminate\Support\Facades\Route;
 // hosting where a separate Node process/subdomain isn't available. Static
 // assets under public/ are served directly by Apache before this ever
 // runs; routes/api.php's "/api/*" prefix never reaches this catch-all.
-Route::get('/{any?}', function () {
-    return response()->file(public_path('spa.html'));
-})->where('any', '.*')->name('spa');
+// A controller action, not a closure, so `php artisan route:cache` (used
+// in scripts/deploy-server.sh) can actually cache this route.
+Route::get('/{any?}', [SpaController::class, 'index'])->where('any', '.*')->name('spa');
