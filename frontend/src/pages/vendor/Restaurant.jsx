@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3, Image as ImageIcon, X } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import MediaPicker from '../../components/MediaPicker';
 
 const emptyMenuForm = {
   name: '',
   description: '',
   price: '',
   category: 'main_course',
+  image: '',
   is_available: true,
 };
 
@@ -53,6 +55,7 @@ const VendorRestaurant = () => {
   const [editingMenuItem, setEditingMenuItem] = useState(null);
   const [menuFormData, setMenuFormData] = useState(emptyMenuForm);
   const [savingMenuItem, setSavingMenuItem] = useState(false);
+  const [menuImagePickerOpen, setMenuImagePickerOpen] = useState(false);
 
   const [tableFormOpen, setTableFormOpen] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
@@ -108,6 +111,7 @@ const VendorRestaurant = () => {
       description: item.description || '',
       price: item.price ?? '',
       category: item.category || 'main_course',
+      image: item.image || '',
       is_available: !!item.is_available,
     });
     setMenuFormOpen(true);
@@ -423,7 +427,18 @@ const VendorRestaurant = () => {
             <tbody className="divide-y divide-neutral-100">
               {menuItems.map((item) => (
                 <tr key={item.id}>
-                  <Td className="font-medium text-neutral-900">{item.name}</Td>
+                  <Td className="font-medium text-neutral-900">
+                    <div className="flex items-center gap-3">
+                      {item.image ? (
+                        <img src={item.image} alt="" className="h-10 w-10 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-lg bg-neutral-100 flex items-center justify-center flex-shrink-0">
+                          <ImageIcon className="h-4 w-4 text-neutral-400" />
+                        </div>
+                      )}
+                      {item.name}
+                    </div>
+                  </Td>
                   <Td className="capitalize">{item.category.replace('_', ' ')}</Td>
                   <Td>${Number(item.price).toFixed(2)}</Td>
                   <Td>
@@ -525,6 +540,26 @@ const VendorRestaurant = () => {
               <option value="beverage">Beverage</option>
             </Select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">Image</label>
+            {menuFormData.image ? (
+              <div className="relative">
+                <img src={menuFormData.image} alt="" className="h-32 w-full object-cover rounded-xl" />
+                <button
+                  type="button"
+                  onClick={() => setMenuFormData({ ...menuFormData, image: '' })}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <Button type="button" variant="secondary" onClick={() => setMenuImagePickerOpen(true)}>
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Choose from Media Library or Upload
+              </Button>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm text-neutral-700">
             <input
               type="checkbox"
@@ -543,6 +578,13 @@ const VendorRestaurant = () => {
           </div>
         </form>
       </Modal>
+
+      <MediaPicker
+        isOpen={menuImagePickerOpen}
+        onClose={() => setMenuImagePickerOpen(false)}
+        onSelect={(url) => setMenuFormData((prev) => ({ ...prev, image: url }))}
+        folder="menu-items"
+      />
 
       {/* Table form */}
       <Modal open={tableFormOpen} onClose={closeTableForm} title={editingTable ? 'Edit Table' : 'Add Table'} size="md">

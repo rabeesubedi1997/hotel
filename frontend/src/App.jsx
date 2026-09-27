@@ -71,6 +71,7 @@ import VendorTourGuides from './pages/vendor/TourGuides';
 import VendorBusinessProfile from './pages/vendor/BusinessProfile';
 import VendorBookings from './pages/vendor/Bookings';
 import VendorRestaurant from './pages/vendor/Restaurant';
+import VendorRestaurantSelect from './pages/vendor/RestaurantSelect';
 import VendorMessages from './pages/vendor/Messages';
 import SelectSystem from './pages/SelectSystem';
 import SelectVendor from './pages/SelectVendor';
@@ -252,6 +253,7 @@ function App() {
             <Route index element={<VendorDashboard />} />
             <Route path="hotels" element={<VendorHotels />} />
             <Route path="hotels/:hotelId/restaurant" element={<VendorRestaurant />} />
+            <Route path="restaurant" element={<VendorRestaurantSelect />} />
             <Route path="activities" element={<VendorActivities />} />
             <Route path="tour-guides" element={<VendorTourGuides />} />
             <Route path="profile" element={<VendorBusinessProfile />} />

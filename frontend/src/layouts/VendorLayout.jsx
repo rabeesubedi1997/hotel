@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X, Users as GuidesIcon, UserCog, LogOut as ExitIcon } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X, Users as GuidesIcon, UserCog, LogOut as ExitIcon, UtensilsCrossed } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import useActingVendorStore from '../stores/actingVendorStore';
@@ -67,6 +67,7 @@ const VendorLayout = () => {
   const menuItems = [
     { path: '/vendor', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/vendor/hotels', icon: Building2, label: 'My Hotels' },
+    { path: '/vendor/restaurant', icon: UtensilsCrossed, label: 'Restaurant POS' },
     { path: '/vendor/activities', icon: Compass, label: 'My Activities' },
     { path: '/vendor/tour-guides', icon: GuidesIcon, label: 'My Tour Guides' },
     { path: '/vendor/bookings', icon: Calendar, label: 'Bookings' },
