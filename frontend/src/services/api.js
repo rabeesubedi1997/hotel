@@ -422,6 +422,7 @@ export const vendorAPI = {
   
   // Hotels Management
   getHotels: () => api.get('/vendor/hotels'),
+  getHotel: (id) => api.get(`/vendor/hotels/${id}`),
   createHotel: (data) => api.post('/vendor/hotels', data),
   updateHotel: (id, data) => api.put(`/vendor/hotels/${id}`, data),
   deleteHotel: (id) => api.delete(`/vendor/hotels/${id}`),
@@ -447,6 +448,23 @@ export const vendorAPI = {
   // Business Profile
   getProfile: () => api.get('/vendor/profile'),
   updateProfile: (data) => api.put('/vendor/profile', data),
+
+  // Restaurant POS: Menu
+  getMenuItems: (hotelId) => api.get(`/vendor/hotels/${hotelId}/menu-items`),
+  createMenuItem: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-items`, data),
+  updateMenuItem: (itemId, data) => api.put(`/vendor/menu-items/${itemId}`, data),
+  deleteMenuItem: (itemId) => api.delete(`/vendor/menu-items/${itemId}`),
+
+  // Restaurant POS: Tables
+  getTables: (hotelId) => api.get(`/vendor/hotels/${hotelId}/tables`),
+  createTable: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/tables`, data),
+  updateTable: (tableId, data) => api.put(`/vendor/tables/${tableId}`, data),
+  deleteTable: (tableId) => api.delete(`/vendor/tables/${tableId}`),
+
+  // Restaurant POS: Orders / Kitchen
+  getOrders: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/orders`, { params }),
+  createOrder: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/orders`, data),
+  updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
 
   // Bookings Management
   getBookings: () => api.get('/vendor/bookings'),

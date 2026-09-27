@@ -22,6 +22,13 @@ const STATUS_TONE = {
   refunded: 'danger',
   inactive: 'neutral',
   draft: 'neutral',
+  preparing: 'info',
+  ready: 'primary',
+  served: 'success',
+  completed: 'success',
+  available: 'success',
+  occupied: 'warning',
+  reserved: 'info',
 };
 
 const Badge = ({ tone, status, children, className = '' }) => {

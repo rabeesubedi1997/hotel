@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Loader2, BedDouble, CalendarCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit, Trash2, Loader2, BedDouble, CalendarCheck, UtensilsCrossed } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
@@ -28,6 +29,7 @@ const emptyRoomForm = {
 
 const VendorHotels = () => {
   const toast = useToast();
+  const navigate = useNavigate();
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -277,6 +279,9 @@ const VendorHotels = () => {
                 <div className="flex items-center justify-end space-x-2">
                   <button onClick={() => openRoomsModal(hotel)} className="p-2 rounded-lg text-secondary-600 hover:bg-secondary-50 hover:text-secondary-800" title="Manage Rooms">
                     <BedDouble className="h-5 w-5" />
+                  </button>
+                  <button onClick={() => navigate(`/vendor/hotels/${hotel.id}/restaurant`)} className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 hover:text-orange-800" title="Restaurant POS">
+                    <UtensilsCrossed className="h-5 w-5" />
                   </button>
                   <button onClick={() => openEditModal(hotel)} className="p-2 rounded-lg text-primary-600 hover:bg-primary-50 hover:text-primary-800" title="Edit">
                     <Edit className="h-5 w-5" />
