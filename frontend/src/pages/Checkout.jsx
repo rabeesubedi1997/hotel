@@ -425,8 +425,10 @@ const SingleItemCheckout = () => {
         toast.success('Booking confirmed successfully!');
         navigate('/bookings');
       } else {
-        toast.success('Booking confirmed successfully!');
-        navigate('/bookings');
+        // Khalti/Stripe/PayPal aren't wired to a real payment gateway yet —
+        // don't fake a success here (that would leave the booking stuck at
+        // "pending" while telling the customer they paid).
+        toast.error('This payment method is not available yet. Please use Cash on Delivery for now.');
       }
     } catch (error) {
       console.error('Error processing payment:', error);
@@ -657,35 +659,10 @@ const SingleItemCheckout = () => {
               </div>
             </label>
 
-            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition ${paymentMethod === 'khalti' ? 'border-primary-600 bg-primary-50' : 'border-neutral-200'}`}>
-              <input type="radio" name="payment" value="khalti" checked={paymentMethod === 'khalti'}
-                onChange={(e) => setPaymentMethod(e.target.value)} className="hidden" />
-              <div className="h-12 w-12 bg-secondary-100 rounded-full flex items-center justify-center shrink-0">
-                <Wallet className="h-6 w-6 text-secondary-600" />
-              </div>
-              <div className="ml-4 flex-1">
-                <h3 className="font-semibold text-neutral-900">Khalti Digital Wallet</h3>
-                <p className="text-sm text-neutral-500">Pay with Khalti (NPR)</p>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'khalti' ? 'border-primary-600 bg-primary-600' : 'border-neutral-300'}`}>
-                {paymentMethod === 'khalti' && <CheckCircle className="h-4 w-4 text-white" />}
-              </div>
-            </label>
-
-            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition ${paymentMethod === 'stripe' ? 'border-primary-600 bg-primary-50' : 'border-neutral-200'}`}>
-              <input type="radio" name="payment" value="stripe" checked={paymentMethod === 'stripe'}
-                onChange={(e) => setPaymentMethod(e.target.value)} className="hidden" />
-              <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center shrink-0">
-                <CreditCard className="h-6 w-6 text-primary-600" />
-              </div>
-              <div className="ml-4 flex-1">
-                <h3 className="font-semibold text-neutral-900">Credit/Debit Card</h3>
-                <p className="text-sm text-neutral-500">Pay with card (USD)</p>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'stripe' ? 'border-primary-600 bg-primary-600' : 'border-neutral-300'}`}>
-                {paymentMethod === 'stripe' && <CheckCircle className="h-4 w-4 text-white" />}
-              </div>
-            </label>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-50 text-sm text-neutral-500">
+              <Wallet className="h-4 w-4 shrink-0" />
+              Khalti, card, and PayPal payments are coming soon — Cash on Delivery is the only option for now.
+            </div>
           </div>
 
           {loyaltyAccount?.points_balance > 0 && booking?.status === 'pending' && (
