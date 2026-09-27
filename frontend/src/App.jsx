@@ -85,15 +85,15 @@ const ScrollToTop = () => {
 
 // Maintenance Mode Component
 const MaintenanceMode = () => {
-  const { getSiteName, getSiteLogo } = useSiteSettingsStore();
-  
+  const { getSiteName, getLogo } = useSiteSettingsStore();
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md mx-4">
         <div className="mb-6">
-          <img 
-            src={getSiteLogo()} 
-            alt={getSiteName()} 
+          <img
+            src={getLogo()}
+            alt={getSiteName()}
             className="h-16 mx-auto"
             onError={(e) => e.target.style.display = 'none'}
           />
