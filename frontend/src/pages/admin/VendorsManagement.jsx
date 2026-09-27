@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, Users, Phone, MapPin, RefreshCw, X, Copy, Loader2, Eye, Mail, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Phone, MapPin, RefreshCw, X, Copy, Loader2, Eye, Mail, Calendar, Link2, Unlink, Search } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
 import { Button, Input, Textarea, Modal, Table, Th, Td, Badge } from '../../components/ui';
@@ -21,6 +21,16 @@ const AdminVendors = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewedVendor, setViewedVendor] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+
+  // Linking an already-listed hotel/activity to a vendor — entirely
+  // optional (a vendor can have zero listings, and a hotel/activity can
+  // stay admin-managed forever), so this is a separate action from the
+  // vendor form itself, not a required field on it.
+  const [linkModal, setLinkModal] = useState(null); // 'hotel' | 'activity' | null
+  const [linkOptions, setLinkOptions] = useState([]);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [linkingId, setLinkingId] = useState(null);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -153,6 +163,76 @@ const AdminVendors = () => {
   const closeViewModal = () => {
     setViewModalOpen(false);
     setViewedVendor(null);
+  };
+
+  const fetchLinkOptions = async (type, search) => {
+    setLinkLoading(true);
+    try {
+      const api = type === 'hotel' ? adminAPI.getHotels : adminAPI.getActivities;
+      const response = await api({ search: search || undefined, per_page: 50 });
+      setLinkOptions(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch link options:', error);
+      toast.error('Failed to load listings');
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const openLinkModal = (type) => {
+    setLinkModal(type);
+    setLinkSearch('');
+    fetchLinkOptions(type, '');
+  };
+
+  const closeLinkModal = () => {
+    setLinkModal(null);
+    setLinkOptions([]);
+    setLinkSearch('');
+  };
+
+  const handleLinkSearchChange = (value) => {
+    setLinkSearch(value);
+    fetchLinkOptions(linkModal, value);
+  };
+
+  const refreshVendorView = async () => {
+    if (!viewedVendor) return;
+    const response = await adminAPI.getVendor(viewedVendor.id);
+    setViewedVendor(response.data);
+    fetchVendors();
+  };
+
+  const linkListing = async (type, id) => {
+    setLinkingId(id);
+    try {
+      const api = type === 'hotel' ? adminAPI.updateHotel : adminAPI.updateActivity;
+      await api(id, { user_id: viewedVendor.id });
+      toast.success(`${type === 'hotel' ? 'Hotel' : 'Activity'} linked to this vendor!`);
+      await refreshVendorView();
+      fetchLinkOptions(linkModal, linkSearch);
+    } catch (error) {
+      console.error('Failed to link listing:', error);
+      toast.error('Failed to link listing');
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
+  const unlinkListing = async (type, id) => {
+    if (!window.confirm('Unlink this listing from the vendor? It will become admin-managed with no owner.')) return;
+    setLinkingId(id);
+    try {
+      const api = type === 'hotel' ? adminAPI.updateHotel : adminAPI.updateActivity;
+      await api(id, { user_id: null });
+      toast.success('Listing unlinked.');
+      await refreshVendorView();
+    } catch (error) {
+      console.error('Failed to unlink listing:', error);
+      toast.error('Failed to unlink listing');
+    } finally {
+      setLinkingId(null);
+    }
   };
 
   if (loading) {
@@ -483,14 +563,20 @@ const AdminVendors = () => {
                 <h5 className="font-semibold text-neutral-900">
                   Hotels <span className="text-neutral-400 font-normal">({viewedVendor.hotels_count || 0})</span>
                 </h5>
-                <Button
-                  as={Link}
-                  to={`/admin/hotels?vendor_id=${viewedVendor.id}&vendor_name=${encodeURIComponent(viewedVendor.company_name || viewedVendor.name)}`}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Manage Hotels
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => openLinkModal('hotel')}>
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Link Existing Hotel
+                  </Button>
+                  <Button
+                    as={Link}
+                    to={`/admin/hotels?vendor_id=${viewedVendor.id}&vendor_name=${encodeURIComponent(viewedVendor.company_name || viewedVendor.name)}`}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Manage Hotels
+                  </Button>
+                </div>
               </div>
               {viewedVendor.hotels?.length > 0 ? (
                 <Table>
@@ -503,6 +589,7 @@ const AdminVendors = () => {
                       <Th>Approval</Th>
                       <Th>Rooms</Th>
                       <Th>Bookings</Th>
+                      <Th className="text-right">Actions</Th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
@@ -519,6 +606,16 @@ const AdminVendors = () => {
                         <Td><Badge status={hotel.approval_status} /></Td>
                         <Td>{hotel.rooms_count ?? 0}</Td>
                         <Td>{hotel.bookings_count ?? 0}</Td>
+                        <Td className="text-right">
+                          <button
+                            onClick={() => unlinkListing('hotel', hotel.id)}
+                            disabled={linkingId === hotel.id}
+                            className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-40"
+                            title="Unlink from this vendor"
+                          >
+                            <Unlink className="h-4 w-4" />
+                          </button>
+                        </Td>
                       </tr>
                     ))}
                   </tbody>
@@ -534,14 +631,20 @@ const AdminVendors = () => {
                 <h5 className="font-semibold text-neutral-900">
                   Activities <span className="text-neutral-400 font-normal">({viewedVendor.activities_count || 0})</span>
                 </h5>
-                <Button
-                  as={Link}
-                  to={`/admin/activities?vendor_id=${viewedVendor.id}&vendor_name=${encodeURIComponent(viewedVendor.company_name || viewedVendor.name)}`}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Manage Activities
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => openLinkModal('activity')}>
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Link Existing Activity
+                  </Button>
+                  <Button
+                    as={Link}
+                    to={`/admin/activities?vendor_id=${viewedVendor.id}&vendor_name=${encodeURIComponent(viewedVendor.company_name || viewedVendor.name)}`}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Manage Activities
+                  </Button>
+                </div>
               </div>
               {viewedVendor.activities?.length > 0 ? (
                 <Table>
@@ -553,6 +656,7 @@ const AdminVendors = () => {
                       <Th>Status</Th>
                       <Th>Approval</Th>
                       <Th>Bookings</Th>
+                      <Th className="text-right">Actions</Th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
@@ -568,6 +672,16 @@ const AdminVendors = () => {
                         <Td><Badge status={activity.status} /></Td>
                         <Td><Badge status={activity.approval_status} /></Td>
                         <Td>{activity.bookings_count ?? 0}</Td>
+                        <Td className="text-right">
+                          <button
+                            onClick={() => unlinkListing('activity', activity.id)}
+                            disabled={linkingId === activity.id}
+                            className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-40"
+                            title="Unlink from this vendor"
+                          >
+                            <Unlink className="h-4 w-4" />
+                          </button>
+                        </Td>
                       </tr>
                     ))}
                   </tbody>
@@ -613,6 +727,58 @@ const AdminVendors = () => {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      {/* Link Existing Hotel/Activity Modal */}
+      <Modal
+        open={!!linkModal}
+        onClose={closeLinkModal}
+        title={`Link Existing ${linkModal === 'hotel' ? 'Hotel' : 'Activity'}`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <Input
+            icon={Search}
+            type="text"
+            placeholder={`Search ${linkModal === 'hotel' ? 'hotels' : 'activities'}...`}
+            value={linkSearch}
+            onChange={(e) => handleLinkSearchChange(e.target.value)}
+          />
+          {linkLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto divide-y divide-neutral-100">
+              {linkOptions.length === 0 ? (
+                <p className="text-center text-sm text-neutral-500 py-8">No listings found.</p>
+              ) : (
+                linkOptions.map((item) => {
+                  const alreadyLinked = item.user_id === viewedVendor?.id;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-3 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-neutral-900">{item.name}</p>
+                        <p className="text-xs text-neutral-500">
+                          {item.city}
+                          {item.user ? ` — currently: ${item.user.company_name || item.user.name}` : ' — admin-managed, no vendor'}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={alreadyLinked ? 'secondary' : 'primary'}
+                        disabled={alreadyLinked || linkingId === item.id}
+                        onClick={() => linkListing(linkModal, item.id)}
+                      >
+                        {alreadyLinked ? 'Linked' : 'Link'}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

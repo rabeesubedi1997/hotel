@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, Check, UserCog } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, Check, UserCog, LogIn } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { getActivityImage } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
+import useActingVendorStore from '../../stores/actingVendorStore';
+import { useNavigate } from 'react-router-dom';
 import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
 
-  const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, onApprove, onReject, getDifficultyColor, getActivityImage, user }) => {
+  const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, onApprove, onReject, onLoginAsVendor, getDifficultyColor, getActivityImage, user }) => {
     const handleImageError = useCallback((e) => {
       e.target.src = getActivityImage(activity.type);
     }, [activity.type, getActivityImage]);
@@ -38,6 +40,9 @@ import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '..
             <div>
               <p className="text-sm font-semibold text-neutral-900">{activity.name}</p>
               <p className="text-sm text-neutral-500">{activity.duration}</p>
+              <p className="text-xs text-neutral-400">
+                {activity.user ? `Vendor: ${activity.user.company_name || activity.user.name}` : 'Admin-managed (no vendor)'}
+              </p>
             </div>
           </div>
         </Td>
@@ -111,6 +116,15 @@ import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '..
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => onLoginAsVendor(activity)}
+                title="Login as Vendor"
+                className="!p-2 !text-secondary-600 hover:!bg-secondary-50 hover:!text-secondary-700"
+              >
+                <LogIn className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onDelete(activity.id)}
                 title="Delete"
                 className="!p-2 !text-red-600 hover:!bg-red-50 hover:!text-red-700"
@@ -129,12 +143,15 @@ import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '..
            prevProps.activity.is_featured === nextProps.activity.is_featured &&
            prevProps.activity.status === nextProps.activity.status &&
            prevProps.activity.approval_status === nextProps.activity.approval_status &&
-           prevProps.activity.rejection_reason === nextProps.activity.rejection_reason;
+           prevProps.activity.rejection_reason === nextProps.activity.rejection_reason &&
+           prevProps.activity.user_id === nextProps.activity.user_id;
   });
 
 const AdminActivities = () => {
   const { user } = useAuthStore();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { setActingVendor } = useActingVendorStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const vendorId = searchParams.get('vendor_id');
   const vendorName = searchParams.get('vendor_name');
@@ -168,7 +185,9 @@ const AdminActivities = () => {
     difficulty_level: 'moderate',
     status: 'active',
     featured_image: '',
+    user_id: '',
   });
+  const [vendors, setVendors] = useState([]);
 
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -210,6 +229,23 @@ const AdminActivities = () => {
     currentPageRef.current = pagination.current_page;
     fetchActivities();
   }, [pagination.current_page, pagination.per_page, fetchActivities]);
+
+  useEffect(() => {
+    if (isVendor) return;
+    adminAPI.getVendors()
+      .then((res) => setVendors(res.data || []))
+      .catch((error) => console.error('Error fetching vendors:', error));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loginAsActivityOwner = useCallback((activity) => {
+    if (!activity.user_id) {
+      toast.error('This activity has no vendor account to log in as.');
+      return;
+    }
+    setActingVendor(activity.user_id, activity.user?.company_name || activity.user?.name || activity.name);
+    navigate('/vendor');
+  }, [toast, setActingVendor, navigate]);
 
   const handleDelete = useCallback(async (id) => {
     if (!confirm('Are you sure you want to delete this activity?')) return;
@@ -289,6 +325,21 @@ const AdminActivities = () => {
     }
   }, []);
 
+  const emptyActivityForm = {
+    name: '',
+    description: '',
+    type: 'other',
+    location: '',
+    city: '',
+    price: '',
+    duration: '',
+    max_participants: '',
+    difficulty_level: 'moderate',
+    status: 'active',
+    featured_image: '',
+    user_id: '',
+  };
+
   const openEditModal = useCallback((activity) => {
     setEditingActivity(activity);
     setFormData({
@@ -303,25 +354,40 @@ const AdminActivities = () => {
       difficulty_level: activity.difficulty_level,
       status: activity.status,
       featured_image: activity.featured_image || '',
+      user_id: activity.user_id || '',
     });
     setEditModal(true);
   }, []);
 
+  const handleAddActivity = () => {
+    setEditingActivity(null);
+    setFormData(emptyActivityForm);
+    setEditModal(true);
+  };
+
   const closeEditModal = () => {
     setEditModal(false);
     setEditingActivity(null);
+    setFormData(emptyActivityForm);
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    const payload = { ...formData, user_id: formData.user_id || null };
     try {
-      await api.updateActivity(editingActivity.id, formData);
-      setActivities(activities.map((a) => (a.id === editingActivity.id ? { ...a, ...formData } : a)));
+      if (editingActivity) {
+        await api.updateActivity(editingActivity.id, payload);
+        setActivities(activities.map((a) => (a.id === editingActivity.id ? { ...a, ...payload } : a)));
+        toast.success('Activity updated successfully!');
+      } else {
+        const response = await api.createActivity(payload);
+        setActivities([response.data.activity, ...activities]);
+        toast.success('Activity created successfully!');
+      }
       closeEditModal();
-      alert('Activity updated successfully!');
     } catch (error) {
-      console.error('Error updating activity:', error);
-      alert('Failed to update activity');
+      console.error('Error saving activity:', error);
+      toast.error('Failed to save activity');
     }
   };
 
@@ -366,7 +432,7 @@ const AdminActivities = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h2 className="font-display text-2xl font-bold text-neutral-900">Manage Activities</h2>
         {user && ['admin', 'manager', 'super_admin'].includes(user.role) && (
-          <Button variant="primary">
+          <Button variant="primary" onClick={handleAddActivity}>
             <Plus className="h-5 w-5" />
             Add Activity
           </Button>
@@ -416,6 +482,7 @@ const AdminActivities = () => {
               onDelete={handleDelete}
               onApprove={handleApprove}
               onReject={openRejectModal}
+              onLoginAsVendor={loginAsActivityOwner}
               getDifficultyColor={getDifficultyColor}
               getActivityImage={getActivityImage}
               user={user}
@@ -480,7 +547,7 @@ const AdminActivities = () => {
       </div>
 
       {/* Edit Modal */}
-      <Modal open={editModal} onClose={closeEditModal} title="Edit Activity" size="lg">
+      <Modal open={editModal} onClose={closeEditModal} title={editingActivity ? 'Edit Activity' : 'Add New Activity'} size="lg">
         <form onSubmit={handleUpdate} className="space-y-4">
           <Input
             label="Activity Name"
@@ -575,6 +642,18 @@ const AdminActivities = () => {
             <option value="inactive">Inactive</option>
             <option value="seasonal">Seasonal</option>
           </Select>
+          {!isVendor && (
+            <Select
+              label="Vendor Owner (optional)"
+              value={formData.user_id}
+              onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+            >
+              <option value="">No vendor — admin-managed listing</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>{v.company_name || v.name}</option>
+              ))}
+            </Select>
+          )}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1.5">Featured Image</label>
             <div className="flex gap-2">

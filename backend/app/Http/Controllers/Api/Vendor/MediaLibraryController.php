@@ -6,7 +6,6 @@ use App\Http\Controllers\Concerns\ActsForVendor;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class MediaLibraryController extends Controller
 {
@@ -14,113 +13,131 @@ class MediaLibraryController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $folder = $request->input('folder', '');
-        $search = $request->input('search', '');
-        $userId = $this->vendorId($request);
-        $vendorFolder = "vendor_{$userId}";
-        
-        $directories = [];
+        $folder = $request->get('folder', '');
+        $search = $request->get('search', '');
+        $vendorRoot = 'vendor_' . $this->vendorId($request);
+        $relativeFolder = $folder ? "$vendorRoot/$folder" : $vendorRoot;
+
+        $basePath = storage_path("app/public/uploads/$relativeFolder");
+
+        if (!is_dir($basePath)) {
+            return response()->json(['files' => [], 'folders' => []]);
+        }
+
         $files = [];
-        
-        // Get vendor's folders
-        if (Storage::exists("uploads/$vendorFolder")) {
-            $directories = Storage::directories("uploads/$vendorFolder");
-            
-            foreach ($directories as $dir) {
-                $directories[] = [
-                    'name' => $dir,
-                    'path' => "$vendorFolder/$dir"
+        $folders = [];
+
+        $iterator = new \DirectoryIterator($basePath);
+
+        foreach ($iterator as $file) {
+            if ($file->isDot()) {
+                continue;
+            }
+
+            if ($file->isDir()) {
+                $folders[] = [
+                    'name' => $file->getFilename(),
+                    'path' => $folder ? "$folder/" . $file->getFilename() : $file->getFilename(),
                 ];
+                continue;
             }
-        }
-        
-        // Get files from the requested folder
-        if ($folder) {
-            $folderPath = "$vendorFolder/$folder";
-            if (Storage::exists("uploads/$folderPath")) {
-                $allFiles = Storage::files("uploads/$folderPath");
-                
-                foreach ($allFiles as $file) {
-                    if (str_contains(strtolower($file), strtolower($search))) {
-                        $files[] = [
-                            'name' => $file,
-                            'path' => "$folderPath/$file",
-                            'url' => url("uploads/$folderPath/$file"),
-                            'size' => Storage::size("uploads/$folderPath/$file"),
-                            'modified' => Storage::lastModified("uploads/$folderPath/$file")
-                        ];
-                    }
-                }
+
+            $filename = $file->getFilename();
+
+            if ($search && !str_contains(strtolower($filename), strtolower($search))) {
+                continue;
             }
+
+            $ext = strtolower($file->getExtension());
+            if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                continue;
+            }
+
+            $relativePath = "uploads/$relativeFolder/$filename";
+            $baseUrl = $request->getSchemeAndHttpHost();
+
+            $files[] = [
+                'name' => $filename,
+                'url' => $baseUrl . '/storage/' . $relativePath,
+                'path' => $relativePath,
+                'size' => $this->formatBytes($file->getSize()),
+                'modified' => date('Y-m-d H:i:s', $file->getMTime()),
+                'type' => $ext,
+            ];
         }
-        
+
+        usort($files, fn ($a, $b) => strtotime($b['modified']) - strtotime($a['modified']));
+        usort($folders, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
         return response()->json([
             'files' => $files,
-            'folders' => $directories
+            'folders' => $folders,
         ]);
     }
-    
+
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120'
+            'image' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+            'folder' => 'nullable|string',
         ]);
-        
+
+        $folder = preg_replace('/[^a-zA-Z0-9_-]/', '', $request->get('folder', 'general'));
+        $vendorRoot = 'vendor_' . $this->vendorId($request);
+
         $file = $request->file('image');
-        $folder = $request->input('folder', 'general');
-        $userId = $this->vendorId($request);
-        
-        if ($file) {
-            $filename = time() . '_' . $file->getClientOriginalName();
-            
-            // Create vendor-specific folder structure
-            $vendorFolder = "vendor_{$userId}";
-            $fullPath = "$vendorFolder/$folder";
-            
-            // Ensure directories exist
-            if (!Storage::exists("uploads/$vendorFolder")) {
-                Storage::makeDirectory("uploads/$vendorFolder");
-            }
-            if (!Storage::exists("uploads/$fullPath")) {
-                Storage::makeDirectory("uploads/$fullPath");
-            }
-            
-            $path = $file->storeAs($filename, "uploads/$fullPath");
-            
-            return response()->json([
-                'url' => url("uploads/$fullPath/$filename"),
-                'filename' => $filename
-            ]);
-        }
-        
-        return response()->json(['error' => 'No file uploaded'], 422);
+        $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+
+        $path = $file->storeAs("uploads/$vendorRoot/$folder", $filename, 'public');
+
+        $baseUrl = $request->getSchemeAndHttpHost();
+
+        return response()->json([
+            'message' => 'Image uploaded successfully',
+            'url' => $baseUrl . '/storage/' . $path,
+            'path' => $path,
+            'name' => $filename,
+        ]);
     }
-    
+
     public function destroy(Request $request): JsonResponse
     {
-        $path = $request->input('path');
+        $request->validate([
+            'path' => 'required|string',
+        ]);
+
+        $path = $request->get('path');
         $userId = $this->vendorId($request);
-        
-        // Check if file belongs to current vendor
-        $isVendorFile = $this->isVendorFile(storage_path("app/public/uploads/$path"), $userId);
-        
-        if (!$isVendorFile) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+
+        if (!str_starts_with($path, 'uploads/') || !$this->isVendorFile($path, $userId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
-        
-        if (Storage::exists("uploads/$path")) {
-            Storage::delete("uploads/$path");
+
+        $fullPath = storage_path('app/public/' . $path);
+
+        if (file_exists($fullPath)) {
+            unlink($fullPath);
+            return response()->json(['message' => 'Image deleted successfully']);
         }
-        
-        return response()->json(['message' => 'File deleted successfully']);
+
+        return response()->json(['message' => 'File not found'], 404);
     }
-    
-    private function isVendorFile($filePath, $userId): bool
+
+    private function isVendorFile(string $path, $userId): bool
     {
-        // Check if file belongs to vendor's folder
-        $userFolder = "vendor_{$userId}";
-        return str_contains($filePath, $userFolder) || 
-               str_contains($filePath, 'general') ||
-               str_contains($filePath, 'temp');
+        return str_contains($path, "vendor_{$userId}/");
+    }
+
+    private function formatBytes($bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $unitIndex = 0;
+
+        while ($bytes >= 1024 && $unitIndex < count($units) - 1) {
+            $bytes /= 1024;
+            $unitIndex++;
+        }
+
+        return round($bytes, 2) . ' ' . $units[$unitIndex];
     }
 }

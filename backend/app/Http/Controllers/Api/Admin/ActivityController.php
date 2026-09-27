@@ -13,7 +13,7 @@ class ActivityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Activity::query();
+        $query = Activity::with('user:id,name,company_name');
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
@@ -63,9 +63,11 @@ class ActivityController extends Controller
             'status' => 'in:active,inactive,seasonal',
             'requirements' => 'nullable|string',
             'safety_info' => 'nullable|string',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . uniqid();
+        $validated['approval_status'] = Activity::APPROVAL_STATUS_APPROVED;
 
         $activity = Activity::create($validated);
 
@@ -101,6 +103,7 @@ class ActivityController extends Controller
             'status' => 'in:active,inactive,seasonal',
             'requirements' => 'nullable|string',
             'safety_info' => 'nullable|string',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
         if (isset($validated['name']) && $validated['name'] !== $activity->name) {
