@@ -84,7 +84,9 @@ const AdminHotels = () => {
     star_rating: '',
     status: 'active',
     featured_image: '',
+    user_id: '',
   });
+  const [vendors, setVendors] = useState([]);
 
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -119,6 +121,14 @@ const AdminHotels = () => {
   useEffect(() => {
     fetchHotels();
   }, [pagination.current_page, pagination.per_page, vendorId]);
+
+  useEffect(() => {
+    if (isVendor) return;
+    adminAPI.getVendors()
+      .then((res) => setVendors(res.data || []))
+      .catch((error) => console.error('Error fetching vendors:', error));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this hotel?')) return;
@@ -195,6 +205,7 @@ const AdminHotels = () => {
       star_rating: hotel.star_rating,
       status: hotel.status,
       featured_image: hotel.featured_image || '',
+      user_id: hotel.user_id || '',
     });
     setEditModal(true);
   };
@@ -212,6 +223,7 @@ const AdminHotels = () => {
       star_rating: '',
       status: 'active',
       featured_image: '',
+      user_id: '',
     });
   };
 
@@ -228,6 +240,7 @@ const AdminHotels = () => {
       star_rating: hotel.star_rating,
       status: hotel.status,
       featured_image: hotel.featured_image,
+      user_id: hotel.user_id || '',
     });
     setEditModal(true);
   };
@@ -245,6 +258,7 @@ const AdminHotels = () => {
       star_rating: '',
       status: 'active',
       featured_image: '',
+      user_id: '',
     });
     setEditModal(true);
   };
@@ -346,11 +360,14 @@ const AdminHotels = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    // user_id comes from a <select> as a string; '' means "no vendor" and
+    // must go as null, not an empty string (fails the backend's exists check).
+    const payload = { ...formData, user_id: formData.user_id || null };
     try {
       if (editingHotel) {
         // Update existing hotel
-        await api.updateHotel(editingHotel.id, formData);
-        setHotels(hotels.map((h) => (h.id === editingHotel.id ? { ...h, ...formData } : h)));
+        await api.updateHotel(editingHotel.id, payload);
+        setHotels(hotels.map((h) => (h.id === editingHotel.id ? { ...h, ...payload } : h)));
         toast.success('Hotel updated successfully!');
         closeEditModal();
 
@@ -360,7 +377,7 @@ const AdminHotels = () => {
         toast.success('Hotel updated! You can now manage rooms for this hotel.');
       } else {
         // Create new hotel
-        const response = await api.createHotel(formData);
+        const response = await api.createHotel(payload);
         const newHotel = response.data.hotel;
         setHotels([newHotel, ...hotels]);
         toast.success('Hotel created successfully!');
@@ -454,6 +471,9 @@ const AdminHotels = () => {
                   <div className="ml-4">
                     <div className="text-sm font-medium text-neutral-900">{hotel.name}</div>
                     <div className="text-sm text-neutral-500">{hotel.city}</div>
+                    <div className="text-xs text-neutral-400">
+                      {hotel.user ? `Vendor: ${hotel.user.company_name || hotel.user.name}` : 'Admin-managed (no vendor)'}
+                    </div>
                   </div>
                 </div>
               </Td>
@@ -608,6 +628,18 @@ const AdminHotels = () => {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </Select>
+            {!isVendor && (
+              <Select
+                label="Vendor Owner (optional)"
+                value={formData.user_id}
+                onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+              >
+                <option value="">No vendor — admin-managed listing</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>{v.company_name || v.name}</option>
+                ))}
+              </Select>
+            )}
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1.5">Featured Image</label>
               <div className="flex space-x-2">

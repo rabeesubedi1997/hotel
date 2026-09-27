@@ -61,9 +61,14 @@ class HotelController extends Controller
             'phone' => 'nullable|string',
             'email' => 'nullable|email',
             'policies' => 'nullable|string',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . uniqid();
+
+        // Admin-created hotels are pre-verified — there's no separate
+        // vendor submitting them for review, admin *is* the review.
+        $validated['approval_status'] = Hotel::APPROVAL_STATUS_APPROVED;
 
         $hotel = Hotel::create($validated);
 
@@ -100,6 +105,7 @@ class HotelController extends Controller
             'phone' => 'nullable|string',
             'email' => 'nullable|email',
             'policies' => 'nullable|string',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
         if (isset($validated['name']) && $validated['name'] !== $hotel->name) {
