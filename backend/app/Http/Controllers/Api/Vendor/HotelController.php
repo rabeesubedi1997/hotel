@@ -24,12 +24,13 @@ class HotelController extends Controller
 
     public function show(Request $request, $id)
     {
-        $hotel = Hotel::where('user_id', $this->vendorId($request))
-            ->withCount('rooms')
-            ->with('rooms')
-            ->findOrFail($id);
+        $query = Hotel::withCount('rooms')->with('rooms');
 
-        return response()->json($hotel);
+        if (!$request->user()->isAdminLevel()) {
+            $query->where('user_id', $this->vendorId($request));
+        }
+
+        return response()->json($query->findOrFail($id));
     }
 
     public function store(Request $request)

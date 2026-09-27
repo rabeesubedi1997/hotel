@@ -1,16 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble, Check, UserCog } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble, Check, UserCog, UtensilsCrossed } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { getHotelImage } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
+import useActingVendorStore from '../../stores/actingVendorStore';
 import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
 
 const AdminHotels = () => {
   const { user } = useAuthStore();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { setActingVendor } = useActingVendorStore();
+
+  // The vendor-side Restaurant POS page lives under /vendor/*, which
+  // requires an "acting vendor" to be set for admin-level users (see
+  // VendorLayout) — so jumping there from the admin hotel list has to
+  // pick the hotel's owner as the vendor being acted on first.
+  const openRestaurantPos = (hotel) => {
+    if (!hotel.user_id) {
+      toast.error('This hotel has no vendor owner, so Restaurant POS isn\'t available for it.');
+      return;
+    }
+    setActingVendor(hotel.user_id, hotel.name);
+    navigate(`/vendor/hotels/${hotel.id}/restaurant`);
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const vendorId = searchParams.get('vendor_id');
   const vendorName = searchParams.get('vendor_name');
@@ -460,6 +476,9 @@ const AdminHotels = () => {
                     </button>
                     <button onClick={() => openRoomsModal(hotel)} className="p-2 rounded-lg text-green-600 hover:bg-green-50 hover:text-green-800" title="Manage Rooms">
                       <BedDouble className="h-5 w-5" />
+                    </button>
+                    <button onClick={() => openRestaurantPos(hotel)} className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 hover:text-orange-800" title="Restaurant POS">
+                      <UtensilsCrossed className="h-5 w-5" />
                     </button>
                     <button onClick={() => toggleFeatured(hotel.id)} className="p-2 rounded-lg text-amber-600 hover:bg-amber-50 hover:text-amber-800" title="Toggle Featured">
                       <Star className={`h-5 w-5 ${hotel.is_featured ? 'fill-current' : ''}`} />
