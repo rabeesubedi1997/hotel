@@ -1,16 +1,17 @@
 import { Helmet } from 'react-helmet-async';
+import useSiteSettingsStore from '../stores/siteSettingsStore';
 
-const SEO = ({ 
-  title, 
-  description, 
-  keywords = '', 
-  ogImage = '', 
+const SEO = ({
+  title,
+  description,
+  keywords = '',
+  ogImage = '',
   ogType = 'website',
   canonical = '',
   noindex = false,
   jsonLd = null
 }) => {
-  const siteName = 'Nepal Hotel & Adventure';
+  const siteName = useSiteSettingsStore((s) => s.getSiteName());
   const defaultDescription = 'Discover luxury hotels and thrilling adventures in Nepal. Book your perfect stay or exciting activities today.';
   const defaultImage = '/og-image.jpg';
   

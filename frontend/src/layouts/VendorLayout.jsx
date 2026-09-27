@@ -4,6 +4,7 @@ import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSqu
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import NotificationBell from '../components/NotificationBell';
+import SEO from '../components/SEO';
 
 const VendorLayout = () => {
   const { user, logout, isAuthenticated } = useAuthStore();
@@ -55,6 +56,7 @@ const VendorLayout = () => {
 
   return (
     <div className="min-h-screen bg-neutral-100 flex">
+      <SEO title="Vendor Panel" noindex />
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div

@@ -5,6 +5,7 @@ import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import useSiteSettingsStore from '../stores/siteSettingsStore';
 import NotificationBell from '../components/NotificationBell';
+import SEO from '../components/SEO';
 
 const AdminLayout = () => {
   const { user, logout, isAuthenticated } = useAuthStore();
@@ -86,6 +87,7 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-neutral-100 flex">
+      <SEO title="Admin Panel" noindex />
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div
