@@ -77,6 +77,7 @@ class SiteSetting extends Model
             'value' => [
                 ['label' => 'Hotels', 'url' => '/hotels', 'icon' => 'Building2'],
                 ['label' => 'Activities', 'url' => '/activities', 'icon' => 'Compass'],
+                ['label' => 'Itineraries', 'url' => '/itineraries', 'icon' => 'Map'],
                 ['label' => 'About', 'url' => '/about', 'icon' => 'Info'],
                 ['label' => 'Contact', 'url' => '/contact', 'icon' => 'Mail'],
             ],
