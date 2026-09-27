@@ -1,23 +1,26 @@
 import { create } from 'zustand';
 import { notificationsAPI } from '../services/api';
-import { getEcho, disconnectEcho } from '../services/echo';
+
+const POLL_INTERVAL_MS = 15000;
 
 /**
- * Notification bell state — fetches history from the database (works even
- * before any live event arrives) and subscribes to the user's private
- * Reverb channel for live push while the app is open. Mirrors the
- * fetch/loading shape used by tripStore.js / authStore.js.
+ * Notification bell state — fetches history from the database and polls
+ * for new ones every POLL_INTERVAL_MS while the app is open. No WebSocket
+ * server (Reverb/Pusher) required: a booking/hire request's response SLA
+ * is measured in minutes, so a ~15s worst-case delay before staff see it
+ * is irrelevant in practice, and plain polling works on any host. Mirrors
+ * the fetch/loading shape used by tripStore.js / authStore.js.
  */
 const useNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
   loading: false,
   initialized: false,
-  channel: null,
+  pollTimer: null,
 
-  fetchNotifications: async () => {
+  fetchNotifications: async ({ silent = false } = {}) => {
     if (get().loading) return;
-    set({ loading: true });
+    if (!silent) set({ loading: true });
     try {
       const response = await notificationsAPI.getAll();
       set({ notifications: response.data?.data || [], loading: false, initialized: true });
@@ -60,35 +63,34 @@ const useNotificationStore = create((set, get) => ({
     }
   },
 
-  // Subscribes to the given user's private Reverb channel for live
-  // notifications. Call once after login (userId available); call
-  // unsubscribe() on logout. Safe to call multiple times — re-subscribing
-  // for the same user is a no-op beyond re-registering the listener.
-  subscribe: (userId) => {
-    if (!userId || get().channel) return;
+  // Starts polling for new notifications. Call once after login; call
+  // unsubscribe() on logout. Safe to call multiple times — already-polling
+  // is a no-op. userId isn't needed here (kept in the signature so layouts
+  // calling subscribe(user.id) don't need to change).
+  subscribe: () => {
+    if (get().pollTimer) return;
 
-    const echo = getEcho();
-    if (!echo) return;
+    const tick = () => {
+      get().fetchUnreadCount();
+      // Keep an already-opened dropdown's list fresh too.
+      if (get().initialized) get().fetchNotifications({ silent: true });
+    };
 
-    const channel = echo.private(`App.Models.User.${userId}`);
-    channel.notification((notification) => {
-      set({
-        notifications: [{ id: notification.id, data: notification, read_at: null, created_at: new Date().toISOString() }, ...get().notifications],
-        unreadCount: get().unreadCount + 1,
-      });
-    });
-
-    set({ channel });
+    tick();
+    const pollTimer = setInterval(tick, POLL_INTERVAL_MS);
+    set({ pollTimer });
   },
 
   unsubscribe: () => {
-    // Disconnecting the whole socket tears down every channel/listener on
-    // it — no need to unsubscribe the notification channel individually.
-    disconnectEcho();
-    set({ channel: null });
+    const { pollTimer } = get();
+    if (pollTimer) clearInterval(pollTimer);
+    set({ pollTimer: null });
   },
 
-  reset: () => set({ notifications: [], unreadCount: 0, loading: false, initialized: false, channel: null }),
+  reset: () => {
+    get().unsubscribe();
+    set({ notifications: [], unreadCount: 0, loading: false, initialized: false });
+  },
 }));
 
 export default useNotificationStore;
