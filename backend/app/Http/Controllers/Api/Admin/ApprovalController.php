@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\Hotel;
 use App\Models\Activity;
+use App\Models\TourGuide;
 use App\Notifications\ListingApprovalDecided;
 use Illuminate\Http\Request;
 
@@ -17,7 +18,7 @@ class ApprovalController extends Controller
             ->with(['user'])
             ->orderBy('created_at', 'desc')
             ->get();
-            
+
         return response()->json($hotels);
     }
 
@@ -27,8 +28,101 @@ class ApprovalController extends Controller
             ->with(['user'])
             ->orderBy('created_at', 'desc')
             ->get();
-            
+
         return response()->json($activities);
+    }
+
+    public function pendingTourGuides(Request $request)
+    {
+        $guides = TourGuide::pending()
+            ->with(['vendor'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($guides);
+    }
+
+    public function approveTourGuide(Request $request, $id)
+    {
+        $guide = TourGuide::findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:approved,rejected',
+            'rejection_reason' => 'required_if:status,rejected|string|max:1000',
+        ]);
+
+        $guide->update([
+            'approval_status' => $validated['status'],
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
+        ]);
+
+        AdminAuditLog::record(
+            $request->user(),
+            'approval_decision',
+            'TourGuide',
+            $guide->id,
+            $guide->vendor_id,
+            null,
+            ['approval_status' => $validated['status'], 'rejection_reason' => $validated['rejection_reason'] ?? null]
+        );
+
+        $guide->vendor?->notify(new ListingApprovalDecided(
+            'tour_guide',
+            $guide->id,
+            $guide->name,
+            $validated['status'],
+            $validated['rejection_reason'] ?? null
+        ));
+
+        return response()->json([
+            'message' => "Tour guide service {$validated['status']} successfully",
+            'guide' => $guide,
+        ]);
+    }
+
+    public function bulkApproveTourGuides(Request $request)
+    {
+        $validated = $request->validate([
+            'tour_guide_ids' => 'required|array',
+            'tour_guide_ids.*' => 'integer|exists:tour_guides,id',
+            'status' => 'required|in:approved,rejected',
+            'rejection_reason' => 'required_if:status,rejected|string|max:1000',
+        ]);
+
+        $guides = TourGuide::whereIn('id', $validated['tour_guide_ids'])->get();
+
+        foreach ($guides as $guide) {
+            $guide->update([
+                'approval_status' => $validated['status'],
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => $validated['rejection_reason'] ?? null,
+            ]);
+
+            AdminAuditLog::record(
+                $request->user(),
+                'approval_decision',
+                'TourGuide',
+                $guide->id,
+                $guide->vendor_id,
+                null,
+                ['approval_status' => $validated['status'], 'rejection_reason' => $validated['rejection_reason'] ?? null]
+            );
+
+            $guide->vendor?->notify(new ListingApprovalDecided(
+                'tour_guide',
+                $guide->id,
+                $guide->name,
+                $validated['status'],
+                $validated['rejection_reason'] ?? null
+            ));
+        }
+
+        return response()->json([
+            'message' => count($guides) . " tour guide services {$validated['status']} successfully",
+        ]);
     }
 
     public function approveHotel(Request $request, $id)
@@ -201,19 +295,25 @@ class ApprovalController extends Controller
     {
         $pendingHotels = Hotel::pending()->count();
         $pendingActivities = Activity::pending()->count();
+        $pendingTourGuides = TourGuide::pending()->count();
         $approvedHotels = Hotel::approved()->count();
         $approvedActivities = Activity::approved()->count();
+        $approvedTourGuides = TourGuide::approved()->count();
         $rejectedHotels = Hotel::rejected()->count();
         $rejectedActivities = Activity::rejected()->count();
+        $rejectedTourGuides = TourGuide::rejected()->count();
 
         return response()->json([
             'pending_hotels' => $pendingHotels,
             'pending_activities' => $pendingActivities,
+            'pending_tour_guides' => $pendingTourGuides,
             'approved_hotels' => $approvedHotels,
             'approved_activities' => $approvedActivities,
+            'approved_tour_guides' => $approvedTourGuides,
             'rejected_hotels' => $rejectedHotels,
             'rejected_activities' => $rejectedActivities,
-            'total_pending' => $pendingHotels + $pendingActivities,
+            'rejected_tour_guides' => $rejectedTourGuides,
+            'total_pending' => $pendingHotels + $pendingActivities + $pendingTourGuides,
         ]);
     }
 }

@@ -32,14 +32,21 @@ class RoleSeeder extends Seeder
                     'activities.edit.all',
                     'activities.delete.all',
                     'activities.approve',
-                    
+
+                    // Tour Guide Management
+                    'tour_guides.view.all',
+                    'tour_guides.create',
+                    'tour_guides.edit.all',
+                    'tour_guides.delete.all',
+                    'tour_guides.approve',
+
                     // Booking Management
                     'bookings.view.all',
                     'bookings.create',
                     'bookings.edit.all',
                     'bookings.cancel.all',
                     'bookings.manage',
-                    
+
                     // User Management
                     'users.view.all',
                     'users.create',
@@ -79,14 +86,21 @@ class RoleSeeder extends Seeder
                     'activities.edit.all',
                     'activities.delete.all',
                     'activities.approve',
-                    
+
+                    // Tour Guide Management
+                    'tour_guides.view.all',
+                    'tour_guides.create',
+                    'tour_guides.edit.all',
+                    'tour_guides.delete.all',
+                    'tour_guides.approve',
+
                     // Booking Management
                     'bookings.view.all',
                     'bookings.create',
                     'bookings.edit.all',
                     'bookings.cancel.all',
                     'bookings.manage',
-                    
+
                     // User Management (limited)
                     'users.view.all',
                     'users.create',
@@ -122,7 +136,13 @@ class RoleSeeder extends Seeder
                     'activities.create',
                     'activities.edit.assigned',
                     'activities.delete.assigned',
-                    
+
+                    // Tour Guide Management (assigned only)
+                    'tour_guides.view.assigned',
+                    'tour_guides.create',
+                    'tour_guides.edit.assigned',
+                    'tour_guides.delete.assigned',
+
                     // Booking Management (assigned only)
                     'bookings.view.assigned',
                     'bookings.edit.assigned',
@@ -154,7 +174,13 @@ class RoleSeeder extends Seeder
                     'activities.create',
                     'activities.edit.own',
                     'activities.delete.own',
-                    
+
+                    // Tour Guide Management (own only)
+                    'tour_guides.view.own',
+                    'tour_guides.create',
+                    'tour_guides.edit.own',
+                    'tour_guides.delete.own',
+
                     // Booking Management (own only)
                     'bookings.view.own',
                     'bookings.edit.own',
@@ -196,8 +222,12 @@ class RoleSeeder extends Seeder
             ],
         ];
 
+        // updateOrCreate (not create) so re-running this seeder after
+        // adding new permissions actually syncs the change into roles
+        // that already exist in the database — a plain create() would
+        // silently no-op on every environment except a brand-new install.
         foreach ($roles as $role) {
-            Role::create($role);
+            Role::updateOrCreate(['slug' => $role['slug']], $role);
         }
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Vendor;
 
+use App\Http\Controllers\Concerns\ActsForVendor;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use Illuminate\Http\Request;
@@ -9,19 +10,21 @@ use Illuminate\Support\Str;
 
 class HotelController extends Controller
 {
+    use ActsForVendor;
+
     public function index(Request $request)
     {
-        $hotels = Hotel::where('user_id', $request->user()->id)
+        $hotels = Hotel::where('user_id', $this->vendorId($request))
             ->withCount('rooms')
             ->orderBy('id', 'desc')
             ->get();
-            
+
         return response()->json($hotels);
     }
 
     public function show(Request $request, $id)
     {
-        $hotel = Hotel::where('user_id', $request->user()->id)
+        $hotel = Hotel::where('user_id', $this->vendorId($request))
             ->withCount('rooms')
             ->with('rooms')
             ->findOrFail($id);
@@ -41,7 +44,7 @@ class HotelController extends Controller
         ]);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . time();
-        $validated['user_id'] = $request->user()->id;
+        $validated['user_id'] = $this->vendorId($request);
         $validated['approval_status'] = 'pending';
 
         $hotel = Hotel::create($validated);
@@ -54,7 +57,7 @@ class HotelController extends Controller
 
     public function update(Request $request, $id)
     {
-        $hotel = Hotel::where('user_id', $request->user()->id)->findOrFail($id);
+        $hotel = Hotel::where('user_id', $this->vendorId($request))->findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -76,7 +79,7 @@ class HotelController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $hotel = Hotel::where('user_id', $request->user()->id)->findOrFail($id);
+        $hotel = Hotel::where('user_id', $this->vendorId($request))->findOrFail($id);
         $hotel->delete();
 
         return response()->json(['message' => 'Hotel deleted successfully']);

@@ -14,7 +14,7 @@ class VendorController extends Controller
     public function index(Request $request)
     {
         $vendors = User::where('role', 'vendor')
-            ->withCount(['hotels', 'activities'])
+            ->withCount(['hotels', 'activities', 'tourGuides'])
             ->orderBy('created_at', 'desc')
             ->get();
             

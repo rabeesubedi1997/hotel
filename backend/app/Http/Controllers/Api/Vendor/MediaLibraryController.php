@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers\Api\Vendor;
 
+use App\Http\Controllers\Concerns\ActsForVendor;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
 
 class MediaLibraryController extends Controller
 {
+    use ActsForVendor;
+
     public function index(Request $request): JsonResponse
     {
         $folder = $request->input('folder', '');
         $search = $request->input('search', '');
-        $userId = Auth::id();
+        $userId = $this->vendorId($request);
         $vendorFolder = "vendor_{$userId}";
         
         $directories = [];
@@ -66,7 +68,7 @@ class MediaLibraryController extends Controller
         
         $file = $request->file('image');
         $folder = $request->input('folder', 'general');
-        $userId = Auth::id();
+        $userId = $this->vendorId($request);
         
         if ($file) {
             $filename = time() . '_' . $file->getClientOriginalName();
@@ -97,7 +99,7 @@ class MediaLibraryController extends Controller
     public function destroy(Request $request): JsonResponse
     {
         $path = $request->input('path');
-        $userId = Auth::id();
+        $userId = $this->vendorId($request);
         
         // Check if file belongs to current vendor
         $isVendorFile = $this->isVendorFile(storage_path("app/public/uploads/$path"), $userId);

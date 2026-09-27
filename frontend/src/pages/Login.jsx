@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import SEO from '../components/SEO';
+import { getSystemHomeRoute } from '../utils/systemAccess';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -23,7 +24,8 @@ const Login = () => {
     e.preventDefault();
     const result = await login(formData);
     if (result.success) {
-      navigate('/');
+      const { user } = useAuthStore.getState();
+      navigate(getSystemHomeRoute(user?.role));
     }
   };
 

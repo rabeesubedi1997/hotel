@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers\Api\Vendor;
 
+use App\Http\Controllers\Concerns\ActsForVendor;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Hotel;
 use App\Models\Activity;
+use App\Models\TourGuide;
+use App\Models\TourGuideBooking;
 use App\Notifications\BookingStatusChanged;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
+    use ActsForVendor;
+
     public function index(Request $request)
     {
-        $vendorId = $request->user()->id;
+        $vendorId = $this->vendorId($request);
         
         // Get vendor's hotel and activity IDs
         $hotelIds = Hotel::where('user_id', $vendorId)->pluck('id');
@@ -38,7 +43,7 @@ class BookingController extends Controller
 
     public function show(Request $request, $id)
     {
-        $vendorId = $request->user()->id;
+        $vendorId = $this->vendorId($request);
         
         // Get vendor's hotel and activity IDs
         $hotelIds = Hotel::where('user_id', $vendorId)->pluck('id');
@@ -61,7 +66,7 @@ class BookingController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $vendorId = $request->user()->id;
+        $vendorId = $this->vendorId($request);
         
         // Get vendor's hotel and activity IDs
         $hotelIds = Hotel::where('user_id', $vendorId)->pluck('id');
@@ -97,11 +102,12 @@ class BookingController extends Controller
 
     public function stats(Request $request)
     {
-        $vendorId = $request->user()->id;
+        $vendorId = $this->vendorId($request);
 
-        // Get vendor's hotel and activity IDs
+        // Get vendor's hotel, activity, and tour-guide IDs
         $hotelIds = Hotel::where('user_id', $vendorId)->pluck('id');
         $activityIds = Activity::where('user_id', $vendorId)->pluck('id');
+        $tourGuideIds = TourGuide::where('vendor_id', $vendorId)->pluck('id');
 
         // Booking statistics — built as a closure so each metric below gets
         // a fresh Builder instead of mutating and compounding where-clauses
@@ -119,13 +125,20 @@ class BookingController extends Controller
             });
         };
 
+        // TourGuideBooking isn't part of the polymorphic Booking/bookable
+        // system — it's a separate model with its own status set
+        // (pending/confirmed/completed/cancelled, no checked_in/checked_out/
+        // refunded), so it's tallied separately rather than folded into
+        // $vendorBookings above.
+        $vendorGuideBookings = fn () => TourGuideBooking::whereIn('tour_guide_id', $tourGuideIds);
+
         $stats = [
-            'total_bookings' => $vendorBookings()->count(),
-            'pending_bookings' => $vendorBookings()->where('status', 'pending')->count(),
-            'confirmed_bookings' => $vendorBookings()->where('status', 'confirmed')->count(),
-            'completed_bookings' => $vendorBookings()->where('status', 'checked_out')->count(),
-            'cancelled_bookings' => $vendorBookings()->where('status', 'cancelled')->count(),
-            'total_revenue' => $vendorBookings()->where('status', 'confirmed')->sum('total_amount'),
+            'total_bookings' => $vendorBookings()->count() + $vendorGuideBookings()->count(),
+            'pending_bookings' => $vendorBookings()->where('status', 'pending')->count() + $vendorGuideBookings()->where('status', 'pending')->count(),
+            'confirmed_bookings' => $vendorBookings()->where('status', 'confirmed')->count() + $vendorGuideBookings()->where('status', 'confirmed')->count(),
+            'completed_bookings' => $vendorBookings()->where('status', 'checked_out')->count() + $vendorGuideBookings()->where('status', 'completed')->count(),
+            'cancelled_bookings' => $vendorBookings()->where('status', 'cancelled')->count() + $vendorGuideBookings()->where('status', 'cancelled')->count(),
+            'total_revenue' => $vendorBookings()->where('status', 'confirmed')->sum('total_amount') + $vendorGuideBookings()->where('status', 'confirmed')->sum('total_price'),
         ];
 
         return response()->json($stats);

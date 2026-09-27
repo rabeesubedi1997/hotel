@@ -15,7 +15,7 @@ class ListingApprovalDecided extends Notification
     use Queueable;
 
     /**
-     * @param 'hotel'|'activity' $listingType
+     * @param 'hotel'|'activity'|'tour_guide' $listingType
      * @param 'approved'|'rejected' $decision
      */
     public function __construct(
@@ -45,7 +45,11 @@ class ListingApprovalDecided extends Notification
             'listing_type' => $this->listingType,
             'listing_id' => $this->listingId,
             'decision' => $this->decision,
-            'action_url' => $this->listingType === 'hotel' ? '/vendor/hotels' : '/vendor/activities',
+            'action_url' => match ($this->listingType) {
+                'hotel' => '/vendor/hotels',
+                'tour_guide' => '/vendor/tour-guides',
+                default => '/vendor/activities',
+            },
         ];
     }
 

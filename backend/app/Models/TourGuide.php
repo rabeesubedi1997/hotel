@@ -12,6 +12,10 @@ class TourGuide extends Model
 {
     use HasFactory;
 
+    const APPROVAL_STATUS_PENDING = 'pending';
+    const APPROVAL_STATUS_APPROVED = 'approved';
+    const APPROVAL_STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'name',
         'slug',
@@ -31,6 +35,10 @@ class TourGuide extends Model
         'email',
         'is_active',
         'display_order',
+        'approval_status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
@@ -43,6 +51,7 @@ class TourGuide extends Model
         'specialties' => 'array',
         'certifications' => 'array',
         'is_active' => 'boolean',
+        'approved_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -104,5 +113,20 @@ class TourGuide extends Model
     public function scopeOrdered($query)
     {
         return $query->orderBy('display_order')->orderBy('name');
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_APPROVED);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_PENDING);
+    }
+
+    public function scopeRejected($query)
+    {
+        return $query->where('approval_status', self::APPROVAL_STATUS_REJECTED);
     }
 }

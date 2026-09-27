@@ -7,6 +7,7 @@ import useNotificationStore from '../stores/notificationStore';
 import useCurrencyStore from '../stores/currencyStore';
 import NotificationBell from '../components/NotificationBell';
 import FloatingChatWidget from '../components/FloatingChatWidget';
+import { getSystemHomeRoute } from '../utils/systemAccess';
 
 const MainLayout = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -222,15 +223,19 @@ const MainLayout = () => {
 
               {isAuthenticated ? (
                 <>
-                  {/* Admin Dashboard Button - Role Based */}
-                  {user && ['admin', 'manager', 'super_admin'].includes(user.role) && (
+                  {/* Dashboard button — role based. Previously only
+                      admin/manager/super_admin saw this at all, so a
+                      vendor had no header entry point into their own
+                      panel; now everyone with either system gets sent to
+                      the right place (see utils/systemAccess.js). */}
+                  {user && ['admin', 'manager', 'super_admin', 'vendor'].includes(user.role) && (
                     <button
-                      onClick={() => navigate('/admin')}
+                      onClick={() => navigate(getSystemHomeRoute(user.role))}
                       className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-full text-sm font-semibold hover:bg-neutral-800 transition-colors"
-                      title="Admin Dashboard"
+                      title="Dashboard"
                     >
                       <LucideIcons.Settings className="h-4 w-4" />
-                      <span>Admin Dashboard</span>
+                      <span>{user.role === 'vendor' ? 'Vendor Dashboard' : 'Admin Dashboard'}</span>
                     </button>
                   )}
                   <Link to="/wishlist" className="text-neutral-600 hover:text-accent-600 transition-colors">
@@ -327,14 +332,14 @@ const MainLayout = () => {
 
               {isAuthenticated ? (
                 <>
-                  {/* Admin Dashboard Button - Mobile */}
-                  {user && ['admin', 'manager', 'super_admin'].includes(user.role) && (
+                  {/* Dashboard Button - Mobile (see desktop version above) */}
+                  {user && ['admin', 'manager', 'super_admin', 'vendor'].includes(user.role) && (
                 <button
-                  onClick={() => { navigate('/admin'); closeMobileMenu(); }}
+                  onClick={() => { navigate(getSystemHomeRoute(user.role)); closeMobileMenu(); }}
                   className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors"
                 >
                   <LucideIcons.Settings className="h-4 w-4" />
-                  <span>Admin Dashboard</span>
+                  <span>{user.role === 'vendor' ? 'Vendor Dashboard' : 'Admin Dashboard'}</span>
                 </button>
               )}
 

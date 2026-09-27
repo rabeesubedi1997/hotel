@@ -226,6 +226,18 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');
     Route::post('/media-library/upload', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'upload'])->middleware('permission:media.upload');
     Route::delete('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'destroy'])->middleware('permission:media.delete.own');
+
+    // Tour Guide Services (Vendor sees only their own guides; admin-created
+    // pending approval to go public, same as Hotels/Activities above)
+    Route::get('/tour-guides', [\App\Http\Controllers\Api\Vendor\TourGuideController::class, 'index'])->middleware('permission:tour_guides.view.own');
+    Route::post('/tour-guides', [\App\Http\Controllers\Api\Vendor\TourGuideController::class, 'store'])->middleware('permission:tour_guides.create');
+    Route::get('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Vendor\TourGuideController::class, 'show'])->middleware('permission:tour_guides.view.own');
+    Route::put('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Vendor\TourGuideController::class, 'update'])->middleware('permission:tour_guides.edit.own');
+    Route::delete('/tour-guides/{tourGuide}', [\App\Http\Controllers\Api\Vendor\TourGuideController::class, 'destroy'])->middleware('permission:tour_guides.delete.own');
+
+    // Business Profile (the vendor's own public storefront details)
+    Route::get('/profile', [\App\Http\Controllers\Api\Vendor\ProfileController::class, 'show']);
+    Route::put('/profile', [\App\Http\Controllers\Api\Vendor\ProfileController::class, 'update']);
 });
 
 // Admin Routes (Admin and Manager only - full access)
@@ -262,10 +274,13 @@ Route::middleware(['auth:sanctum', 'admin.dashboard'])->prefix('admin')->group(f
     Route::get('/approvals/dashboard', [ApprovalController::class, 'dashboard'])->middleware('permission:hotels.approve');
     Route::get('/approvals/pending-hotels', [ApprovalController::class, 'pendingHotels'])->middleware('permission:hotels.approve');
     Route::get('/approvals/pending-activities', [ApprovalController::class, 'pendingActivities'])->middleware('permission:activities.approve');
+    Route::get('/approvals/pending-tour-guides', [ApprovalController::class, 'pendingTourGuides'])->middleware('permission:tour_guides.approve');
     Route::post('/approvals/hotels/{id}/approve', [ApprovalController::class, 'approveHotel'])->middleware('permission:hotels.approve');
     Route::post('/approvals/activities/{id}/approve', [ApprovalController::class, 'approveActivity'])->middleware('permission:activities.approve');
+    Route::post('/approvals/tour-guides/{id}/approve', [ApprovalController::class, 'approveTourGuide'])->middleware('permission:tour_guides.approve');
     Route::post('/approvals/hotels/bulk-approve', [ApprovalController::class, 'bulkApproveHotels'])->middleware('permission:hotels.approve');
     Route::post('/approvals/activities/bulk-approve', [ApprovalController::class, 'bulkApproveActivities'])->middleware('permission:activities.approve');
+    Route::post('/approvals/tour-guides/bulk-approve', [ApprovalController::class, 'bulkApproveTourGuides'])->middleware('permission:tour_guides.approve');
 
     // Bookings Management (Admin sees all bookings)
     Route::get('/bookings', [AdminBookingController::class, 'index'])->middleware('permission:bookings.view.all');

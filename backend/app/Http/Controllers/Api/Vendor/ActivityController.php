@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Vendor;
 
+use App\Http\Controllers\Concerns\ActsForVendor;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use Illuminate\Http\Request;
@@ -9,18 +10,20 @@ use Illuminate\Support\Str;
 
 class ActivityController extends Controller
 {
+    use ActsForVendor;
+
     public function index(Request $request)
     {
-        $activities = Activity::where('user_id', $request->user()->id)
+        $activities = Activity::where('user_id', $this->vendorId($request))
             ->orderBy('id', 'desc')
             ->get();
-            
+
         return response()->json($activities);
     }
 
     public function show(Request $request, $id)
     {
-        $activity = Activity::where('user_id', $request->user()->id)->findOrFail($id);
+        $activity = Activity::where('user_id', $this->vendorId($request))->findOrFail($id);
 
         return response()->json($activity);
     }
@@ -40,7 +43,7 @@ class ActivityController extends Controller
         ]);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . time();
-        $validated['user_id'] = $request->user()->id;
+        $validated['user_id'] = $this->vendorId($request);
         $validated['approval_status'] = 'pending';
 
         $activity = Activity::create($validated);
@@ -53,7 +56,7 @@ class ActivityController extends Controller
 
     public function update(Request $request, $id)
     {
-        $activity = Activity::where('user_id', $request->user()->id)->findOrFail($id);
+        $activity = Activity::where('user_id', $this->vendorId($request))->findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -78,7 +81,7 @@ class ActivityController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $activity = Activity::where('user_id', $request->user()->id)->findOrFail($id);
+        $activity = Activity::where('user_id', $this->vendorId($request))->findOrFail($id);
         $activity->delete();
 
         return response()->json(['message' => 'Activity deleted successfully']);

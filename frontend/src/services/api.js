@@ -1,4 +1,5 @@
 import axios from 'axios';
+import useActingVendorStore from '../stores/actingVendorStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -16,6 +17,17 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // When an admin is managing a specific vendor's Management System panel,
+  // every /vendor/* call needs to say which vendor — the backend's
+  // ActsForVendor trait reads this and scopes accordingly (see
+  // stores/actingVendorStore.js). Harmless to send on other requests too:
+  // the backend only honors it for admin-level users hitting /vendor/*.
+  const { vendorId } = useActingVendorStore.getState();
+  if (vendorId && config.url?.includes('/vendor/')) {
+    config.headers['X-Acting-Vendor-Id'] = vendorId;
+  }
+
   return config;
 });
 
@@ -238,10 +250,13 @@ export const adminAPI = {
   getApprovalDashboard: () => api.get('/admin/approvals/dashboard'),
   getPendingHotels: () => api.get('/admin/approvals/pending-hotels'),
   getPendingActivities: () => api.get('/admin/approvals/pending-activities'),
+  getPendingTourGuides: () => api.get('/admin/approvals/pending-tour-guides'),
   approveHotel: (id, data) => api.post(`/admin/approvals/hotels/${id}/approve`, data),
   approveActivity: (id, data) => api.post(`/admin/approvals/activities/${id}/approve`, data),
+  approveTourGuideListing: (id, data) => api.post(`/admin/approvals/tour-guides/${id}/approve`, data),
   bulkApproveHotels: (data) => api.post('/admin/approvals/hotels/bulk-approve', data),
   bulkApproveActivities: (data) => api.post('/admin/approvals/activities/bulk-approve', data),
+  bulkApproveTourGuideListings: (data) => api.post('/admin/approvals/tour-guides/bulk-approve', data),
 
   // Hotels
   getHotels: (params) => api.get('/admin/hotels', { params }),
@@ -422,7 +437,17 @@ export const vendorAPI = {
   createActivity: (data) => api.post('/vendor/activities', data),
   updateActivity: (id, data) => api.put(`/vendor/activities/${id}`, data),
   deleteActivity: (id) => api.delete(`/vendor/activities/${id}`),
-  
+
+  // Tour Guide Services Management
+  getTourGuides: () => api.get('/vendor/tour-guides'),
+  createTourGuide: (data) => api.post('/vendor/tour-guides', data),
+  updateTourGuide: (id, data) => api.put(`/vendor/tour-guides/${id}`, data),
+  deleteTourGuide: (id) => api.delete(`/vendor/tour-guides/${id}`),
+
+  // Business Profile
+  getProfile: () => api.get('/vendor/profile'),
+  updateProfile: (data) => api.put('/vendor/profile', data),
+
   // Bookings Management
   getBookings: () => api.get('/vendor/bookings'),
   getBooking: (id) => api.get(`/vendor/bookings/${id}`),

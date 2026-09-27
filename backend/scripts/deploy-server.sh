@@ -24,6 +24,9 @@ composer install --no-dev --optimize-autoloader
 echo "==> Running migrations..."
 php artisan migrate --force
 
+echo "==> Syncing role permissions (safe to re-run — updateOrCreate)..."
+php artisan db:seed --class=RoleSeeder --force
+
 echo "==> Linking storage (safe if already linked)..."
 php artisan storage:link || true
 

@@ -14,9 +14,11 @@ class VendorMiddleware
             return response()->json(['message' => 'Unauthorized.'], 401);
         }
         
-        // Allow vendors to access admin panel with their data filtered
-        if (!$request->user()->isVendor() && !$request->user()->isAdmin() && !$request->user()->isManager()) {
-            return response()->json(['message' => 'Forbidden. Vendor, admin, or manager access required.'], 403);
+        // Allow vendors to access admin panel with their data filtered, and
+        // admin-level users to manage a vendor's panel on their behalf
+        // (see ActsForVendor).
+        if (!$request->user()->isAdminLevel() && !$request->user()->isVendor()) {
+            return response()->json(['message' => 'Forbidden. Vendor or admin access required.'], 403);
         }
         
         return $next($request);

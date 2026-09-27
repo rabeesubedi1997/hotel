@@ -21,6 +21,7 @@ class TourGuideController extends Controller
     {
         $guides = TourGuide::active()
             ->available()
+            ->approved()
             ->ordered()
             ->get();
 

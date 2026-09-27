@@ -67,8 +67,13 @@ import VendorLayout from './layouts/VendorLayout';
 import VendorDashboard from './pages/vendor/Dashboard';
 import VendorHotels from './pages/vendor/Hotels';
 import VendorActivities from './pages/vendor/Activities';
+import VendorTourGuides from './pages/vendor/TourGuides';
+import VendorBusinessProfile from './pages/vendor/BusinessProfile';
 import VendorBookings from './pages/vendor/Bookings';
 import VendorMessages from './pages/vendor/Messages';
+import SelectSystem from './pages/SelectSystem';
+import SelectVendor from './pages/SelectVendor';
+import AdminApprovals from './pages/admin/Approvals';
 
 // React Router doesn't reset scroll position on navigation the way a full
 // page load does — without this, clicking a link while scrolled halfway
@@ -160,9 +165,15 @@ const AdminRoute = ({ children }) => {
 // Vendor Route Component
 const VendorRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
-  
+
   if (!isAuthenticated) return <Navigate to="/login" />;
-  if (user?.role !== 'vendor') return <Navigate to="/" />;
+  // Admin-level users can also enter the Management System (managing a
+  // vendor's panel on their behalf — see SelectVendor.jsx); VendorLayout
+  // itself then redirects them to /select-vendor if they haven't picked
+  // a vendor yet.
+  if (user?.role !== 'vendor' && !['admin', 'manager', 'super_admin'].includes(user?.role)) {
+    return <Navigate to="/" />;
+  }
   return children;
 };
 
@@ -191,6 +202,8 @@ function App() {
             <Route path="vendors/:slug" element={<VendorProfile />} />
 
             {/* Protected Routes */}
+            <Route path="select-system" element={<ProtectedRoute><SelectSystem /></ProtectedRoute>} />
+            <Route path="select-vendor" element={<ProtectedRoute><SelectVendor /></ProtectedRoute>} />
             <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
             <Route path="bookings/:id" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
@@ -212,6 +225,7 @@ function App() {
             <Route path="bookings" element={<AdminBookings />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="vendors" element={<AdminVendors />} />
+            <Route path="approvals" element={<AdminApprovals />} />
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="banner" element={<AdminBanner />} />
             <Route path="seo" element={<AdminSEO />} />
@@ -237,6 +251,8 @@ function App() {
             <Route index element={<VendorDashboard />} />
             <Route path="hotels" element={<VendorHotels />} />
             <Route path="activities" element={<VendorActivities />} />
+            <Route path="tour-guides" element={<VendorTourGuides />} />
+            <Route path="profile" element={<VendorBusinessProfile />} />
             <Route path="bookings" element={<VendorBookings />} />
             <Route path="messages" element={<VendorMessages />} />
             <Route path="messages/:id" element={<VendorMessages />} />

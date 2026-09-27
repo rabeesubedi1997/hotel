@@ -12,9 +12,11 @@ import { adminAPI, vendorAPI } from '../services/api';
 import { resizeImage, getFileSizeMB } from '../utils/imageResizer';
 import { useRef } from 'react';
 import useAuthStore from '../stores/authStore';
+import useActingVendorStore from '../stores/actingVendorStore';
 
 const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
   const { user } = useAuthStore();
+  const { vendorId: actingVendorId } = useActingVendorStore();
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
   const [currentFolder, setCurrentFolder] = useState(folder);
@@ -26,8 +28,13 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
   const [resizeProgress, setResizeProgress] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Determine which API to use based on user role
-  const isVendor = user?.role === 'vendor';
+  // Determine which API to use: a real vendor, or an admin-level user
+  // currently managing a vendor's Management System panel (in which case
+  // vendor/* calls automatically carry X-Acting-Vendor-Id — see
+  // services/api.js — so this must still route through vendorAPI, not
+  // adminAPI, or uploads would land in the admin's own library instead of
+  // the vendor's they're managing).
+  const isVendor = user?.role === 'vendor' || !!actingVendorId;
   const api = isVendor ? vendorAPI : adminAPI;
 
   useEffect(() => {

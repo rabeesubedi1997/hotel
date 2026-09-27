@@ -1,28 +1,40 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X, Users as GuidesIcon, UserCog, LogOut as ExitIcon } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
+import useActingVendorStore from '../stores/actingVendorStore';
 import NotificationBell from '../components/NotificationBell';
 import SEO from '../components/SEO';
+
+const ADMIN_LEVEL_ROLES = ['admin', 'manager', 'super_admin'];
 
 const VendorLayout = () => {
   const { user, logout, isAuthenticated } = useAuthStore();
   const { fetchUnreadCount, subscribe, unsubscribe } = useNotificationStore();
+  const { vendorId, vendorName, clearActingVendor } = useActingVendorStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Redirect to login if not authenticated or not vendor
+  const isAdminLevel = ADMIN_LEVEL_ROLES.includes(user?.role);
+
+  // Redirect to login if not authenticated; allow vendors into their own
+  // panel, and admin-level users into the Management System — but only
+  // once they've picked which vendor to manage (see SelectVendor.jsx).
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
-    if (user?.role !== 'vendor') {
+    if (user?.role !== 'vendor' && !isAdminLevel) {
       navigate('/');
+      return;
     }
-  }, [isAuthenticated, user, navigate]);
+    if (isAdminLevel && !vendorId) {
+      navigate('/select-vendor');
+    }
+  }, [isAuthenticated, user, isAdminLevel, vendorId, navigate]);
 
   // Live notification bell (e.g. listing approval/rejection decisions).
   useEffect(() => {
@@ -33,7 +45,7 @@ const VendorLayout = () => {
     return () => unsubscribe();
   }, [isAuthenticated, user?.id]);
 
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated || !user || (isAdminLevel && !vendorId)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -42,16 +54,24 @@ const VendorLayout = () => {
   }
 
   const handleLogout = async () => {
+    clearActingVendor();
     await logout();
     navigate('/');
+  };
+
+  const handleExitManagement = () => {
+    clearActingVendor();
+    navigate('/select-vendor');
   };
 
   const menuItems = [
     { path: '/vendor', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/vendor/hotels', icon: Building2, label: 'My Hotels' },
     { path: '/vendor/activities', icon: Compass, label: 'My Activities' },
+    { path: '/vendor/tour-guides', icon: GuidesIcon, label: 'My Tour Guides' },
     { path: '/vendor/bookings', icon: Calendar, label: 'Bookings' },
     { path: '/vendor/messages', icon: MessageSquare, label: 'Messages' },
+    { path: '/vendor/profile', icon: UserCog, label: 'Business Profile' },
   ];
 
   return (
@@ -141,6 +161,22 @@ const VendorLayout = () => {
             </div>
           </div>
         </header>
+
+        {/* Acting-as-vendor banner — only rendered when an admin-level user
+            is managing someone else's panel, not for the vendor's own. */}
+        {isAdminLevel && vendorId && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm text-amber-800">
+              Managing <strong>{vendorName}</strong>'s panel as {user?.name}
+            </p>
+            <button
+              onClick={handleExitManagement}
+              className="flex items-center gap-1.5 text-sm font-medium text-amber-800 hover:text-amber-900"
+            >
+              <ExitIcon className="h-4 w-4" /> Exit
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

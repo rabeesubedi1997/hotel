@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, Map, ScrollText, MessageSquare, Megaphone, Tag, DollarSign, Award, X } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, Map, ScrollText, MessageSquare, Megaphone, Tag, DollarSign, Award, X, CheckCircle } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import useSiteSettingsStore from '../stores/siteSettingsStore';
@@ -59,6 +59,7 @@ const AdminLayout = () => {
     { path: '/admin/activities', icon: Compass, label: 'Activities', vendorOnly: true },
     { path: '/admin/bookings', icon: Calendar, label: 'Bookings', vendorOnly: true },
     { path: '/admin/package-bookings', icon: Map, label: 'Package Bookings', adminOnly: true },
+    { path: '/admin/approvals', icon: CheckCircle, label: 'Approvals', adminOnly: true },
     { path: '/admin/users', icon: Users, label: 'Users', adminOnly: true },
     { path: '/admin/vendors', icon: Users, label: 'Vendors', adminOnly: true },
     { path: '/admin/reviews', icon: Star, label: 'Reviews', adminOnly: true },
