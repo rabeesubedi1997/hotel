@@ -17,14 +17,14 @@ const AdminHotels = () => {
 
   // The vendor-side Restaurant POS page lives under /vendor/*, which
   // requires an "acting vendor" to be set for admin-level users (see
-  // VendorLayout) — so jumping there from the admin hotel list has to
-  // pick the hotel's owner as the vendor being acted on first.
+  // VendorLayout) purely so it doesn't bounce them to /select-vendor.
+  // The backend controllers behind this page (Menu/Table/Order) already
+  // bypass ownership checks entirely for admin-level users regardless of
+  // that header, so for an admin-owned hotel with no vendor account we
+  // just use the admin's own id as a stand-in — it's never actually
+  // enforced against.
   const openRestaurantPos = (hotel) => {
-    if (!hotel.user_id) {
-      toast.error('This hotel has no vendor owner, so Restaurant POS isn\'t available for it.');
-      return;
-    }
-    setActingVendor(hotel.user_id, hotel.name);
+    setActingVendor(hotel.user_id || user.id, hotel.name);
     navigate(`/vendor/hotels/${hotel.id}/restaurant`);
   };
   const [searchParams, setSearchParams] = useSearchParams();
