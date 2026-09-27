@@ -56,6 +56,8 @@ class MenuController extends Controller
             'category' => 'required|string|max:255',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
+            'stock_quantity' => 'nullable|integer|min:0',
+            'low_stock_threshold' => 'sometimes|integer|min:0',
         ]);
 
         $validated['hotel_id'] = $hotel->id;
@@ -88,6 +90,8 @@ class MenuController extends Controller
             'category' => 'sometimes|string|max:255',
             'image' => 'sometimes|string',
             'is_available' => 'sometimes|boolean',
+            'stock_quantity' => 'nullable|integer|min:0',
+            'low_stock_threshold' => 'sometimes|integer|min:0',
         ]);
 
         $item->update($validated);

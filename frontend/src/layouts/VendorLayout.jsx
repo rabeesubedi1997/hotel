@@ -19,6 +19,14 @@ const VendorLayout = () => {
 
   const isAdminLevel = ADMIN_LEVEL_ROLES.includes(user?.role);
 
+  // The vendor's own business name where possible, so the panel doesn't
+  // read as a generic shell — falls back to the acting-vendor label for
+  // admins managing someone else's panel, and to "Vendor Portal" only if
+  // neither is known yet.
+  const displayName = isAdminLevel
+    ? (vendorName || 'Vendor Portal')
+    : (user?.company_name || user?.name || 'Vendor Portal');
+
   // Redirect to login if not authenticated; allow vendors into their own
   // panel, and admin-level users into the Management System — but only
   // once they've picked which vendor to manage (see SelectVendor.jsx).
@@ -93,7 +101,7 @@ const VendorLayout = () => {
         <div className="p-6">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-2">
-              <span className="font-display text-xl font-bold">Vendor Portal</span>
+              <span className="font-display text-xl font-bold truncate">{displayName}</span>
             </Link>
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -151,7 +159,7 @@ const VendorLayout = () => {
                 >
                   <Menu className="h-6 w-6 text-neutral-600" />
                 </button>
-                <h1 className="font-display text-xl sm:text-2xl font-bold text-neutral-900">Vendor Portal</h1>
+                <h1 className="font-display text-xl sm:text-2xl font-bold text-neutral-900 truncate max-w-[50vw]">{displayName}</h1>
               </div>
               <div className="flex items-center gap-4">
                 <NotificationBell />

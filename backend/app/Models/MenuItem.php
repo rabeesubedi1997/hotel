@@ -18,12 +18,19 @@ class MenuItem extends Model
         'category',
         'image',
         'is_available',
+        'stock_quantity',
+        'low_stock_threshold',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'is_available' => 'boolean',
     ];
+
+    public function isLowStock(): bool
+    {
+        return $this->stock_quantity !== null && $this->stock_quantity <= $this->low_stock_threshold;
+    }
 
     public function hotel(): BelongsTo
     {

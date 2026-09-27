@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3, Image as ImageIcon, X, BarChart3, AlertTriangle } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
@@ -13,6 +13,9 @@ const emptyMenuForm = {
   category: 'main_course',
   image: '',
   is_available: true,
+  track_inventory: false,
+  stock_quantity: '',
+  low_stock_threshold: 5,
 };
 
 const emptyTableForm = {
@@ -66,6 +69,11 @@ const VendorRestaurant = () => {
   const [orderFormData, setOrderFormData] = useState(emptyOrderForm);
   const [savingOrder, setSavingOrder] = useState(false);
 
+  const [report, setReport] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFrom, setReportFrom] = useState(() => new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10));
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
+
   const isApproved = hotel?.approval_status === 'approved';
 
   const loadAll = useCallback(async () => {
@@ -97,6 +105,27 @@ const VendorRestaurant = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAll, hotelId]);
 
+  const loadReport = useCallback(async () => {
+    setReportLoading(true);
+    try {
+      const response = await vendorAPI.getEarningsReport(hotelId, { from: reportFrom, to: reportTo });
+      setReport(response.data);
+    } catch (error) {
+      console.error('Failed to load report', error);
+      toast.error('Failed to load report');
+    } finally {
+      setReportLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelId, reportFrom, reportTo]);
+
+  useEffect(() => {
+    if (tab === 'reports') {
+      loadReport();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   // --- Menu ---
   const openAddMenuForm = () => {
     setEditingMenuItem(null);
@@ -113,6 +142,9 @@ const VendorRestaurant = () => {
       category: item.category || 'main_course',
       image: item.image || '',
       is_available: !!item.is_available,
+      track_inventory: item.stock_quantity !== null && item.stock_quantity !== undefined,
+      stock_quantity: item.stock_quantity ?? '',
+      low_stock_threshold: item.low_stock_threshold ?? 5,
     });
     setMenuFormOpen(true);
   };
@@ -126,13 +158,18 @@ const VendorRestaurant = () => {
   const handleMenuSubmit = async (e) => {
     e.preventDefault();
     setSavingMenuItem(true);
+    const { track_inventory, ...rest } = menuFormData;
+    const payload = {
+      ...rest,
+      stock_quantity: track_inventory ? Number(menuFormData.stock_quantity || 0) : null,
+    };
     try {
       if (editingMenuItem) {
-        const response = await vendorAPI.updateMenuItem(editingMenuItem.id, menuFormData);
+        const response = await vendorAPI.updateMenuItem(editingMenuItem.id, payload);
         setMenuItems((prev) => prev.map((m) => (m.id === editingMenuItem.id ? response.data.item : m)));
         toast.success('Menu item updated!');
       } else {
-        const response = await vendorAPI.createMenuItem(hotelId, menuFormData);
+        const response = await vendorAPI.createMenuItem(hotelId, payload);
         setMenuItems((prev) => [response.data.item, ...prev]);
         toast.success('Menu item added!');
       }
@@ -207,6 +244,19 @@ const VendorRestaurant = () => {
       toast.success('Table deleted!');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete table');
+    }
+  };
+
+  // Quick one-click status change, separate from the full edit form —
+  // this is the everyday action (seating/clearing a table), while Edit
+  // is for changing the table number/capacity.
+  const setTableStatus = async (table, status) => {
+    if (table.status === status) return;
+    try {
+      const response = await vendorAPI.updateTable(table.id, { status });
+      setTables((prev) => prev.map((t) => (t.id === table.id ? response.data.table : t)));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update table status');
     }
   };
 
@@ -332,6 +382,7 @@ const VendorRestaurant = () => {
           { key: 'kitchen', label: 'Kitchen', icon: ChefHat },
           { key: 'menu', label: 'Menu', icon: UtensilsCrossed },
           { key: 'tables', label: 'Tables', icon: Grid3x3 },
+          { key: 'reports', label: 'Reports', icon: BarChart3 },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -420,6 +471,7 @@ const VendorRestaurant = () => {
                 <Th>Name</Th>
                 <Th>Category</Th>
                 <Th>Price</Th>
+                <Th>Stock</Th>
                 <Th>Available</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
@@ -442,6 +494,15 @@ const VendorRestaurant = () => {
                   <Td className="capitalize">{item.category.replace('_', ' ')}</Td>
                   <Td>${Number(item.price).toFixed(2)}</Td>
                   <Td>
+                    {item.stock_quantity === null ? (
+                      <span className="text-xs text-neutral-400">Not tracked</span>
+                    ) : (
+                      <span className={`text-xs font-medium ${item.stock_quantity <= item.low_stock_threshold ? 'text-amber-600' : 'text-neutral-600'}`}>
+                        {item.stock_quantity} in stock
+                      </span>
+                    )}
+                  </Td>
+                  <Td>
                     <Badge status={item.is_available ? 'active' : 'inactive'}>
                       {item.is_available ? 'Available' : 'Unavailable'}
                     </Badge>
@@ -460,7 +521,7 @@ const VendorRestaurant = () => {
               ))}
               {menuItems.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-4 sm:px-6 py-4 text-sm text-center text-neutral-500">
+                  <td colSpan="6" className="px-4 sm:px-6 py-4 text-sm text-center text-neutral-500">
                     No menu items yet.
                   </td>
                 </tr>
@@ -486,6 +547,23 @@ const VendorRestaurant = () => {
                   <Badge status={table.status} />
                 </div>
                 <p className="text-sm text-neutral-500 mb-3">Capacity: {table.capacity}</p>
+                <div className="grid grid-cols-3 gap-1 mb-3">
+                  {['available', 'occupied', 'reserved'].map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setTableStatus(table, status)}
+                      disabled={!isApproved}
+                      className={`text-xs capitalize py-1 rounded-md border disabled:opacity-30 disabled:cursor-not-allowed ${
+                        table.status === status
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                      }`}
+                    >
+                      {status === 'available' ? 'Free' : status}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => openEditTableForm(table)} disabled={!isApproved} className="p-1.5 rounded-lg text-primary-600 hover:bg-primary-50 disabled:opacity-30 disabled:cursor-not-allowed" title="Edit">
                     <Edit className="h-4 w-4" />
@@ -500,6 +578,95 @@ const VendorRestaurant = () => {
               <p className="col-span-full text-center text-neutral-500 py-8">No tables added yet.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === 'reports' && (
+        <div>
+          <div className="flex flex-wrap items-end gap-3 mb-6">
+            <Input label="From" type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} />
+            <Input label="To" type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
+            <Button size="sm" onClick={loadReport} loading={reportLoading}>Apply</Button>
+          </div>
+
+          {reportLoading || !report ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <p className="text-xs text-neutral-500 mb-1">Total Revenue</p>
+                  <p className="text-2xl font-bold text-green-600">${report.total_revenue.toFixed(2)}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <p className="text-xs text-neutral-500 mb-1">Orders (served/completed)</p>
+                  <p className="text-2xl font-bold text-neutral-900">{report.orders_count}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <p className="text-xs text-neutral-500 mb-1">Avg Order Value</p>
+                  <p className="text-2xl font-bold text-neutral-900">${report.avg_order_value.toFixed(2)}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <p className="text-xs text-neutral-500 mb-1">Cancelled (lost sales)</p>
+                  <p className="text-2xl font-bold text-red-600">${report.cancelled_value.toFixed(2)}</p>
+                  <p className="text-xs text-neutral-400">{report.cancelled_count} order(s)</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <h4 className="font-semibold text-neutral-900 mb-3">Revenue by Order Type</h4>
+                  {report.revenue_by_type.length === 0 ? (
+                    <p className="text-sm text-neutral-500">No revenue in this period.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {report.revenue_by_type.map((row) => (
+                        <div key={row.order_type} className="flex justify-between text-sm">
+                          <span className="capitalize text-neutral-600">{row.order_type.replace('_', ' ')} ({row.count})</span>
+                          <span className="font-medium text-neutral-900">${Number(row.total).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-xl border border-neutral-100 shadow-sm p-4">
+                  <h4 className="font-semibold text-neutral-900 mb-3">Top Selling Items</h4>
+                  {report.top_items.length === 0 ? (
+                    <p className="text-sm text-neutral-500">No sales in this period.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {report.top_items.map((item) => (
+                        <div key={item.id} className="flex justify-between text-sm">
+                          <span className="text-neutral-600">{item.name} × {item.quantity_sold}</span>
+                          <span className="font-medium text-neutral-900">${Number(item.revenue).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {report.low_stock_items.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Low Stock Items
+                  </h4>
+                  <div className="space-y-1">
+                    {report.low_stock_items.map((item) => (
+                      <div key={item.id} className="flex justify-between text-sm text-amber-800">
+                        <span>{item.name}</span>
+                        <span>{item.stock_quantity} left (threshold {item.low_stock_threshold})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -568,6 +735,37 @@ const VendorRestaurant = () => {
             />
             Available for ordering
           </label>
+
+          <div className="border border-neutral-200 rounded-xl p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                checked={menuFormData.track_inventory}
+                onChange={(e) => setMenuFormData({ ...menuFormData, track_inventory: e.target.checked })}
+              />
+              Track stock for this item
+            </label>
+            {menuFormData.track_inventory && (
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Stock Quantity"
+                  type="number"
+                  min="0"
+                  required
+                  value={menuFormData.stock_quantity}
+                  onChange={(e) => setMenuFormData({ ...menuFormData, stock_quantity: e.target.value })}
+                />
+                <Input
+                  label="Low Stock Alert At"
+                  type="number"
+                  min="0"
+                  value={menuFormData.low_stock_threshold}
+                  onChange={(e) => setMenuFormData({ ...menuFormData, low_stock_threshold: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="flex space-x-3 pt-4">
             <Button type="button" variant="secondary" fullWidth disabled={savingMenuItem} onClick={closeMenuForm}>
               Cancel

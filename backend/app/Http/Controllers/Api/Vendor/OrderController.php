@@ -72,7 +72,12 @@ class OrderController extends Controller
             $itemsToCreate = [];
 
             foreach ($validated['items'] as $line) {
-                $menuItem = MenuItem::where('hotel_id', $hotel->id)->findOrFail($line['menu_item_id']);
+                $menuItem = MenuItem::where('hotel_id', $hotel->id)->lockForUpdate()->findOrFail($line['menu_item_id']);
+
+                if ($menuItem->stock_quantity !== null && $menuItem->stock_quantity < $line['quantity']) {
+                    abort(422, "Not enough stock for \"{$menuItem->name}\" — only {$menuItem->stock_quantity} left.");
+                }
+
                 $lineSubtotal = $menuItem->price * $line['quantity'];
                 $subtotal += $lineSubtotal;
 
@@ -83,6 +88,10 @@ class OrderController extends Controller
                     'subtotal' => $lineSubtotal,
                     'notes' => $line['notes'] ?? null,
                 ];
+
+                if ($menuItem->stock_quantity !== null) {
+                    $menuItem->decrement('stock_quantity', $line['quantity']);
+                }
             }
 
             $order = Order::create([
@@ -127,6 +136,18 @@ class OrderController extends Controller
         $validated = $request->validate([
             'status' => 'required|in:pending,confirmed,preparing,ready,served,completed,cancelled',
         ]);
+
+        // Cancelling releases whatever stock this order had reserved —
+        // only once, so re-cancelling an already-cancelled order is a no-op.
+        if ($validated['status'] === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
+            DB::transaction(function () use ($order) {
+                foreach ($order->items()->with('menuItem')->get() as $line) {
+                    if ($line->menuItem && $line->menuItem->stock_quantity !== null) {
+                        $line->menuItem->increment('stock_quantity', $line->quantity);
+                    }
+                }
+            });
+        }
 
         $order->update(['status' => $validated['status']]);
 

@@ -240,6 +240,9 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::get('/orders/{order}', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'show'])->middleware('permission:hotels.view.own');
     Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own');
 
+    // Restaurant POS: Earnings/Inventory Report
+    Route::get('/hotels/{hotel}/reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'])->middleware('permission:hotels.view.own');
+
     // Media Library (Vendor needs to upload images too)
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');
     Route::post('/media-library/upload', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'upload'])->middleware('permission:media.upload');
