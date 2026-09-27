@@ -132,7 +132,7 @@ const MaintenanceRoute = ({ children }) => {
   }
   
   // Allow admin users to access site during maintenance
-  if (isMaintenanceMode() && user?.role !== 'admin' && user?.role !== 'manager') {
+  if (isMaintenanceMode() && user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'super_admin') {
     return <MaintenanceMode />;
   }
   
@@ -149,8 +149,8 @@ const AdminRoute = ({ children }) => {
   
   if (!isAuthenticated) return <Navigate to="/login" />;
   
-  // Allow admin, manager, and vendor roles
-  if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'vendor') {
+  // Allow admin, manager, super_admin, and vendor roles
+  if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'super_admin' && user?.role !== 'vendor') {
     return <Navigate to="/" />;
   }
   

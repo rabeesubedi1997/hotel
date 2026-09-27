@@ -12,13 +12,13 @@ const AdminLayout = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Redirect to login if not authenticated or not admin/manager/vendor
+  // Redirect to login if not authenticated or not admin/manager/super_admin/vendor
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
-    if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'vendor') {
+    if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'super_admin' && user?.role !== 'vendor') {
       navigate('/');
     }
   }, [isAuthenticated, user, navigate]);
