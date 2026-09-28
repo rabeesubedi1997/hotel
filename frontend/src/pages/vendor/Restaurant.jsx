@@ -393,14 +393,15 @@ const VendorRestaurant = () => {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-2">
-        <button onClick={() => navigate('/vendor/hotels')} className="p-2 rounded-lg hover:bg-neutral-100" title="Back to Hotels">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h2 className="font-display text-2xl font-bold text-neutral-900">
-          Restaurant POS {hotel ? `— ${hotel.name}` : ''}
-        </h2>
-      </div>
+      <button
+        onClick={() => navigate('/vendor/hotels')}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-neutral-900 mb-3 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to My Hotels
+      </button>
+      <h2 className="font-display text-2xl font-bold text-neutral-900 mb-2">
+        Restaurant POS {hotel ? `— ${hotel.name}` : ''}
+      </h2>
 
       {!isApproved && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 mb-4">

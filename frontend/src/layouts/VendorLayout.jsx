@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X, Users as GuidesIcon, UserCog, LogOut as ExitIcon, UtensilsCrossed } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, LogOut, Menu, MessageSquare, X, Users as GuidesIcon, UserCog, LogOut as ExitIcon, UtensilsCrossed, ArrowLeftRight, ChevronRight } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import useActingVendorStore from '../stores/actingVendorStore';
@@ -99,97 +99,121 @@ const VendorLayout = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`w-64 bg-neutral-900 text-white flex-shrink-0 fixed h-screen overflow-y-auto z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+      <aside className={`w-64 bg-neutral-900 text-white flex-shrink-0 fixed h-screen flex flex-col z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-2">
-              <span className="font-display text-xl font-bold truncate">{displayName}</span>
-            </Link>
+        <div className="p-5 border-b border-neutral-800/80 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-primary-400">
+                {isAdminLevel ? 'Management System' : 'Vendor Portal'}
+              </span>
+              <p className="font-display text-lg font-bold truncate mt-0.5">{displayName}</p>
+            </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden p-2 rounded-md hover:bg-neutral-800"
+              className="lg:hidden p-2 rounded-lg hover:bg-neutral-800 shrink-0"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
         </div>
-        <nav className="mt-6">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center space-x-3 px-6 py-3 text-neutral-300 hover:bg-neutral-800 hover:text-white ${
-                location.pathname === item.path ? 'bg-neutral-800 text-white border-l-2 border-accent-500' : ''
-              }`}
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {menuItems.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  active
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                }`}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+                {active && <ChevronRight className="h-4 w-4 ml-auto shrink-0" />}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="absolute bottom-0 w-64 p-6 border-t border-neutral-800">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="h-10 w-10 rounded-full bg-accent-500 flex items-center justify-center">
+
+        <div className="p-4 border-t border-neutral-800/80 shrink-0 space-y-3">
+          {isAdminLevel && (
+            <button
+              onClick={handleExitManagement}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-neutral-300 bg-neutral-800/60 hover:bg-neutral-800 hover:text-white transition-colors"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Switch vendor
+            </button>
+          )}
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-primary-600 flex items-center justify-center font-semibold shrink-0">
               {user?.name?.charAt(0)}
             </div>
-            <div>
-              <p className="text-sm font-medium">{user?.name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">{user?.name}</p>
               <p className="text-xs text-neutral-400 capitalize">{user?.role}</p>
             </div>
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 shrink-0"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-2 text-neutral-300 hover:text-white w-full"
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Logout</span>
-          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+        {/* Acting-as-vendor banner — only rendered when an admin-level user
+            is managing someone else's panel, not for the vendor's own. */}
+        {isAdminLevel && vendorId && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between flex-wrap gap-2 text-sm">
+            <p className="text-amber-800">
+              Managing <strong>{vendorName}</strong>'s panel as {user?.name} — changes here affect their live listings.
+            </p>
+            <button
+              onClick={handleExitManagement}
+              className="flex items-center gap-1.5 font-medium text-amber-800 hover:text-amber-900 shrink-0"
+            >
+              <ExitIcon className="h-3.5 w-3.5" /> Exit
+            </button>
+          </div>
+        )}
+
         {/* Header */}
-        <header className="bg-white shadow-sm">
+        <header className="bg-white shadow-sm shrink-0">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-4 min-w-0">
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="lg:hidden p-2 rounded-md hover:bg-neutral-100"
+                  className="lg:hidden p-2 rounded-md hover:bg-neutral-100 shrink-0"
                 >
                   <Menu className="h-6 w-6 text-neutral-600" />
                 </button>
-                <h1 className="font-display text-xl sm:text-2xl font-bold text-neutral-900 truncate max-w-[50vw]">{displayName}</h1>
+                <div className="min-w-0">
+                  <h1 className="font-display text-xl sm:text-2xl font-bold text-neutral-900 truncate">
+                    {menuItems.find((m) => m.path === location.pathname)?.label || 'Dashboard'}
+                  </h1>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 shrink-0">
                 <NotificationBell />
-                <div className="hidden sm:block">
+                <div className="hidden sm:block text-right">
                   <p className="text-sm text-neutral-500">Welcome, {user?.name}</p>
                 </div>
               </div>
             </div>
           </div>
         </header>
-
-        {/* Acting-as-vendor banner — only rendered when an admin-level user
-            is managing someone else's panel, not for the vendor's own. */}
-        {isAdminLevel && vendorId && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm text-amber-800">
-              Managing <strong>{vendorName}</strong>'s panel as {user?.name}
-            </p>
-            <button
-              onClick={handleExitManagement}
-              className="flex items-center gap-1.5 text-sm font-medium text-amber-800 hover:text-amber-900"
-            >
-              <ExitIcon className="h-4 w-4" /> Exit
-            </button>
-          </div>
-        )}
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
