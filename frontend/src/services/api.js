@@ -465,6 +465,7 @@ export const vendorAPI = {
   getOrders: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/orders`, { params }),
   createOrder: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/orders`, data),
   updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
+  updateOrderItemStatus: (orderId, itemId, status) => api.put(`/vendor/orders/${orderId}/items/${itemId}/status`, { status }),
   getEarningsReport: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/reports/earnings`, { params }),
 
   // Bookings Management

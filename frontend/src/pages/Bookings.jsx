@@ -266,6 +266,11 @@ const Bookings = () => {
                     <p className="text-gray-600 truncate">
                       {booking.check_in_date || booking.activity_datetime}
                     </p>
+                    {booking.extras?.length > 0 && (
+                      <p className="text-xs text-primary-600 truncate mt-0.5">
+                        + {booking.extras.map((e) => e.activity?.name).filter(Boolean).join(', ')}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-4">

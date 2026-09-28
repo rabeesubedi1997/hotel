@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\Booking;
+use App\Models\BookingExtra;
 use App\Models\Hotel;
 use App\Models\Room;
 use App\Notifications\NewBookingRequest;
@@ -30,7 +31,7 @@ class BookingController extends Controller
     {
         $bookings = $request->user()
             ->bookings()
-            ->with(['bookable', 'payment', 'room'])
+            ->with(['bookable', 'payment', 'room', 'extras.activity'])
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 10));
 
@@ -43,7 +44,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $booking->load(['bookable', 'payment', 'room', 'user']);
+        $booking->load(['bookable', 'payment', 'room', 'user', 'extras.activity']);
 
         return response()->json($booking);
     }
@@ -64,6 +65,12 @@ class BookingController extends Controller
             // whole itinerary" action, so related bookings can be grouped.
             'itinerary_id' => 'nullable|integer|exists:itineraries,id',
             'coupon_code' => 'nullable|string',
+            // Optional add-on activities attached to a hotel booking (e.g. a
+            // guided tour booked alongside the room) — see the "Enhance your
+            // stay" step in HotelDetails/Checkout.
+            'extras' => 'nullable|array',
+            'extras.*.activity_id' => 'required_with:extras|integer|exists:activities,id',
+            'extras.*.quantity' => 'required_with:extras|integer|min:1',
         ]);
 
         if ($request->itinerary_id) {
@@ -93,6 +100,28 @@ class BookingController extends Controller
             $totalAmount = $pricePerNight * $nights * $request->guests;
         } else {
             $totalAmount = $bookable->price * $request->participants;
+        }
+
+        // Resolve extras (add-on activities) against real, current prices —
+        // never trust a client-supplied subtotal — and fold them into the
+        // total before coupon evaluation, same as the room price above.
+        $extraLines = [];
+        if ($request->bookable_type === 'hotel' && $request->filled('extras')) {
+            foreach ($request->extras as $extra) {
+                $activity = Activity::find($extra['activity_id']);
+                if (!$activity) {
+                    continue;
+                }
+                $quantity = (int) $extra['quantity'];
+                $subtotal = $activity->price * $quantity;
+                $totalAmount += $subtotal;
+                $extraLines[] = [
+                    'activity_id' => $activity->id,
+                    'quantity' => $quantity,
+                    'unit_price' => $activity->price,
+                    'subtotal' => $subtotal,
+                ];
+            }
         }
 
         // Re-validate the coupon server-side — never trust a client-computed
@@ -132,6 +161,10 @@ class BookingController extends Controller
             $this->coupons->recordRedemption($appliedCoupon, $request->user(), $discountAmount, $booking->id);
         }
 
+        foreach ($extraLines as $line) {
+            BookingExtra::create($line + ['booking_id' => $booking->id]);
+        }
+
         // Notify the listing owner + admins instantly so a real person can
         // respond right away, rather than the request sitting unseen.
         Notification::send(
@@ -140,7 +173,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'booking' => $booking->load('bookable'),
+            'booking' => $booking->load('bookable', 'extras.activity'),
             'message' => 'Booking created successfully.',
         ], 201);
     }

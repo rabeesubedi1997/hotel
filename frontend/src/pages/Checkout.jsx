@@ -131,8 +131,12 @@ const SingleItemCheckout = () => {
       
       if (checkInDateObj < today) {
         toast.error('Check-in date cannot be in the past. Please select valid dates.');
-        // Navigate back to hotel details to select new dates
-        navigate(`/hotels/${item?.slug || ''}`);
+        // Navigate back to hotel details to select new dates. sessionStorage
+        // is already stale at this point, so clear it and replace this
+        // history entry — otherwise pressing Back later re-enters this same
+        // dead-end redirect instead of leaving the checkout flow.
+        sessionStorage.removeItem('pendingBooking');
+        navigate(`/hotels/${item?.slug || ''}`, { replace: true });
         return;
       }
       
@@ -165,7 +169,8 @@ const SingleItemCheckout = () => {
             room_id: !!parsed.room_id
           });
           toast.error('Missing booking information. Please select dates and room again.');
-          navigate(`/hotels/${parsed.id || ''}`);
+          sessionStorage.removeItem('pendingBooking');
+          navigate(`/hotels/${parsed.id || ''}`, { replace: true });
         }
       } else {
         console.log('Non-hotel checkout, keeping step 1 (details form)');
@@ -275,6 +280,7 @@ const SingleItemCheckout = () => {
         room_id: formData.room_id,
         special_requests: formData.special_requests,
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
+        ...(pendingBooking?.extras?.length ? { extras: pendingBooking.extras } : {}),
       };
 
       console.log('Sending booking data:', bookingData);
@@ -423,7 +429,7 @@ const SingleItemCheckout = () => {
       if (paymentMethod === 'cod') {
         await paymentsAPI.createCOD({ booking_id: booking.id });
         toast.success('Booking confirmed successfully!');
-        navigate('/bookings');
+        navigate('/bookings', { replace: true });
       } else {
         // Khalti/Stripe/PayPal aren't wired to a real payment gateway yet —
         // don't fake a success here (that would leave the booking stuck at
@@ -714,6 +720,17 @@ const SingleItemCheckout = () => {
           )}
 
           <div className="bg-neutral-50 rounded-2xl p-6 mb-6">
+            {booking?.extras?.length > 0 && (
+              <div className="mb-4 pb-4 border-b border-neutral-200 space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Added to your stay</p>
+                {booking.extras.map((extra) => (
+                  <div key={extra.id} className="flex justify-between items-center text-sm">
+                    <span className="text-neutral-600">{extra.activity?.name} x {extra.quantity}</span>
+                    <span className="font-medium text-neutral-700">{formatPrice(extra.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {Number(booking?.discount_amount) > 0 && (
               <div className="flex justify-between items-center text-sm text-neutral-500 mb-2">
                 <span>Discount</span>
@@ -860,7 +877,7 @@ const PackageCheckout = () => {
         await paymentsAPI.createCOD({ package_booking_id: packageBooking.id });
       }
       toast.success('Package booked successfully!');
-      navigate('/bookings');
+      navigate('/bookings', { replace: true });
     } catch (error) {
       console.error('Error processing payment:', error);
       toast.error('Payment failed. Please try again.');
@@ -1229,7 +1246,7 @@ const MultiItemCheckout = () => {
 
     if (successCount > 0) {
       toast.success(`${successCount} booking${successCount === 1 ? '' : 's'} confirmed`);
-      navigate('/bookings');
+      navigate('/bookings', { replace: true });
     } else {
       toast.error('Could not confirm any bookings. Please try again.');
     }
@@ -1393,7 +1410,7 @@ const MultiItemCheckout = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button variant="secondary" fullWidth onClick={() => navigate('/bookings')}>
+            <Button variant="secondary" fullWidth onClick={() => navigate('/bookings', { replace: true })}>
               <ArrowLeft className="mr-2 h-5 w-5" /> Go to My Bookings
             </Button>
             <Button

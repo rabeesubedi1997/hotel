@@ -41,6 +41,18 @@ const NEXT_STATUS = {
 
 const KITCHEN_COLUMNS = ['pending', 'confirmed', 'preparing', 'ready', 'served'];
 
+const ITEM_STATUS_LABEL = { pending: 'Pending', preparing: 'Preparing', ready: 'Ready', served: 'Served' };
+const ITEM_NEXT_STATUS = { pending: 'preparing', preparing: 'ready', ready: 'served', served: null };
+
+// Kitchen-realistic urgency: how long an order has sat since it was placed,
+// color-coded the way a real KDS flags tickets that are running late.
+const elapsedMinutes = (order, now) => Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 60000));
+const urgencyClass = (minutes) => {
+  if (minutes >= 20) return 'bg-red-100 text-red-700 border border-red-200';
+  if (minutes >= 10) return 'bg-amber-100 text-amber-700 border border-amber-200';
+  return 'bg-neutral-100 text-neutral-600 border border-neutral-200';
+};
+
 const VendorRestaurant = () => {
   const { hotelId } = useParams();
   const navigate = useNavigate();
@@ -104,6 +116,14 @@ const VendorRestaurant = () => {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAll, hotelId]);
+
+  // Ticks the Kitchen board's elapsed-time badges forward without waiting
+  // on the next order poll.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(tick);
+  }, []);
 
   const loadReport = useCallback(async () => {
     setReportLoading(true);
@@ -341,6 +361,17 @@ const VendorRestaurant = () => {
     }
   };
 
+  const toggleItemStatus = async (order, item) => {
+    const next = ITEM_NEXT_STATUS[item.status || 'pending'];
+    if (!next) return;
+    try {
+      const response = await vendorAPI.updateOrderItemStatus(order.id, item.id, next);
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? response.data.order : o)));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update item');
+    }
+  };
+
   const cancelOrder = async (order) => {
     if (!window.confirm('Cancel this order?')) return;
     try {
@@ -414,39 +445,83 @@ const VendorRestaurant = () => {
                   <Badge status={status} />
                 </div>
                 <div className="space-y-2">
-                  {orders.filter((o) => o.status === status).map((order) => (
-                    <div key={order.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutral-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-neutral-900">{order.order_number}</span>
-                        <span className="text-xs text-neutral-400 capitalize">{order.order_type.replace('_', ' ')}</span>
-                      </div>
-                      {order.table && (
-                        <p className="text-xs text-neutral-500 mb-1">Table {order.table.table_number}</p>
-                      )}
-                      <ul className="text-xs text-neutral-700 mb-2 space-y-0.5">
-                        {order.items?.map((line) => (
-                          <li key={line.id}>{line.quantity}x {line.menu_item?.name}</li>
-                        ))}
-                      </ul>
-                      <p className="text-xs font-semibold text-neutral-900 mb-2">${Number(order.total_amount).toFixed(2)}</p>
-                      <div className="flex gap-1">
-                        {NEXT_STATUS[order.status] && (
-                          <button
-                            onClick={() => advanceOrder(order)}
-                            className="flex-1 text-xs bg-primary-600 text-white rounded-md py-1.5 hover:bg-primary-700"
-                          >
-                            Mark {NEXT_STATUS[order.status]}
-                          </button>
+                  {orders.filter((o) => o.status === status).map((order) => {
+                    const minutes = elapsedMinutes(order, now);
+                    const readyCount = order.items?.filter((i) => ['ready', 'served'].includes(i.status)).length || 0;
+                    const itemCount = order.items?.length || 0;
+                    const activeTracking = !['served', 'completed', 'cancelled'].includes(order.status);
+                    return (
+                      <div key={order.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutral-100">
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          <span className="text-xs font-semibold text-neutral-900">{order.order_number}</span>
+                          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap ${urgencyClass(minutes)}`}>
+                            {minutes < 1 ? 'just now' : `${minutes}m`}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-neutral-400 capitalize">{order.order_type.replace('_', ' ')}</span>
+                          {order.table && <span className="text-xs text-neutral-500">Table {order.table.table_number}</span>}
+                        </div>
+                        {itemCount > 0 && activeTracking && (
+                          <div className="mb-2">
+                            <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-1">
+                              <span>{readyCount}/{itemCount} items ready</span>
+                            </div>
+                            <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-green-500 transition-all"
+                                style={{ width: `${itemCount ? (readyCount / itemCount) * 100 : 0}%` }}
+                              />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          onClick={() => cancelOrder(order)}
-                          className="text-xs text-red-600 hover:bg-red-50 rounded-md px-2"
-                        >
-                          Cancel
-                        </button>
+                        <ul className="text-xs text-neutral-700 mb-2 space-y-1">
+                          {order.items?.map((line) => {
+                            const lineStatus = line.status || 'pending';
+                            const isDone = ['ready', 'served'].includes(lineStatus);
+                            return (
+                              <li key={line.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => activeTracking && toggleItemStatus(order, line)}
+                                  disabled={!activeTracking || !ITEM_NEXT_STATUS[lineStatus]}
+                                  className={`w-full flex items-start justify-between gap-2 text-left px-1.5 py-1 rounded-md transition ${
+                                    isDone ? 'bg-green-50 text-green-700' : 'hover:bg-neutral-50'
+                                  } ${activeTracking && ITEM_NEXT_STATUS[lineStatus] ? 'cursor-pointer' : 'cursor-default'}`}
+                                  title={activeTracking ? `Mark ${ITEM_STATUS_LABEL[ITEM_NEXT_STATUS[lineStatus]] || ''}` : ''}
+                                >
+                                  <span className={isDone ? 'line-through decoration-green-400' : ''}>
+                                    {line.quantity}x {line.menu_item?.name}
+                                    {line.notes && <span className="block text-[11px] text-amber-600 not-italic font-normal">Note: {line.notes}</span>}
+                                  </span>
+                                  <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${isDone ? 'text-green-600' : 'text-neutral-400'}`}>
+                                    {ITEM_STATUS_LABEL[lineStatus]}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="text-xs font-semibold text-neutral-900 mb-2">${Number(order.total_amount).toFixed(2)}</p>
+                        <div className="flex gap-1">
+                          {NEXT_STATUS[order.status] && (
+                            <button
+                              onClick={() => advanceOrder(order)}
+                              className="flex-1 text-xs bg-primary-600 text-white rounded-md py-1.5 hover:bg-primary-700"
+                            >
+                              Mark {NEXT_STATUS[order.status]}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => cancelOrder(order)}
+                            className="text-xs text-red-600 hover:bg-red-50 rounded-md px-2"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {orders.filter((o) => o.status === status).length === 0 && (
                     <p className="text-xs text-neutral-400 text-center py-4">No orders</p>
                   )}

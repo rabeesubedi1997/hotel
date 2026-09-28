@@ -147,20 +147,20 @@ const MaintenanceRoute = ({ children }) => {
 };
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 // Admin Route Component
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
-  
-  if (!isAuthenticated) return <Navigate to="/login" />;
-  
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
   // Allow admin, manager, super_admin, and vendor roles
   if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'super_admin' && user?.role !== 'vendor') {
-    return <Navigate to="/" />;
+    return <Navigate to="/" replace />;
   }
-  
+
   return children;
 };
 
@@ -168,13 +168,13 @@ const AdminRoute = ({ children }) => {
 const VendorRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
 
-  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   // Admin-level users can also enter the Management System (managing a
   // vendor's panel on their behalf — see SelectVendor.jsx); VendorLayout
   // itself then redirects them to /select-vendor if they haven't picked
   // a vendor yet.
   if (user?.role !== 'vendor' && !['admin', 'manager', 'super_admin'].includes(user?.role)) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" replace />;
   }
   return children;
 };

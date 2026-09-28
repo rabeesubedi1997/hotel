@@ -31,16 +31,20 @@ const VendorLayout = () => {
   // panel, and admin-level users into the Management System — but only
   // once they've picked which vendor to manage (see SelectVendor.jsx).
   useEffect(() => {
+    // Always replace, not push — these are guard redirects, not real
+    // navigation. Pushing here means every re-render of a gated page adds a
+    // fresh history entry, so pressing Back bounces straight back into the
+    // same guard instead of leaving the vendor panel.
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
     if (user?.role !== 'vendor' && !isAdminLevel) {
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
     if (isAdminLevel && !vendorId) {
-      navigate('/select-vendor');
+      navigate('/select-vendor', { replace: true });
     }
   }, [isAuthenticated, user, isAdminLevel, vendorId, navigate]);
 

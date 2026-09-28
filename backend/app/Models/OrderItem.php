@@ -10,6 +10,11 @@ class OrderItem extends Model
 {
     use HasFactory;
 
+    const STATUS_PENDING = 'pending';
+    const STATUS_PREPARING = 'preparing';
+    const STATUS_READY = 'ready';
+    const STATUS_SERVED = 'served';
+
     protected $fillable = [
         'order_id',
         'menu_item_id',
@@ -17,11 +22,16 @@ class OrderItem extends Model
         'unit_price',
         'subtotal',
         'notes',
+        'status',
+        'started_at',
+        'ready_at',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'started_at' => 'datetime',
+        'ready_at' => 'datetime',
     ];
 
     public function order(): BelongsTo

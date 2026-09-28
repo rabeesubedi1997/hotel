@@ -29,7 +29,7 @@ import useAuthStore from '../stores/authStore';
 import useChatStore from '../stores/chatStore';
 import { useToast } from '../contexts/ToastContext';
 import BookingCalendar from '../components/BookingCalendar';
-import { getHotelImage } from '../utils/images';
+import { getHotelImage, getActivityImage } from '../utils/images';
 import ExternalRatings from '../components/ExternalRatings';
 import SEO, { generateHotelJsonLd } from '../components/SEO';
 import { Button, Textarea, Select, Card, RatingStars, Container, WishlistButton } from '../components/ui';
@@ -76,6 +76,11 @@ const HotelDetails = () => {
   const [displayAmenities, setDisplayAmenities] = useState([]);
   const [imageTransitioning, setImageTransitioning] = useState(false);
 
+  // "Enhance your stay" add-ons — local activities a guest can attach to
+  // this hotel booking (see BookingExtra on the backend).
+  const [nearbyActivities, setNearbyActivities] = useState([]);
+  const [selectedExtras, setSelectedExtras] = useState({}); // { [activityId]: quantity }
+
   // Photo gallery lightbox state
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -113,11 +118,45 @@ const HotelDetails = () => {
       if (isAuthenticated) {
         checkWishlist(response.data.id);
       }
+      fetchNearbyActivities(response.data);
     } catch (error) {
       console.error('Error fetching hotel:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchNearbyActivities = async (hotelData) => {
+    try {
+      const params = hotelData.latitude && hotelData.longitude
+        ? { lat: hotelData.latitude, lng: hotelData.longitude, radius: 30, per_page: 6 }
+        : { city: hotelData.city, per_page: 6 };
+      const response = await activitiesAPI.getAll(params);
+      setNearbyActivities(response.data?.data || []);
+    } catch (error) {
+      console.error('Error fetching nearby activities:', error);
+    }
+  };
+
+  const extraQuantity = (activityId) => selectedExtras[activityId] || 0;
+
+  const setExtraQuantity = (activityId, quantity) => {
+    setSelectedExtras((prev) => {
+      const next = { ...prev };
+      if (quantity <= 0) {
+        delete next[activityId];
+      } else {
+        next[activityId] = quantity;
+      }
+      return next;
+    });
+  };
+
+  const calculateExtrasTotal = () => {
+    return nearbyActivities.reduce((sum, activity) => {
+      const qty = extraQuantity(activity.id);
+      return qty > 0 ? sum + qty * activity.price : sum;
+    }, 0);
   };
 
   const handleReviewSubmit = async (e) => {
@@ -287,7 +326,10 @@ const HotelDetails = () => {
       children,
       room_id: selectedRoom?.id,
       nights: calculateNights(),
-      total_price: calculateTotalPrice(),
+      total_price: calculateTotalPrice() + calculateExtrasTotal(),
+      extras: Object.entries(selectedExtras)
+        .filter(([, quantity]) => quantity > 0)
+        .map(([activity_id, quantity]) => ({ activity_id: Number(activity_id), quantity })),
     };
 
     // Store booking data in session storage for checkout page
@@ -621,6 +663,53 @@ const HotelDetails = () => {
               </div>
             )}
           </Card>
+
+          {/* Enhance your stay — attach local activities to this hotel booking */}
+          {nearbyActivities.length > 0 && (
+            <Card hoverLift={false} className="p-6 mb-6">
+              <h2 className="font-display text-2xl font-bold text-neutral-900 mb-1">Enhance Your Stay</h2>
+              <p className="text-sm text-neutral-500 mb-5">Add local tours and activities to your booking — optional, priced per person.</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {nearbyActivities.map((activity) => {
+                  const qty = extraQuantity(activity.id);
+                  return (
+                    <div
+                      key={activity.id}
+                      className={`flex gap-3 p-3 rounded-xl border-2 transition ${qty > 0 ? 'border-primary-600 bg-primary-50' : 'border-neutral-200'}`}
+                    >
+                      <img
+                        src={getActivityImage(activity)}
+                        alt={activity.name}
+                        className="h-16 w-16 rounded-lg object-cover shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-neutral-900 text-sm truncate">{activity.name}</p>
+                        <p className="text-xs text-neutral-500 mb-2">{formatPrice(activity.price)} / person</p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExtraQuantity(activity.id, qty - 1)}
+                            disabled={qty === 0}
+                            className="h-7 w-7 rounded-full border border-neutral-300 flex items-center justify-center disabled:opacity-40 hover:bg-neutral-100"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-5 text-center text-sm font-medium">{qty}</span>
+                          <button
+                            type="button"
+                            onClick={() => setExtraQuantity(activity.id, qty + 1)}
+                            className="h-7 w-7 rounded-full border border-neutral-300 flex items-center justify-center hover:bg-neutral-100"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           {/* Availability Calendar */}
           <div className="mb-6">
@@ -956,10 +1045,16 @@ const HotelDetails = () => {
                   <span className="text-neutral-600">Guests ({adults + children})</span>
                   <span className="font-medium">x {adults + children}</span>
                 </div>
+                {calculateExtrasTotal() > 0 && (
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-neutral-600">Added activities</span>
+                    <span className="font-medium">{formatPrice(calculateExtrasTotal())}</span>
+                  </div>
+                )}
                 <div className="border-t border-neutral-200 pt-2 mt-2">
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span className="text-primary-600">${calculateTotalPrice()}</span>
+                    <span className="text-primary-600">{formatPrice(calculateTotalPrice() + calculateExtrasTotal())}</span>
                   </div>
                 </div>
               </div>
