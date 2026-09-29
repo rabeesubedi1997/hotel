@@ -471,6 +471,9 @@ export const vendorAPI = {
   deleteMenuCategory: (categoryId) => api.delete(`/vendor/menu-categories/${categoryId}`),
   reorderMenuCategories: (ownerType, ownerId, ids) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-categories/reorder`, { ids }),
 
+  // Restaurant POS: Inventory Settings
+  updateInventorySettings: (ownerType, ownerId, data) => api.put(`/vendor/${ownerPath(ownerType)}/${ownerId}/inventory-settings`, data),
+
   // Restaurant POS: Tables
   getTables: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/tables`),
   createTable: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/tables`, data),

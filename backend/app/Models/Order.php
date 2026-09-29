@@ -27,6 +27,9 @@ class Order extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_CANCELLED = 'cancelled';
 
+    const STOCK_DEDUCTION_ON_ORDER = 'on_order';
+    const STOCK_DEDUCTION_ON_COMPLETE = 'on_complete';
+
     protected $fillable = [
         'hotel_id',
         'activity_id',
@@ -37,6 +40,7 @@ class Order extends Model
         'channel',
         'status',
         'is_rush',
+        'stock_deducted',
         'subtotal',
         'total_amount',
         'notes',
@@ -47,6 +51,7 @@ class Order extends Model
         'subtotal' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'is_rush' => 'boolean',
+        'stock_deducted' => 'boolean',
     ];
 
     protected static function boot(): void

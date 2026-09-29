@@ -81,7 +81,10 @@ class VendorController extends Controller
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
             'company_name' => 'nullable|string|max:255',
-            'status' => 'required|in:active,inactive,suspended',
+            // Status changes normally go through the dedicated
+            // toggle-status endpoint — this profile-edit form doesn't
+            // collect it, so it must stay optional here.
+            'status' => 'sometimes|required|in:active,inactive,suspended',
         ]);
 
         $before = $vendor->only(array_keys($validated));

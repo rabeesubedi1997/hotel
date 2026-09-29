@@ -4,7 +4,7 @@ import {
   Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3,
   Image as ImageIcon, X, BarChart3, AlertTriangle, Search, Users, DollarSign,
   Receipt, Wallet, CheckCircle2, XCircle, Circle, ShoppingBag, BedDouble, Timer,
-  Flame, Download, Tags, CheckSquare, Square, Printer, GripVertical,
+  Flame, Download, Tags, CheckSquare, Square, Printer, GripVertical, Settings2,
 } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -150,6 +150,9 @@ const VendorRestaurant = () => {
   const [bulk86Mode, setBulk86Mode] = useState(false);
   const [selectedMenuIds, setSelectedMenuIds] = useState(() => new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
+
+  const [inventorySettingsOpen, setInventorySettingsOpen] = useState(false);
+  const [savingInventorySettings, setSavingInventorySettings] = useState(false);
 
   const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
 
@@ -422,6 +425,20 @@ const VendorRestaurant = () => {
       await vendorAPI.reorderMenuCategories(ownerType, ownerId, next.map((c) => c.id));
     } catch (error) {
       toast.error('Failed to save new order');
+    }
+  };
+
+  // --- Inventory settings (when stock decrements) ---
+  const updateStockDeductionMode = async (mode) => {
+    setSavingInventorySettings(true);
+    try {
+      await vendorAPI.updateInventorySettings(ownerType, ownerId, { stock_deduction_mode: mode });
+      setHotel((prev) => ({ ...prev, stock_deduction_mode: mode }));
+      toast.success('Inventory settings updated');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update inventory settings');
+    } finally {
+      setSavingInventorySettings(false);
     }
   };
 
@@ -1014,6 +1031,10 @@ const VendorRestaurant = () => {
             <Button size="sm" variant="secondary" onClick={() => setCategoryManagerOpen(true)} disabled={!isApproved}>
               <Tags className="h-4 w-4" />
               Category Manager
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setInventorySettingsOpen(true)} disabled={!isApproved}>
+              <Settings2 className="h-4 w-4" />
+              Inventory Settings
             </Button>
             <Button size="sm" onClick={openAddMenuForm} disabled={!isApproved}>
               <Plus className="h-4 w-4" />
@@ -1771,6 +1792,46 @@ const VendorRestaurant = () => {
           <p className="text-xs text-neutral-400">
             Renaming a category here updates every menu item using it. A category with items assigned cannot be deleted — reassign or delete those items first.
           </p>
+        </div>
+      </Modal>
+
+      {/* Inventory Settings */}
+      <Modal open={inventorySettingsOpen} onClose={() => setInventorySettingsOpen(false)} title="Inventory Settings" size="md">
+        <div className="space-y-3">
+          <p className="text-sm text-neutral-500">Choose when stock gets deducted for tracked items.</p>
+          {[
+            {
+              value: 'on_order',
+              label: 'When the order is placed',
+              hint: 'Default — stock is reserved the moment a ticket hits the kitchen. Cancelling an order restores it.',
+            },
+            {
+              value: 'on_complete',
+              label: 'When the order is completed',
+              hint: "Stock isn't touched until the order is marked Complete. Cancelling before then has nothing to restore.",
+            },
+          ].map((option) => {
+            const isActive = (hotel?.stock_deduction_mode || 'on_order') === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={!isApproved || savingInventorySettings}
+                onClick={() => updateStockDeductionMode(option.value)}
+                className={`w-full text-left rounded-xl border p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isActive ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:bg-neutral-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isActive ? 'border-primary-600' : 'border-neutral-300'}`}>
+                    {isActive && <span className="h-2 w-2 rounded-full bg-primary-600" />}
+                  </span>
+                  <span className="font-semibold text-neutral-900 text-sm">{option.label}</span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1 ml-6">{option.hint}</p>
+              </button>
+            );
+          })}
         </div>
       </Modal>
 

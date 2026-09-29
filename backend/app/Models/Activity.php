@@ -53,6 +53,7 @@ class Activity extends Model
         'banner_order',
         'status',
         'approval_status',
+        'stock_deduction_mode',
         'approved_by',
         'approved_at',
         'rejection_reason',

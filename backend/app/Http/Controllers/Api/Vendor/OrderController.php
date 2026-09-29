@@ -51,15 +51,20 @@ class OrderController extends Controller
         ]);
 
         $ownerColumn = $this->ownerColumn($owner);
+        // Some vendors want stock reserved the moment an order is placed
+        // (the default); others don't want it touched until the kitchen
+        // actually finishes the order — see stock_deduction_mode on the
+        // owner, configurable from the Menu tab's Inventory Settings.
+        $deductNow = ($owner->stock_deduction_mode ?? Order::STOCK_DEDUCTION_ON_ORDER) === Order::STOCK_DEDUCTION_ON_ORDER;
 
-        $order = DB::transaction(function () use ($validated, $owner, $ownerColumn, $user) {
+        $order = DB::transaction(function () use ($validated, $owner, $ownerColumn, $user, $deductNow) {
             $subtotal = 0;
             $itemsToCreate = [];
 
             foreach ($validated['items'] as $line) {
                 $menuItem = MenuItem::where($ownerColumn, $owner->id)->lockForUpdate()->findOrFail($line['menu_item_id']);
 
-                if ($menuItem->stock_quantity !== null && $menuItem->stock_quantity < $line['quantity']) {
+                if ($deductNow && $menuItem->stock_quantity !== null && $menuItem->stock_quantity < $line['quantity']) {
                     abort(422, "Not enough stock for \"{$menuItem->name}\" — only {$menuItem->stock_quantity} left.");
                 }
 
@@ -74,7 +79,7 @@ class OrderController extends Controller
                     'notes' => $line['notes'] ?? null,
                 ];
 
-                if ($menuItem->stock_quantity !== null) {
+                if ($deductNow && $menuItem->stock_quantity !== null) {
                     $menuItem->decrement('stock_quantity', $line['quantity']);
                 }
             }
@@ -86,6 +91,7 @@ class OrderController extends Controller
                 'order_type' => $validated['order_type'],
                 'channel' => $validated['channel'] ?? Order::CHANNEL_DIRECT,
                 'status' => Order::STATUS_PENDING,
+                'stock_deducted' => $deductNow,
                 'subtotal' => $subtotal,
                 'total_amount' => $subtotal,
                 'notes' => $validated['notes'] ?? null,
@@ -122,9 +128,12 @@ class OrderController extends Controller
             'status' => 'required|in:pending,confirmed,preparing,ready,served,completed,cancelled',
         ]);
 
-        // Cancelling releases whatever stock this order had reserved —
-        // only once, so re-cancelling an already-cancelled order is a no-op.
-        if ($validated['status'] === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
+        // Cancelling releases whatever stock this order had reserved — only
+        // if stock was actually deducted for it (depends on the owner's
+        // stock_deduction_mode — an "on_complete" order cancelled before
+        // ever completing never touched stock, so there's nothing to undo),
+        // and only once, so re-cancelling an already-cancelled order is a no-op.
+        if ($validated['status'] === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED && $order->stock_deducted) {
             DB::transaction(function () use ($order) {
                 foreach ($order->items()->with('menuItem')->get() as $line) {
                     if ($line->menuItem && $line->menuItem->stock_quantity !== null) {
@@ -132,6 +141,21 @@ class OrderController extends Controller
                     }
                 }
             });
+            $order->update(['stock_deducted' => false]);
+        }
+
+        // "On complete" owners hold off deducting stock until the order
+        // actually finishes — do that here, once, the first time it reaches
+        // completed.
+        if ($validated['status'] === Order::STATUS_COMPLETED && !$order->stock_deducted) {
+            DB::transaction(function () use ($order) {
+                foreach ($order->items()->with('menuItem')->get() as $line) {
+                    if ($line->menuItem && $line->menuItem->stock_quantity !== null) {
+                        $line->menuItem->decrement('stock_quantity', $line->quantity);
+                    }
+                }
+            });
+            $order->update(['stock_deducted' => true]);
         }
 
         $order->update(['status' => $validated['status']]);

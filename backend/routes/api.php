@@ -267,6 +267,10 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::get('/hotels/{hotel}/reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
     Route::get('/activities/{activity}/reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
 
+    // Restaurant POS: Inventory Settings (when stock decrements — on order placed vs on order completed)
+    Route::put('/hotels/{hotel}/inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
+    Route::put('/activities/{activity}/inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+
     // Media Library (Vendor needs to upload images too)
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');
     Route::post('/media-library/upload', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'upload'])->middleware('permission:media.upload');
