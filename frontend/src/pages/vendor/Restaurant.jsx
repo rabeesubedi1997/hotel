@@ -113,9 +113,16 @@ const urgencyBarClass = (minutes, done) => {
 };
 
 const VendorRestaurant = () => {
-  const { hotelId } = useParams();
+  const { hotelId, activityId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+
+  // Restaurant POS is owned by either a hotel or an activity — same page,
+  // same API shape, just a different owner id/type depending on which
+  // route rendered it.
+  const ownerType = activityId ? 'activity' : 'hotel';
+  const ownerId = activityId || hotelId;
+  const backLink = ownerType === 'activity' ? '/vendor/activities' : '/vendor/hotels';
 
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -163,14 +170,15 @@ const VendorRestaurant = () => {
 
   const loadAll = useCallback(async () => {
     try {
-      const [hotelRes, menuRes, tablesRes, ordersRes, categoriesRes] = await Promise.all([
-        vendorAPI.getHotel(hotelId),
-        vendorAPI.getMenuItems(hotelId),
-        vendorAPI.getTables(hotelId),
-        vendorAPI.getOrders(hotelId),
-        vendorAPI.getMenuCategories(hotelId),
+      const getOwner = ownerType === 'activity' ? vendorAPI.getActivity : vendorAPI.getHotel;
+      const [ownerRes, menuRes, tablesRes, ordersRes, categoriesRes] = await Promise.all([
+        getOwner(ownerId),
+        vendorAPI.getMenuItems(ownerType, ownerId),
+        vendorAPI.getTables(ownerType, ownerId),
+        vendorAPI.getOrders(ownerType, ownerId),
+        vendorAPI.getMenuCategories(ownerType, ownerId),
       ]);
-      setHotel(hotelRes.data);
+      setHotel(ownerRes.data);
       setMenuItems(menuRes.data || []);
       setTables(tablesRes.data || []);
       setOrders(ordersRes.data || []);
@@ -181,16 +189,16 @@ const VendorRestaurant = () => {
     } finally {
       setLoading(false);
     }
-  }, [hotelId]);
+  }, [ownerType, ownerId]);
 
   useEffect(() => {
     loadAll();
     const interval = setInterval(() => {
-      vendorAPI.getOrders(hotelId).then((res) => setOrders(res.data || [])).catch(() => {});
+      vendorAPI.getOrders(ownerType, ownerId).then((res) => setOrders(res.data || [])).catch(() => {});
     }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadAll, hotelId]);
+  }, [loadAll, ownerType, ownerId]);
 
   // Ticks the Kitchen board's elapsed-time badges forward without waiting
   // on the next order poll.
@@ -203,7 +211,7 @@ const VendorRestaurant = () => {
   const loadReport = useCallback(async () => {
     setReportLoading(true);
     try {
-      const response = await vendorAPI.getEarningsReport(hotelId, { from: reportFrom, to: reportTo });
+      const response = await vendorAPI.getEarningsReport(ownerType, ownerId, { from: reportFrom, to: reportTo });
       setReport(response.data);
     } catch (error) {
       console.error('Failed to load report', error);
@@ -212,7 +220,7 @@ const VendorRestaurant = () => {
       setReportLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelId, reportFrom, reportTo]);
+  }, [ownerType, ownerId, reportFrom, reportTo]);
 
   useEffect(() => {
     if (tab === 'reports') {
@@ -294,7 +302,7 @@ const VendorRestaurant = () => {
         setMenuItems((prev) => prev.map((m) => (m.id === editingMenuItem.id ? response.data.item : m)));
         toast.success('Menu item updated!');
       } else {
-        const response = await vendorAPI.createMenuItem(hotelId, payload);
+        const response = await vendorAPI.createMenuItem(ownerType, ownerId, payload);
         setMenuItems((prev) => [response.data.item, ...prev]);
         toast.success('Menu item added!');
       }
@@ -365,7 +373,7 @@ const VendorRestaurant = () => {
     if (!name) return;
     setSavingCategory(true);
     try {
-      const response = await vendorAPI.createMenuCategory(hotelId, { name });
+      const response = await vendorAPI.createMenuCategory(ownerType, ownerId, { name });
       setCategories((prev) => [...prev, response.data.category]);
       setNewCategoryName('');
     } catch (error) {
@@ -405,7 +413,7 @@ const VendorRestaurant = () => {
     [next[index], next[target]] = [next[target], next[index]];
     setCategories(next);
     try {
-      await vendorAPI.reorderMenuCategories(hotelId, next.map((c) => c.id));
+      await vendorAPI.reorderMenuCategories(ownerType, ownerId, next.map((c) => c.id));
     } catch (error) {
       toast.error('Failed to save new order');
     }
@@ -430,7 +438,7 @@ const VendorRestaurant = () => {
     setBulkSaving(true);
     try {
       const ids = Array.from(selectedMenuIds);
-      const response = await vendorAPI.bulkUpdateMenuAvailability(hotelId, { ids, is_available: isAvailable });
+      const response = await vendorAPI.bulkUpdateMenuAvailability(ownerType, ownerId, { ids, is_available: isAvailable });
       const updatedById = new Map(response.data.items.map((i) => [i.id, i]));
       setMenuItems((prev) => prev.map((m) => updatedById.get(m.id) || m));
       toast.success(response.data.message);
@@ -464,7 +472,7 @@ const VendorRestaurant = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `menu-${hotel?.name?.toLowerCase().replace(/\s+/g, '-') || hotelId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `menu-${hotel?.name?.toLowerCase().replace(/\s+/g, '-') || ownerId}-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -501,7 +509,7 @@ const VendorRestaurant = () => {
         setTables((prev) => prev.map((t) => (t.id === editingTable.id ? response.data.table : t)));
         toast.success('Table updated!');
       } else {
-        const response = await vendorAPI.createTable(hotelId, tableFormData);
+        const response = await vendorAPI.createTable(ownerType, ownerId, tableFormData);
         setTables((prev) => [...prev, response.data.table]);
         toast.success('Table added!');
       }
@@ -590,7 +598,7 @@ const VendorRestaurant = () => {
         table_id: orderFormData.order_type === 'dine_in' && orderFormData.table_id ? orderFormData.table_id : undefined,
         items: orderFormData.items,
       };
-      const response = await vendorAPI.createOrder(hotelId, payload);
+      const response = await vendorAPI.createOrder(ownerType, ownerId, payload);
       setOrders((prev) => [response.data.order, ...prev]);
       if (response.data.order.table_id) {
         setTables((prev) => prev.map((t) => (t.id === response.data.order.table_id ? { ...t, status: 'occupied' } : t)));
@@ -723,10 +731,10 @@ const VendorRestaurant = () => {
   return (
     <div>
       <button
-        onClick={() => navigate('/vendor/hotels')}
+        onClick={() => navigate(backLink)}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-neutral-900 mb-3 transition-colors"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to My Hotels
+        <ArrowLeft className="h-4 w-4" /> Back to {ownerType === 'activity' ? 'My Activities' : 'My Hotels'}
       </button>
       <h2 className="font-display text-2xl font-bold text-neutral-900 mb-2">
         Restaurant POS {hotel ? `— ${hotel.name}` : ''}
@@ -734,7 +742,7 @@ const VendorRestaurant = () => {
 
       {!isApproved && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 mb-4">
-          This hotel is pending admin verification — menu, table, and order changes unlock once it's approved. You can still view existing data below.
+          This {ownerType} is pending admin verification — menu, table, and order changes unlock once it&apos;s approved. You can still view existing data below.
         </div>
       )}
 

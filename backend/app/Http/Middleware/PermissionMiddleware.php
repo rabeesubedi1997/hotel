@@ -10,6 +10,12 @@ class PermissionMiddleware
 {
     /**
      * Handle an incoming request.
+     *
+     * $permission may be a single slug ("hotels.edit.own") or a pipe-separated
+     * list ("hotels.edit.own|activities.edit.own") — used where a route
+     * covers a record that could be owned by either a hotel or an activity
+     * (e.g. Restaurant POS routes shared between the two), so the caller
+     * only needs ONE of the listed permissions.
      */
     public function handle(Request $request, Closure $next, string $permission): Response
     {
@@ -31,7 +37,7 @@ class PermissionMiddleware
             return $next($request);
         }
 
-        if (!$user->hasPermission($permission)) {
+        if (!$user->hasAnyPermission(explode('|', $permission))) {
             return response()->json([
                 'message' => 'Forbidden. Insufficient permissions.',
                 'required_permission' => $permission,

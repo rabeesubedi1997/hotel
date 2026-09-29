@@ -3,57 +3,44 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hotel;
+use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\MenuCategory;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class MenuCategoryController extends Controller
 {
-    private function blockIfUnapproved($user, Hotel $hotel): ?JsonResponse
-    {
-        if ($user->isAdminLevel() || $hotel->approval_status === Hotel::APPROVAL_STATUS_APPROVED) {
-            return null;
-        }
+    use ResolvesRestaurantOwner;
 
-        return response()->json([
-            'message' => 'This hotel must be verified by an admin before you can manage categories.',
-        ], 403);
-    }
-
-    private function resolveHotel($user, $hotelId): Hotel
-    {
-        if ($user->isAdminLevel()) {
-            return Hotel::findOrFail($hotelId);
-        }
-
-        return Hotel::where('user_id', $user->id)->findOrFail($hotelId);
-    }
-
-    public function index($hotelId)
+    public function index(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        return response()->json($hotel->menuCategories()->orderBy('sort_order')->orderBy('name')->get());
+        return response()->json($owner->menuCategories()->orderBy('sort_order')->orderBy('name')->get());
     }
 
-    public function store(Request $request, $hotelId)
+    public function store(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {
             return $blocked;
         }
 
+        $ownerColumn = $this->ownerColumn($owner);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:menu_categories,name,NULL,id,hotel_id,' . $hotel->id,
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('menu_categories', 'name')->where(fn ($query) => $query->where($ownerColumn, $owner->id)),
+            ],
         ]);
 
-        $maxOrder = $hotel->menuCategories()->max('sort_order');
+        $maxOrder = $owner->menuCategories()->max('sort_order');
 
-        $category = $hotel->menuCategories()->create([
+        $category = $owner->menuCategories()->create([
             'name' => $validated['name'],
             'sort_order' => ($maxOrder ?? -1) + 1,
         ]);
@@ -65,17 +52,22 @@ class MenuCategoryController extends Controller
     {
         $user = auth()->user();
         $category = MenuCategory::findOrFail($categoryId);
-        $hotel = $category->hotel;
+        $owner = $this->ownerFromRecord($category);
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $category)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {
             return $blocked;
         }
 
+        $ownerColumn = $this->ownerColumn($owner);
+
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255|unique:menu_categories,name,' . $category->id . ',id,hotel_id,' . $hotel->id,
+            'name' => [
+                'sometimes', 'string', 'max:255',
+                Rule::unique('menu_categories', 'name')->where(fn ($query) => $query->where($ownerColumn, $owner->id))->ignore($category->id),
+            ],
             'sort_order' => 'sometimes|integer|min:0',
         ]);
 
@@ -86,26 +78,26 @@ class MenuCategoryController extends Controller
         // the old free-text category value, so items don't silently orphan
         // from the category list.
         if (isset($validated['name']) && $validated['name'] !== $oldName) {
-            $hotel->menuItems()->where('category', $oldName)->update(['category' => $validated['name']]);
+            $owner->menuItems()->where('category', $oldName)->update(['category' => $validated['name']]);
         }
 
         return response()->json(['message' => 'Category updated', 'category' => $category]);
     }
 
-    public function destroy(Request $request, $categoryId)
+    public function destroy($categoryId)
     {
         $user = auth()->user();
         $category = MenuCategory::findOrFail($categoryId);
-        $hotel = $category->hotel;
+        $owner = $this->ownerFromRecord($category);
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $category)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {
             return $blocked;
         }
 
-        $itemCount = $hotel->menuItems()->where('category', $category->name)->count();
+        $itemCount = $owner->menuItems()->where('category', $category->name)->count();
         if ($itemCount > 0) {
             return response()->json([
                 'message' => "Cannot delete \"{$category->name}\" — {$itemCount} menu item(s) still use it. Reassign them first.",
@@ -117,12 +109,12 @@ class MenuCategoryController extends Controller
         return response()->json(['message' => 'Category deleted']);
     }
 
-    public function reorder(Request $request, $hotelId)
+    public function reorder(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {
             return $blocked;
         }
 
@@ -132,7 +124,7 @@ class MenuCategoryController extends Controller
         ]);
 
         foreach ($validated['ids'] as $index => $id) {
-            $hotel->menuCategories()->where('id', $id)->update(['sort_order' => $index]);
+            $owner->menuCategories()->where('id', $id)->update(['sort_order' => $index]);
         }
 
         return response()->json(['message' => 'Categories reordered']);

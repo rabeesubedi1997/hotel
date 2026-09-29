@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hotel;
+use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -12,28 +12,22 @@ use Illuminate\Support\Carbon;
 
 class ReportController extends Controller
 {
-    private function resolveHotel($user, $hotelId): Hotel
-    {
-        if ($user->isAdminLevel()) {
-            return Hotel::findOrFail($hotelId);
-        }
-
-        return Hotel::where('user_id', $user->id)->findOrFail($hotelId);
-    }
+    use ResolvesRestaurantOwner;
 
     // Revenue only counts orders that actually got served/completed —
     // cancelled orders are reported separately as lost sales, not revenue.
-    public function earnings(Request $request, $hotelId)
+    public function earnings(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
+        $ownerColumn = $this->ownerColumn($owner);
 
         $from = $request->filled('from') ? Carbon::parse($request->input('from'))->startOfDay() : now()->subDays(29)->startOfDay();
         $to = $request->filled('to') ? Carbon::parse($request->input('to'))->endOfDay() : now()->endOfDay();
 
         $revenueStatuses = [Order::STATUS_SERVED, Order::STATUS_COMPLETED];
 
-        $baseQuery = Order::where('hotel_id', $hotel->id)->whereBetween('created_at', [$from, $to]);
+        $baseQuery = Order::where($ownerColumn, $owner->id)->whereBetween('created_at', [$from, $to]);
 
         $revenueOrders = (clone $baseQuery)->whereIn('status', $revenueStatuses);
         $totalRevenue = (clone $revenueOrders)->sum('total_amount');
@@ -57,7 +51,7 @@ class ReportController extends Controller
         $topItems = OrderItem::query()
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->join('menu_items', 'menu_items.id', '=', 'order_items.menu_item_id')
-            ->where('orders.hotel_id', $hotel->id)
+            ->where("orders.{$ownerColumn}", $owner->id)
             ->whereIn('orders.status', $revenueStatuses)
             ->whereBetween('orders.created_at', [$from, $to])
             ->selectRaw('menu_items.id, menu_items.name, SUM(order_items.quantity) as quantity_sold, SUM(order_items.subtotal) as revenue')
@@ -66,7 +60,7 @@ class ReportController extends Controller
             ->limit(10)
             ->get();
 
-        $lowStockItems = MenuItem::where('hotel_id', $hotel->id)
+        $lowStockItems = MenuItem::where($ownerColumn, $owner->id)
             ->whereNotNull('stock_quantity')
             ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
             ->get(['id', 'name', 'stock_quantity', 'low_stock_threshold']);

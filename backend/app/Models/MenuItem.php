@@ -12,6 +12,7 @@ class MenuItem extends Model
 
     protected $fillable = [
         'hotel_id',
+        'activity_id',
         'name',
         'description',
         'price',
@@ -58,6 +59,11 @@ class MenuItem extends Model
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function activity(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class);
     }
 
     public function scopeAvailable($query)

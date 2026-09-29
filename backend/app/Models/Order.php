@@ -29,6 +29,7 @@ class Order extends Model
 
     protected $fillable = [
         'hotel_id',
+        'activity_id',
         'order_number',
         'table_id',
         'booking_id',
@@ -60,6 +61,11 @@ class Order extends Model
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function activity(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class);
     }
 
     public function table(): BelongsTo

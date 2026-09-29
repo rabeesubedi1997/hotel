@@ -415,6 +415,10 @@ export const adminAPI = {
   getCouponRedemptions: (id) => api.get(`/admin/coupons/${id}/redemptions`),
 };
 
+// Restaurant POS URLs are owned by either a hotel or an activity —
+// 'hotel' -> /vendor/hotels/..., 'activity' -> /vendor/activities/...
+const ownerPath = (ownerType) => (ownerType === 'activity' ? 'activities' : 'hotels');
+
 // Vendor APIs
 export const vendorAPI = {
   // Dashboard
@@ -449,33 +453,37 @@ export const vendorAPI = {
   getProfile: () => api.get('/vendor/profile'),
   updateProfile: (data) => api.put('/vendor/profile', data),
 
+  // Restaurant POS is owned by either a hotel or an activity — same
+  // endpoints, different URL prefix. ownerType is 'hotel' | 'activity'.
+  getActivity: (id) => api.get(`/vendor/activities/${id}`),
+
   // Restaurant POS: Menu
-  getMenuItems: (hotelId) => api.get(`/vendor/hotels/${hotelId}/menu-items`),
-  createMenuItem: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-items`, data),
+  getMenuItems: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-items`),
+  createMenuItem: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-items`, data),
   updateMenuItem: (itemId, data) => api.put(`/vendor/menu-items/${itemId}`, data),
   deleteMenuItem: (itemId) => api.delete(`/vendor/menu-items/${itemId}`),
-  bulkUpdateMenuAvailability: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-items/bulk-availability`, data),
+  bulkUpdateMenuAvailability: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-items/bulk-availability`, data),
 
   // Restaurant POS: Menu Categories
-  getMenuCategories: (hotelId) => api.get(`/vendor/hotels/${hotelId}/menu-categories`),
-  createMenuCategory: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-categories`, data),
+  getMenuCategories: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-categories`),
+  createMenuCategory: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-categories`, data),
   updateMenuCategory: (categoryId, data) => api.put(`/vendor/menu-categories/${categoryId}`, data),
   deleteMenuCategory: (categoryId) => api.delete(`/vendor/menu-categories/${categoryId}`),
-  reorderMenuCategories: (hotelId, ids) => api.post(`/vendor/hotels/${hotelId}/menu-categories/reorder`, { ids }),
+  reorderMenuCategories: (ownerType, ownerId, ids) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-categories/reorder`, { ids }),
 
   // Restaurant POS: Tables
-  getTables: (hotelId) => api.get(`/vendor/hotels/${hotelId}/tables`),
-  createTable: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/tables`, data),
+  getTables: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/tables`),
+  createTable: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/tables`, data),
   updateTable: (tableId, data) => api.put(`/vendor/tables/${tableId}`, data),
   deleteTable: (tableId) => api.delete(`/vendor/tables/${tableId}`),
 
   // Restaurant POS: Orders / Kitchen
-  getOrders: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/orders`, { params }),
-  createOrder: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/orders`, data),
+  getOrders: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/orders`, { params }),
+  createOrder: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/orders`, data),
   updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
   updateOrderRush: (orderId, isRush) => api.put(`/vendor/orders/${orderId}/rush`, { is_rush: isRush }),
   updateOrderItemStatus: (orderId, itemId, status) => api.put(`/vendor/orders/${orderId}/items/${itemId}/status`, { status }),
-  getEarningsReport: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/reports/earnings`, { params }),
+  getEarningsReport: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/reports/earnings`, { params }),
 
   // Bookings Management
   getBookings: () => api.get('/vendor/bookings'),

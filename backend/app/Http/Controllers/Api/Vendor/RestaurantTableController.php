@@ -3,49 +3,30 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hotel;
+use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\RestaurantTable;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RestaurantTableController extends Controller
 {
-    private function blockIfUnapproved($user, Hotel $hotel): ?JsonResponse
-    {
-        if ($user->isAdminLevel() || $hotel->approval_status === Hotel::APPROVAL_STATUS_APPROVED) {
-            return null;
-        }
+    use ResolvesRestaurantOwner;
 
-        return response()->json([
-            'message' => 'This hotel must be verified by an admin before you can manage its tables.',
-        ], 403);
-    }
-
-    private function resolveHotel($user, $hotelId): Hotel
-    {
-        if ($user->isAdminLevel()) {
-            return Hotel::findOrFail($hotelId);
-        }
-
-        return Hotel::where('user_id', $user->id)->findOrFail($hotelId);
-    }
-
-    public function index($hotelId)
+    public function index(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        $tables = $hotel->restaurantTables()->orderBy('table_number')->get();
+        $tables = $owner->restaurantTables()->orderBy('table_number')->get();
 
         return response()->json($tables);
     }
 
-    public function store(Request $request, $hotelId)
+    public function store(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage its tables')) {
             return $blocked;
         }
 
@@ -55,7 +36,7 @@ class RestaurantTableController extends Controller
             'status' => 'sometimes|in:available,occupied,reserved',
         ]);
 
-        $validated['hotel_id'] = $hotel->id;
+        $validated[$this->ownerColumn($owner)] = $owner->id;
 
         $table = RestaurantTable::create($validated);
 
@@ -69,12 +50,11 @@ class RestaurantTableController extends Controller
     {
         $user = auth()->user();
         $table = RestaurantTable::findOrFail($tableId);
-        $hotel = $table->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $table)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($table), 'manage its tables')) {
             return $blocked;
         }
 
@@ -96,12 +76,11 @@ class RestaurantTableController extends Controller
     {
         $user = auth()->user();
         $table = RestaurantTable::findOrFail($tableId);
-        $hotel = $table->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $table)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($table), 'manage its tables')) {
             return $blocked;
         }
 

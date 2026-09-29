@@ -253,6 +253,7 @@ function App() {
             <Route index element={<VendorDashboard />} />
             <Route path="hotels" element={<VendorHotels />} />
             <Route path="hotels/:hotelId/restaurant" element={<VendorRestaurant />} />
+            <Route path="activities/:activityId/restaurant" element={<VendorRestaurant />} />
             <Route path="restaurant" element={<VendorRestaurantSelect />} />
             <Route path="activities" element={<VendorActivities />} />
             <Route path="tour-guides" element={<VendorTourGuides />} />

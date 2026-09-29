@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit, Trash2, Loader2, UtensilsCrossed } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Modal, Card, Badge } from '../../components/ui';
@@ -31,6 +32,7 @@ const emptyForm = {
 };
 
 const VendorActivities = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +177,13 @@ const VendorActivities = () => {
                     <Edit className="h-4 w-4" />
                     Edit
                   </Button>
+                  <button
+                    onClick={() => navigate(`/vendor/activities/${activity.id}/restaurant`)}
+                    className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 hover:text-orange-800"
+                    title="Restaurant POS"
+                  >
+                    <UtensilsCrossed className="h-5 w-5" />
+                  </button>
                   <Button
                     variant="danger"
                     size="sm"

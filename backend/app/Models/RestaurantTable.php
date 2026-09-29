@@ -17,6 +17,7 @@ class RestaurantTable extends Model
 
     protected $fillable = [
         'hotel_id',
+        'activity_id',
         'table_number',
         'capacity',
         'status',
@@ -25,6 +26,11 @@ class RestaurantTable extends Model
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function activity(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class);
     }
 
     public function orders(): HasMany

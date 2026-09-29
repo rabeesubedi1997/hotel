@@ -9,6 +9,7 @@ class MenuCategory extends Model
 {
     protected $fillable = [
         'hotel_id',
+        'activity_id',
         'name',
         'sort_order',
     ];
@@ -16,5 +17,10 @@ class MenuCategory extends Model
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function activity(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class);
     }
 }

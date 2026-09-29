@@ -82,6 +82,26 @@ class Activity extends Model
         return $this->morphMany(Booking::class, 'bookable');
     }
 
+    public function menuItems(): HasMany
+    {
+        return $this->hasMany(MenuItem::class);
+    }
+
+    public function menuCategories(): HasMany
+    {
+        return $this->hasMany(MenuCategory::class);
+    }
+
+    public function restaurantTables(): HasMany
+    {
+        return $this->hasMany(RestaurantTable::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

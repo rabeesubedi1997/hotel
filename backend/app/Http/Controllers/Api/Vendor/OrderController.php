@@ -3,43 +3,24 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hotel;
+use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    private function blockIfUnapproved($user, Hotel $hotel): ?JsonResponse
-    {
-        if ($user->isAdminLevel() || $hotel->approval_status === Hotel::APPROVAL_STATUS_APPROVED) {
-            return null;
-        }
+    use ResolvesRestaurantOwner;
 
-        return response()->json([
-            'message' => 'This hotel must be verified by an admin before you can take orders.',
-        ], 403);
-    }
-
-    private function resolveHotel($user, $hotelId): Hotel
-    {
-        if ($user->isAdminLevel()) {
-            return Hotel::findOrFail($hotelId);
-        }
-
-        return Hotel::where('user_id', $user->id)->findOrFail($hotelId);
-    }
-
-    public function index(Request $request, $hotelId)
+    public function index(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        $query = $hotel->orders()->with(['items.menuItem', 'table'])->orderBy('id', 'desc');
+        $query = $owner->orders()->with(['items.menuItem', 'table'])->orderBy('id', 'desc');
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
@@ -48,12 +29,12 @@ class OrderController extends Controller
         return response()->json($query->get());
     }
 
-    public function store(Request $request, $hotelId)
+    public function store(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'take orders')) {
             return $blocked;
         }
 
@@ -69,12 +50,14 @@ class OrderController extends Controller
             'items.*.notes' => 'nullable|string',
         ]);
 
-        $order = DB::transaction(function () use ($validated, $hotel, $user) {
+        $ownerColumn = $this->ownerColumn($owner);
+
+        $order = DB::transaction(function () use ($validated, $owner, $ownerColumn, $user) {
             $subtotal = 0;
             $itemsToCreate = [];
 
             foreach ($validated['items'] as $line) {
-                $menuItem = MenuItem::where('hotel_id', $hotel->id)->lockForUpdate()->findOrFail($line['menu_item_id']);
+                $menuItem = MenuItem::where($ownerColumn, $owner->id)->lockForUpdate()->findOrFail($line['menu_item_id']);
 
                 if ($menuItem->stock_quantity !== null && $menuItem->stock_quantity < $line['quantity']) {
                     abort(422, "Not enough stock for \"{$menuItem->name}\" — only {$menuItem->stock_quantity} left.");
@@ -97,7 +80,7 @@ class OrderController extends Controller
             }
 
             $order = Order::create([
-                'hotel_id' => $hotel->id,
+                $ownerColumn => $owner->id,
                 'table_id' => $validated['table_id'] ?? null,
                 'booking_id' => $validated['booking_id'] ?? null,
                 'order_type' => $validated['order_type'],
@@ -130,10 +113,9 @@ class OrderController extends Controller
     {
         $user = auth()->user();
         $order = Order::findOrFail($orderId);
-        $hotel = $order->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+            return $blocked;
         }
 
         $validated = $request->validate([
@@ -196,14 +178,34 @@ class OrderController extends Controller
         ]);
     }
 
+    public function updateRush(Request $request, $orderId)
+    {
+        $user = auth()->user();
+        $order = Order::findOrFail($orderId);
+
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+            return $blocked;
+        }
+
+        $validated = $request->validate([
+            'is_rush' => 'required|boolean',
+        ]);
+
+        $order->update(['is_rush' => $validated['is_rush']]);
+
+        return response()->json([
+            'message' => 'Order updated',
+            'order' => $order->load(['items.menuItem', 'table']),
+        ]);
+    }
+
     public function updateItemStatus(Request $request, $orderId, $itemId)
     {
         $user = auth()->user();
         $order = Order::findOrFail($orderId);
-        $hotel = $order->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+            return $blocked;
         }
 
         $item = $order->items()->findOrFail($itemId);
@@ -252,36 +254,13 @@ class OrderController extends Controller
         ]);
     }
 
-    public function updateRush(Request $request, $orderId)
-    {
-        $user = auth()->user();
-        $order = Order::findOrFail($orderId);
-        $hotel = $order->hotel;
-
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $validated = $request->validate([
-            'is_rush' => 'required|boolean',
-        ]);
-
-        $order->update(['is_rush' => $validated['is_rush']]);
-
-        return response()->json([
-            'message' => 'Order updated',
-            'order' => $order->load(['items.menuItem', 'table']),
-        ]);
-    }
-
     public function show($orderId)
     {
         $user = auth()->user();
         $order = Order::with(['items.menuItem', 'table'])->findOrFail($orderId);
-        $hotel = $order->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+            return $blocked;
         }
 
         return response()->json($order);

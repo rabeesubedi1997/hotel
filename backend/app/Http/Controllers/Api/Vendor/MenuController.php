@@ -3,49 +3,30 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hotel;
+use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\MenuItem;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MenuController extends Controller
 {
-    private function blockIfUnapproved($user, Hotel $hotel): ?JsonResponse
-    {
-        if ($user->isAdminLevel() || $hotel->approval_status === Hotel::APPROVAL_STATUS_APPROVED) {
-            return null;
-        }
+    use ResolvesRestaurantOwner;
 
-        return response()->json([
-            'message' => 'This hotel must be verified by an admin before you can manage its menu.',
-        ], 403);
-    }
-
-    private function resolveHotel($user, $hotelId): Hotel
-    {
-        if ($user->isAdminLevel()) {
-            return Hotel::findOrFail($hotelId);
-        }
-
-        return Hotel::where('user_id', $user->id)->findOrFail($hotelId);
-    }
-
-    public function index($hotelId)
+    public function index(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        $items = $hotel->menuItems()->orderBy('category')->orderBy('name')->get();
+        $items = $owner->menuItems()->orderBy('category')->orderBy('name')->get();
 
         return response()->json($items);
     }
 
-    public function store(Request $request, $hotelId)
+    public function store(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage its menu')) {
             return $blocked;
         }
 
@@ -66,7 +47,7 @@ class MenuController extends Controller
             'low_stock_threshold' => 'sometimes|integer|min:0',
         ]);
 
-        $validated['hotel_id'] = $hotel->id;
+        $validated[$this->ownerColumn($owner)] = $owner->id;
 
         $item = MenuItem::create($validated);
 
@@ -80,12 +61,11 @@ class MenuController extends Controller
     {
         $user = auth()->user();
         $item = MenuItem::findOrFail($itemId);
-        $hotel = $item->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $item)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($item), 'manage its menu')) {
             return $blocked;
         }
 
@@ -114,12 +94,12 @@ class MenuController extends Controller
         ]);
     }
 
-    public function bulkAvailability(Request $request, $hotelId)
+    public function bulkAvailability(Request $request, $ownerId)
     {
         $user = auth()->user();
-        $hotel = $this->resolveHotel($user, $hotelId);
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage its menu')) {
             return $blocked;
         }
 
@@ -129,7 +109,7 @@ class MenuController extends Controller
             'is_available' => 'required|boolean',
         ]);
 
-        $items = $hotel->menuItems()->whereIn('id', $validated['ids']);
+        $items = $owner->menuItems()->whereIn('id', $validated['ids']);
         $count = $items->count();
         $items->update(['is_available' => $validated['is_available']]);
 
@@ -137,7 +117,7 @@ class MenuController extends Controller
             'message' => $validated['is_available']
                 ? "{$count} item(s) restored"
                 : "{$count} item(s) 86'd",
-            'items' => $hotel->menuItems()->whereIn('id', $validated['ids'])->get(),
+            'items' => $owner->menuItems()->whereIn('id', $validated['ids'])->get(),
         ]);
     }
 
@@ -145,12 +125,11 @@ class MenuController extends Controller
     {
         $user = auth()->user();
         $item = MenuItem::findOrFail($itemId);
-        $hotel = $item->hotel;
 
-        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $item)) {
+            return $blocked;
         }
-        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($item), 'manage its menu')) {
             return $blocked;
         }
 
