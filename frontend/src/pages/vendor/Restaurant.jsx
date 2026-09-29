@@ -711,20 +711,31 @@ const VendorRestaurant = () => {
     [orders, kitchenTypeFilter]
   );
 
+  // "Active" for the headline count = anything not yet completed/cancelled
+  // (still needs front-of-house action, e.g. closing out a served order).
   const activeKitchenOrders = useMemo(
     () => kitchenOrders.filter((o) => !['completed', 'cancelled'].includes(o.status)),
     [kitchenOrders]
   );
 
+  // Kitchen urgency (avg ticket time, rush/delayed count, the rush banner)
+  // must stop counting an order once it's served — the kitchen's job is
+  // done at that point, so a ticket sitting in "served" for hours waiting
+  // on checkout is not a kitchen delay and shouldn't trip a rush alert.
+  const kitchenWorkingOrders = useMemo(
+    () => kitchenOrders.filter((o) => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)),
+    [kitchenOrders]
+  );
+
   const avgTicketMinutes = useMemo(() => {
-    if (activeKitchenOrders.length === 0) return 0;
-    const total = activeKitchenOrders.reduce((sum, o) => sum + elapsedMinutes(o, now), 0);
-    return Math.round(total / activeKitchenOrders.length);
-  }, [activeKitchenOrders, now]);
+    if (kitchenWorkingOrders.length === 0) return 0;
+    const total = kitchenWorkingOrders.reduce((sum, o) => sum + elapsedMinutes(o, now), 0);
+    return Math.round(total / kitchenWorkingOrders.length);
+  }, [kitchenWorkingOrders, now]);
 
   const delayedOrders = useMemo(
-    () => activeKitchenOrders.filter((o) => o.is_rush || elapsedMinutes(o, now) >= RUSH_THRESHOLD_MINUTES),
-    [activeKitchenOrders, now]
+    () => kitchenWorkingOrders.filter((o) => o.is_rush || elapsedMinutes(o, now) >= RUSH_THRESHOLD_MINUTES),
+    [kitchenWorkingOrders, now]
   );
 
   const mostDelayedOrder = useMemo(() => {
