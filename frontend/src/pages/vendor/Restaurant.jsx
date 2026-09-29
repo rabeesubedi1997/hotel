@@ -140,6 +140,7 @@ const VendorRestaurant = () => {
   const [menuImagePickerOpen, setMenuImagePickerOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
+  const [menuStockFilter, setMenuStockFilter] = useState('all');
 
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -353,9 +354,14 @@ const VendorRestaurant = () => {
       const matchesSearch = !q
         || item.name.toLowerCase().includes(q)
         || (item.description || '').toLowerCase().includes(q);
-      return matchesCategory && matchesSearch;
+      const isLowStock = item.stock_quantity !== null && item.stock_quantity !== undefined && item.stock_quantity <= item.low_stock_threshold;
+      const matchesStock = menuStockFilter === 'all'
+        || (menuStockFilter === 'available' && item.is_available)
+        || (menuStockFilter === 'unavailable' && !item.is_available)
+        || (menuStockFilter === 'low_stock' && isLowStock);
+      return matchesCategory && matchesSearch && matchesStock;
     });
-  }, [menuItems, menuSearch, menuCategoryFilter]);
+  }, [menuItems, menuSearch, menuCategoryFilter, menuStockFilter]);
 
   const menuItemsByCategory = useMemo(() => {
     const groups = new Map();
@@ -709,6 +715,22 @@ const VendorRestaurant = () => {
     return [...delayedOrders].sort((a, b) => elapsedMinutes(b, now) - elapsedMinutes(a, now))[0];
   }, [delayedOrders, now]);
 
+  // Order-level breakdown for Reports — the earnings endpoint only returns
+  // aggregates, so this reuses the orders already loaded for Kitchen and
+  // filters them to the selected report date range client-side.
+  const reportOrders = useMemo(() => {
+    const from = new Date(reportFrom + 'T00:00:00');
+    const to = new Date(reportTo + 'T23:59:59');
+    return orders
+      .filter((o) => {
+        const created = new Date(o.created_at);
+        return created >= from && created <= to;
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [orders, reportFrom, reportTo]);
+
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+
   const cancelOrder = async (order) => {
     if (!window.confirm('Cancel this order?')) return;
     try {
@@ -1056,17 +1078,60 @@ const VendorRestaurant = () => {
             </div>
           )}
 
-          {menuItems.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              <StatCard icon={UtensilsCrossed} title="Total Items" value={menuItems.length} tone="primary" />
-              <StatCard icon={CheckCircle2} title="Available" value={menuItems.filter((m) => m.is_available).length} tone="success" />
-              <StatCard icon={XCircle} title="Unavailable" value={menuItems.filter((m) => !m.is_available).length} tone="neutral" />
-              <StatCard
-                icon={AlertTriangle}
-                title="Low Stock"
-                value={menuItems.filter((m) => m.stock_quantity !== null && m.stock_quantity <= m.low_stock_threshold).length}
-                tone="warning"
-              />
+          {menuItems.length > 0 && (() => {
+            const stockTiles = [
+              { key: 'all', label: 'Total Items', icon: UtensilsCrossed, value: menuItems.length, tone: 'bg-primary-500', tint: 'bg-primary-50 text-primary-700 ring-primary-200' },
+              { key: 'available', label: 'Available', icon: CheckCircle2, value: menuItems.filter((m) => m.is_available).length, tone: 'bg-green-500', tint: 'bg-green-50 text-green-700 ring-green-200' },
+              { key: 'unavailable', label: 'Unavailable', icon: XCircle, value: menuItems.filter((m) => !m.is_available).length, tone: 'bg-neutral-700', tint: 'bg-neutral-100 text-neutral-700 ring-neutral-300' },
+              {
+                key: 'low_stock',
+                label: 'Low Stock',
+                icon: AlertTriangle,
+                value: menuItems.filter((m) => m.stock_quantity !== null && m.stock_quantity !== undefined && m.stock_quantity <= m.low_stock_threshold).length,
+                tone: 'bg-amber-500',
+                tint: 'bg-amber-50 text-amber-700 ring-amber-200',
+              },
+            ];
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                {stockTiles.map((tile) => {
+                  const isActive = menuStockFilter === tile.key;
+                  const Icon = tile.icon;
+                  return (
+                    <button
+                      key={tile.key}
+                      type="button"
+                      onClick={() => setMenuStockFilter(isActive ? 'all' : tile.key)}
+                      className={`text-left bg-white rounded-2xl shadow-card p-4 flex items-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-card-hover ${
+                        isActive ? `ring-2 ${tile.tint.split(' ').pop()}` : 'ring-1 ring-transparent'
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl ${tile.tone} shrink-0`}>
+                        <Icon className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-500 truncate">{tile.label}</p>
+                        <p className="font-display text-xl font-bold text-neutral-900">{tile.value}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {menuStockFilter !== 'all' && (
+            <div className="flex items-center gap-2 mb-4 -mt-3">
+              <span className="text-xs text-neutral-500">
+                Filtered to <strong className="text-neutral-700">{menuStockFilter.replace('_', ' ')}</strong> items
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuStockFilter('all')}
+                className="text-xs font-medium text-primary-600 hover:text-primary-800"
+              >
+                Clear
+              </button>
             </div>
           )}
 
@@ -1403,6 +1468,63 @@ const VendorRestaurant = () => {
                   </div>
                 </div>
               )}
+
+              <div className="bg-white rounded-2xl border border-neutral-100 shadow-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between">
+                  <h4 className="font-semibold text-neutral-900">Orders in this period</h4>
+                  <span className="text-xs text-neutral-400">{reportOrders.length} order(s)</span>
+                </div>
+                {reportOrders.length === 0 ? (
+                  <p className="text-sm text-neutral-500 text-center py-8">No orders in this date range.</p>
+                ) : (
+                  <div className="divide-y divide-neutral-100">
+                    {reportOrders.map((order) => {
+                      const isExpanded = expandedOrderId === order.id;
+                      const TypeIcon = ORDER_TYPE_ICON[order.order_type] || UtensilsCrossed;
+                      return (
+                        <div key={order.id}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <TypeIcon className="h-4 w-4 text-primary-600 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-neutral-900 text-sm">{order.order_number}</span>
+                                  <Badge status={order.status} />
+                                </div>
+                                <p className="text-xs text-neutral-500">
+                                  {new Date(order.created_at).toLocaleString()}
+                                  {order.table && ` · Table ${order.table.table_number}`}
+                                  {order.channel && order.channel !== 'direct' && ` · ${CHANNEL_LABEL[order.channel] || order.channel}`}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="font-semibold text-neutral-900 shrink-0">${Number(order.total_amount).toFixed(2)}</span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-4 pb-3 -mt-1">
+                              <div className="bg-neutral-50 rounded-lg p-3 space-y-1">
+                                {order.items?.map((line) => (
+                                  <div key={line.id} className="flex justify-between text-xs text-neutral-600">
+                                    <span>{line.quantity}x {line.menu_item?.name}</span>
+                                    <span>${Number(line.subtotal).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                                {order.notes && (
+                                  <p className="text-xs text-amber-600 pt-1 border-t border-neutral-200 mt-1">Note: {order.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
