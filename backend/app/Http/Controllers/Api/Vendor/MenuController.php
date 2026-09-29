@@ -47,9 +47,7 @@ class MenuController extends Controller
             'low_stock_threshold' => 'sometimes|integer|min:0',
         ]);
 
-        $validated[$this->ownerColumn($owner)] = $owner->id;
-
-        $item = MenuItem::create($validated);
+        $item = $owner->menuItems()->create($validated);
 
         return response()->json([
             'message' => 'Menu item created successfully',
@@ -62,7 +60,7 @@ class MenuController extends Controller
         $user = auth()->user();
         $item = MenuItem::findOrFail($itemId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $item)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $item, 'edit')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($item), 'manage its menu')) {
@@ -126,7 +124,7 @@ class MenuController extends Controller
         $user = auth()->user();
         $item = MenuItem::findOrFail($itemId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $item)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $item, 'delete')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($item), 'manage its menu')) {

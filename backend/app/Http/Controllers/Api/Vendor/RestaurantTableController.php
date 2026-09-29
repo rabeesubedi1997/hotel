@@ -36,9 +36,7 @@ class RestaurantTableController extends Controller
             'status' => 'sometimes|in:available,occupied,reserved',
         ]);
 
-        $validated[$this->ownerColumn($owner)] = $owner->id;
-
-        $table = RestaurantTable::create($validated);
+        $table = $owner->restaurantTables()->create($validated);
 
         return response()->json([
             'message' => 'Table created successfully',
@@ -51,7 +49,7 @@ class RestaurantTableController extends Controller
         $user = auth()->user();
         $table = RestaurantTable::findOrFail($tableId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $table)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $table, 'edit')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($table), 'manage its tables')) {
@@ -77,7 +75,7 @@ class RestaurantTableController extends Controller
         $user = auth()->user();
         $table = RestaurantTable::findOrFail($tableId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $table)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $table, 'delete')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $this->ownerFromRecord($table), 'manage its tables')) {

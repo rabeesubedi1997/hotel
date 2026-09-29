@@ -14,6 +14,17 @@ import useSearchStore from '../stores/searchStore';
 // down in this file. Do not merge state/logic between the two paths.
 // ---------------------------------------------------------------------------
 
+// Every checkout flow here creates a booking, then later (after a review
+// step the customer can sit on indefinitely) pays for it in a second
+// request. The auth token lives in one shared localStorage key, so logging
+// in/out in another tab changes it globally — without pinning, the payment
+// request would silently pick up whatever account is logged in *now*
+// instead of the one that created the booking, which the backend correctly
+// rejects as 403 Unauthorized. Capture the token right when the booking is
+// created and pass it explicitly to the payment call so a later token
+// change elsewhere can't affect this in-flight checkout.
+const pinnedAuthConfig = (token) => (token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+
 const Checkout = () => {
   const [searchParams] = useSearchParams();
 
@@ -46,6 +57,7 @@ const SingleItemCheckout = () => {
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState(null);
+  const [checkoutToken, setCheckoutToken] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [pendingBooking, setPendingBooking] = useState(null);
   const [couponCode, setCouponCode] = useState('');
@@ -304,6 +316,7 @@ const SingleItemCheckout = () => {
       const createdBooking = response.data.booking || response.data;
       console.log('Setting booking data:', createdBooking);
       setBooking(createdBooking);
+      setCheckoutToken(localStorage.getItem('token'));
     } catch (error) {
       console.error('Error creating booking:', error);
       console.error('Error response:', error.response?.data);
@@ -397,6 +410,7 @@ const SingleItemCheckout = () => {
       console.log('Sending booking data:', bookingData);
       const response = await bookingsAPI.create(bookingData);
       setBooking(response.data.booking);
+      setCheckoutToken(localStorage.getItem('token'));
       setStep(2);
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -427,7 +441,7 @@ const SingleItemCheckout = () => {
     setProcessing(true);
     try {
       if (paymentMethod === 'cod') {
-        await paymentsAPI.createCOD({ booking_id: booking.id });
+        await paymentsAPI.createCOD({ booking_id: booking.id }, pinnedAuthConfig(checkoutToken));
         toast.success('Booking confirmed successfully!');
         navigate('/bookings', { replace: true });
       } else {
@@ -786,6 +800,7 @@ const PackageCheckout = () => {
   const [step, setStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [packageBooking, setPackageBooking] = useState(null);
+  const [checkoutToken, setCheckoutToken] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
 
   const [travelDate, setTravelDate] = useState('');
@@ -855,6 +870,7 @@ const PackageCheckout = () => {
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
       });
       setPackageBooking(response.data.package_booking);
+      setCheckoutToken(localStorage.getItem('token'));
       setStep(2);
     } catch (error) {
       console.error('Error booking package:', error);
@@ -874,7 +890,7 @@ const PackageCheckout = () => {
     setProcessing(true);
     try {
       if (paymentMethod === 'cod') {
-        await paymentsAPI.createCOD({ package_booking_id: packageBooking.id });
+        await paymentsAPI.createCOD({ package_booking_id: packageBooking.id }, pinnedAuthConfig(checkoutToken));
       }
       toast.success('Package booked successfully!');
       navigate('/bookings', { replace: true });
@@ -1092,6 +1108,7 @@ const MultiItemCheckout = () => {
   const [guests, setGuests] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [createdBookings, setCreatedBookings] = useState([]);
+  const [checkoutToken, setCheckoutToken] = useState(null);
   const [bookingAttempted, setBookingAttempted] = useState(false);
 
   useEffect(() => {
@@ -1167,6 +1184,7 @@ const MultiItemCheckout = () => {
     }
 
     setProcessing(true);
+    setCheckoutToken(localStorage.getItem('token'));
     const created = [];
 
     // Sequential on purpose: awaiting one booking at a time (instead of
@@ -1234,7 +1252,7 @@ const MultiItemCheckout = () => {
 
     for (const b of createdBookings) {
       try {
-        await paymentsAPI.createCOD({ booking_id: b.id });
+        await paymentsAPI.createCOD({ booking_id: b.id }, pinnedAuthConfig(checkoutToken));
         successCount += 1;
       } catch (err) {
         console.error(`COD confirmation failed for booking ${b.id}:`, err);

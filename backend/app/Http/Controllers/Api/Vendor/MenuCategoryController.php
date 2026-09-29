@@ -29,12 +29,12 @@ class MenuCategoryController extends Controller
             return $blocked;
         }
 
-        $ownerColumn = $this->ownerColumn($owner);
-
         $validated = $request->validate([
             'name' => [
                 'required', 'string', 'max:255',
-                Rule::unique('menu_categories', 'name')->where(fn ($query) => $query->where($ownerColumn, $owner->id)),
+                Rule::unique('menu_categories', 'name')->where(
+                    fn ($query) => $query->where('owner_type', $owner->getMorphClass())->where('owner_id', $owner->id)
+                ),
             ],
         ]);
 
@@ -54,19 +54,19 @@ class MenuCategoryController extends Controller
         $category = MenuCategory::findOrFail($categoryId);
         $owner = $this->ownerFromRecord($category);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $category)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $category, 'edit')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {
             return $blocked;
         }
 
-        $ownerColumn = $this->ownerColumn($owner);
-
         $validated = $request->validate([
             'name' => [
                 'sometimes', 'string', 'max:255',
-                Rule::unique('menu_categories', 'name')->where(fn ($query) => $query->where($ownerColumn, $owner->id))->ignore($category->id),
+                Rule::unique('menu_categories', 'name')->where(
+                    fn ($query) => $query->where('owner_type', $owner->getMorphClass())->where('owner_id', $owner->id)
+                )->ignore($category->id),
             ],
             'sort_order' => 'sometimes|integer|min:0',
         ]);
@@ -90,7 +90,7 @@ class MenuCategoryController extends Controller
         $category = MenuCategory::findOrFail($categoryId);
         $owner = $this->ownerFromRecord($category);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $category)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $category, 'delete')) {
             return $blocked;
         }
         if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage categories')) {

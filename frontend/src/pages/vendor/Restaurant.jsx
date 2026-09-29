@@ -124,7 +124,7 @@ const VendorRestaurant = () => {
   const ownerId = activityId || hotelId;
   const backLink = ownerType === 'activity' ? '/vendor/activities' : '/vendor/hotels';
 
-  const [hotel, setHotel] = useState(null);
+  const [owner, setOwner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('kitchen');
 
@@ -170,7 +170,7 @@ const VendorRestaurant = () => {
   const [reportFrom, setReportFrom] = useState(() => new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10));
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const isApproved = hotel?.approval_status === 'approved';
+  const isApproved = owner?.approval_status === 'approved';
 
   const loadAll = useCallback(async () => {
     try {
@@ -182,7 +182,7 @@ const VendorRestaurant = () => {
         vendorAPI.getOrders(ownerType, ownerId),
         vendorAPI.getMenuCategories(ownerType, ownerId),
       ]);
-      setHotel(ownerRes.data);
+      setOwner(ownerRes.data);
       setMenuItems(menuRes.data || []);
       setTables(tablesRes.data || []);
       setOrders(ordersRes.data || []);
@@ -433,7 +433,7 @@ const VendorRestaurant = () => {
     setSavingInventorySettings(true);
     try {
       await vendorAPI.updateInventorySettings(ownerType, ownerId, { stock_deduction_mode: mode });
-      setHotel((prev) => ({ ...prev, stock_deduction_mode: mode }));
+      setOwner((prev) => ({ ...prev, stock_deduction_mode: mode }));
       toast.success('Inventory settings updated');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update inventory settings');
@@ -495,7 +495,7 @@ const VendorRestaurant = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `menu-${hotel?.name?.toLowerCase().replace(/\s+/g, '-') || ownerId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `menu-${owner?.name?.toLowerCase().replace(/\s+/g, '-') || ownerId}-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -787,7 +787,7 @@ const VendorRestaurant = () => {
         <ArrowLeft className="h-4 w-4" /> Back to {ownerType === 'activity' ? 'My Activities' : 'My Hotels'}
       </button>
       <h2 className="font-display text-2xl font-bold text-neutral-900 mb-2">
-        Restaurant POS {hotel ? `— ${hotel.name}` : ''}
+        Restaurant POS {owner ? `— ${owner.name}` : ''}
       </h2>
 
       {!isApproved && (
@@ -825,7 +825,9 @@ const VendorRestaurant = () => {
                 { key: 'dine_in', label: 'Dine-in' },
                 { key: 'room_service', label: 'Room Service' },
                 { key: 'takeaway', label: 'Takeaway' },
-              ].map((f) => (
+              ]
+                .filter((f) => f.key !== 'room_service' || ownerType === 'hotel')
+                .map((f) => (
                 <button
                   key={f.key}
                   type="button"
@@ -1822,7 +1824,7 @@ const VendorRestaurant = () => {
               hint: "Stock isn't touched until the order is marked Complete. Cancelling before then has nothing to restore.",
             },
           ].map((option) => {
-            const isActive = (hotel?.stock_deduction_mode || 'on_order') === option.value;
+            const isActive = (owner?.stock_deduction_mode || 'on_order') === option.value;
             return (
               <button
                 key={option.value}
@@ -1896,7 +1898,7 @@ const VendorRestaurant = () => {
               onChange={(e) => setOrderFormData({ ...orderFormData, order_type: e.target.value, table_id: '' })}
             >
               <option value="dine_in">Dine-in</option>
-              <option value="room_service">Room Service</option>
+              {ownerType === 'hotel' && <option value="room_service">Room Service</option>}
               <option value="takeaway">Takeaway</option>
             </Select>
             {orderFormData.order_type === 'dine_in' && (

@@ -223,53 +223,42 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::delete('/rooms/{room}', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'destroy'])->middleware('permission:hotels.delete.own');
 
     // Restaurant POS: Menu Management
-    // Owned by either a Hotel or an Activity — the ->defaults('ownerType', ...)
-    // tells the shared controller which relation/permission set applies, so
-    // the exact same MenuController@method serves both URL shapes.
-    Route::get('/hotels/{hotel}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'index'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
-    Route::post('/hotels/{hotel}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'store'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::post('/hotels/{hotel}/menu-items/bulk-availability', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'bulkAvailability'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::get('/activities/{activity}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'index'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
-    Route::post('/activities/{activity}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'store'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
-    Route::post('/activities/{activity}/menu-items/bulk-availability', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'bulkAvailability'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+    // Owned by either a Hotel or an Activity — RestaurantPosRoutes::ownerScoped()
+    // generates both the /hotels/{hotel}/... and /activities/{activity}/...
+    // variants from one call, tagging each with the ownerType route default
+    // the shared controller uses to pick which relation/permission set applies.
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'index'], 'view');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'store'], 'edit');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-items/bulk-availability', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'bulkAvailability'], 'edit');
     Route::put('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'update'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::delete('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'destroy'])->middleware('permission:hotels.delete.own|activities.delete.own');
 
     // Restaurant POS: Menu Categories
-    Route::get('/hotels/{hotel}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'index'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
-    Route::post('/hotels/{hotel}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'store'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::post('/hotels/{hotel}/menu-categories/reorder', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'reorder'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::get('/activities/{activity}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'index'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
-    Route::post('/activities/{activity}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'store'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
-    Route::post('/activities/{activity}/menu-categories/reorder', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'reorder'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'index'], 'view');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'store'], 'edit');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-categories/reorder', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'reorder'], 'edit');
     Route::put('/menu-categories/{menuCategory}', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'update'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::delete('/menu-categories/{menuCategory}', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'destroy'])->middleware('permission:hotels.delete.own|activities.delete.own');
 
     // Restaurant POS: Table Management
-    Route::get('/hotels/{hotel}/tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'index'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
-    Route::post('/hotels/{hotel}/tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'store'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::get('/activities/{activity}/tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'index'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
-    Route::post('/activities/{activity}/tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'store'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'index'], 'view');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'store'], 'edit');
     Route::put('/tables/{table}', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'update'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::delete('/tables/{table}', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'destroy'])->middleware('permission:hotels.delete.own|activities.delete.own');
 
     // Restaurant POS: Orders & Kitchen Display
-    Route::get('/hotels/{hotel}/orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'index'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
-    Route::post('/hotels/{hotel}/orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'store'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::get('/activities/{activity}/orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'index'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
-    Route::post('/activities/{activity}/orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'store'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'index'], 'view');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'store'], 'edit');
     Route::get('/orders/{order}', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'show'])->middleware('permission:hotels.view.own|activities.view.own');
     Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::put('/orders/{order}/rush', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateRush'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::put('/orders/{order}/items/{item}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateItemStatus'])->middleware('permission:hotels.edit.own|activities.edit.own');
 
     // Restaurant POS: Earnings/Inventory Report
-    Route::get('/hotels/{hotel}/reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.view.own');
-    Route::get('/activities/{activity}/reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'])->defaults('ownerType', 'activity')->middleware('permission:activities.view.own');
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'], 'view');
 
     // Restaurant POS: Inventory Settings (when stock decrements — on order placed vs on order completed)
-    Route::put('/hotels/{hotel}/inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'])->defaults('ownerType', 'hotel')->middleware('permission:hotels.edit.own');
-    Route::put('/activities/{activity}/inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'])->defaults('ownerType', 'activity')->middleware('permission:activities.edit.own');
+    \App\Support\RestaurantPosRoutes::ownerScoped('put', 'inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'], 'edit');
 
     // Media Library (Vendor needs to upload images too)
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');

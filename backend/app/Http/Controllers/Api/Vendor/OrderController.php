@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
-use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
@@ -38,10 +37,16 @@ class OrderController extends Controller
             return $blocked;
         }
 
+        // Room Service only makes sense for a hotel's Restaurant POS — an
+        // Activity (bungee jumping, rafting, ...) has no rooms to deliver to.
+        $allowedOrderTypes = $owner instanceof \App\Models\Hotel
+            ? ['dine_in', 'room_service', 'takeaway']
+            : ['dine_in', 'takeaway'];
+
         $validated = $request->validate([
             'table_id' => 'nullable|exists:restaurant_tables,id',
             'booking_id' => 'nullable|exists:bookings,id',
-            'order_type' => 'required|in:dine_in,room_service,takeaway',
+            'order_type' => 'required|in:' . implode(',', $allowedOrderTypes),
             'channel' => 'sometimes|in:direct,uber_eats,doordash',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
@@ -50,19 +55,18 @@ class OrderController extends Controller
             'items.*.notes' => 'nullable|string',
         ]);
 
-        $ownerColumn = $this->ownerColumn($owner);
         // Some vendors want stock reserved the moment an order is placed
         // (the default); others don't want it touched until the kitchen
         // actually finishes the order — see stock_deduction_mode on the
         // owner, configurable from the Menu tab's Inventory Settings.
         $deductNow = ($owner->stock_deduction_mode ?? Order::STOCK_DEDUCTION_ON_ORDER) === Order::STOCK_DEDUCTION_ON_ORDER;
 
-        $order = DB::transaction(function () use ($validated, $owner, $ownerColumn, $user, $deductNow) {
+        $order = DB::transaction(function () use ($validated, $owner, $user, $deductNow) {
             $subtotal = 0;
             $itemsToCreate = [];
 
             foreach ($validated['items'] as $line) {
-                $menuItem = MenuItem::where($ownerColumn, $owner->id)->lockForUpdate()->findOrFail($line['menu_item_id']);
+                $menuItem = $owner->menuItems()->lockForUpdate()->findOrFail($line['menu_item_id']);
 
                 if ($deductNow && $menuItem->stock_quantity !== null && $menuItem->stock_quantity < $line['quantity']) {
                     abort(422, "Not enough stock for \"{$menuItem->name}\" — only {$menuItem->stock_quantity} left.");
@@ -84,8 +88,7 @@ class OrderController extends Controller
                 }
             }
 
-            $order = Order::create([
-                $ownerColumn => $owner->id,
+            $order = $owner->orders()->create([
                 'table_id' => $validated['table_id'] ?? null,
                 'booking_id' => $validated['booking_id'] ?? null,
                 'order_type' => $validated['order_type'],
@@ -120,7 +123,7 @@ class OrderController extends Controller
         $user = auth()->user();
         $order = Order::findOrFail($orderId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'edit')) {
             return $blocked;
         }
 
@@ -207,7 +210,7 @@ class OrderController extends Controller
         $user = auth()->user();
         $order = Order::findOrFail($orderId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'edit')) {
             return $blocked;
         }
 
@@ -228,7 +231,7 @@ class OrderController extends Controller
         $user = auth()->user();
         $order = Order::findOrFail($orderId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'edit')) {
             return $blocked;
         }
 
@@ -283,7 +286,7 @@ class OrderController extends Controller
         $user = auth()->user();
         $order = Order::with(['items.menuItem', 'table'])->findOrFail($orderId);
 
-        if ($blocked = $this->authorizeOwnerOfRecord($user, $order)) {
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'view')) {
             return $blocked;
         }
 

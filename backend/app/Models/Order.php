@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurantOwner;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToRestaurantOwner;
 
     const TYPE_DINE_IN = 'dine_in';
     const TYPE_ROOM_SERVICE = 'room_service';
@@ -31,8 +32,8 @@ class Order extends Model
     const STOCK_DEDUCTION_ON_COMPLETE = 'on_complete';
 
     protected $fillable = [
-        'hotel_id',
-        'activity_id',
+        'owner_id',
+        'owner_type',
         'order_number',
         'table_id',
         'booking_id',
@@ -61,16 +62,6 @@ class Order extends Model
         static::creating(function ($order) {
             $order->order_number = 'ORD-' . strtoupper(uniqid());
         });
-    }
-
-    public function hotel(): BelongsTo
-    {
-        return $this->belongsTo(Hotel::class);
-    }
-
-    public function activity(): BelongsTo
-    {
-        return $this->belongsTo(Activity::class);
     }
 
     public function table(): BelongsTo

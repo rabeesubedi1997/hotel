@@ -45,10 +45,10 @@ class SeedRestaurantPosDemo extends Command
         }
 
         $this->info("Seeding hotel #{$hotel->id} \"{$hotel->name}\"...");
-        $this->seedOwner($hotel, 'hotel_id', $this->hotelPlan());
+        $this->seedOwner($hotel, $this->hotelPlan());
 
         $this->info("Seeding activity #{$activity->id} \"{$activity->name}\"...");
-        $this->seedOwner($activity, 'activity_id', $this->activityPlan());
+        $this->seedOwner($activity, $this->activityPlan());
 
         $this->newLine();
         $this->info('Done. Restaurant POS is now fully populated for both.');
@@ -58,12 +58,12 @@ class SeedRestaurantPosDemo extends Command
         return self::SUCCESS;
     }
 
-    private function seedOwner($owner, string $ownerColumn, array $plan): void
+    private function seedOwner($owner, array $plan): void
     {
         $categoryIds = [];
         foreach ($plan['categories'] as $index => $name) {
-            $category = MenuCategory::updateOrCreate(
-                [$ownerColumn => $owner->id, 'name' => $name],
+            $category = $owner->menuCategories()->updateOrCreate(
+                ['name' => $name],
                 ['sort_order' => $index]
             );
             $categoryIds[$name] = $category->id;
@@ -71,30 +71,30 @@ class SeedRestaurantPosDemo extends Command
 
         $items = [];
         foreach ($plan['items'] as $data) {
-            $items[] = MenuItem::updateOrCreate(
-                [$ownerColumn => $owner->id, 'sku' => $data['sku']],
-                array_merge($data, [$ownerColumn => $owner->id])
+            $items[] = $owner->menuItems()->updateOrCreate(
+                ['sku' => $data['sku']],
+                $data
             );
         }
 
         $tables = [];
         foreach ($plan['tables'] as $data) {
-            $tables[] = RestaurantTable::updateOrCreate(
-                [$ownerColumn => $owner->id, 'table_number' => $data['table_number']],
-                array_merge($data, [$ownerColumn => $owner->id])
+            $tables[] = $owner->restaurantTables()->updateOrCreate(
+                ['table_number' => $data['table_number']],
+                $data
             );
         }
 
-        if (Order::where($ownerColumn, $owner->id)->exists()) {
+        if ($owner->orders()->exists()) {
             $this->line('  Orders already exist for this owner — skipping order seeding.');
             return;
         }
 
-        $this->seedOrders($owner, $ownerColumn, $items, $tables);
+        $this->seedOrders($owner, $items, $tables);
     }
 
     /** @param MenuItem[] $items @param RestaurantTable[] $tables */
-    private function seedOrders($owner, string $ownerColumn, array $items, array $tables): void
+    private function seedOrders($owner, array $items, array $tables): void
     {
         // A spread of orders across the last 14 days in every status, so
         // Reports has real revenue/cancellation numbers and Kitchen has
@@ -132,8 +132,7 @@ class SeedRestaurantPosDemo extends Command
                 ];
             }
 
-            $order = Order::create([
-                $ownerColumn => $owner->id,
+            $order = $owner->orders()->create([
                 'table_id' => $table?->id,
                 'order_type' => $table ? Order::TYPE_DINE_IN : Order::TYPE_TAKEAWAY,
                 'channel' => Order::CHANNEL_DIRECT,

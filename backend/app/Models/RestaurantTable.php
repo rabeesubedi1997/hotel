@@ -2,36 +2,26 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurantOwner;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RestaurantTable extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToRestaurantOwner;
 
     const STATUS_AVAILABLE = 'available';
     const STATUS_OCCUPIED = 'occupied';
     const STATUS_RESERVED = 'reserved';
 
     protected $fillable = [
-        'hotel_id',
-        'activity_id',
+        'owner_id',
+        'owner_type',
         'table_number',
         'capacity',
         'status',
     ];
-
-    public function hotel(): BelongsTo
-    {
-        return $this->belongsTo(Hotel::class);
-    }
-
-    public function activity(): BelongsTo
-    {
-        return $this->belongsTo(Activity::class);
-    }
 
     public function orders(): HasMany
     {

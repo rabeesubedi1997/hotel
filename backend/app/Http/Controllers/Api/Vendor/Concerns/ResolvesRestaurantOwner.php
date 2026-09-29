@@ -36,12 +36,7 @@ trait ResolvesRestaurantOwner
 
     private function ownerFromRecord($record): Hotel|Activity
     {
-        return $record->activity_id ? $record->activity : $record->hotel;
-    }
-
-    private function ownerColumn($owner): string
-    {
-        return $owner instanceof Activity ? 'activity_id' : 'hotel_id';
+        return $record->owner;
     }
 
     private function ownerLabel($owner): string
@@ -60,11 +55,23 @@ trait ResolvesRestaurantOwner
         ], 403);
     }
 
-    private function authorizeOwnerOfRecord($user, $record): ?JsonResponse
+    /**
+     * Confirms the user owns the record's actual owner (Hotel or Activity)
+     * AND still holds the permission for that specific owner type —
+     * route-level middleware only checks "hotels.X.own OR activities.X.own"
+     * since it can't see which type a given record is, so this is where
+     * the real per-type check has to live.
+     */
+    private function authorizeOwnerOfRecord($user, $record, string $permissionAction = 'edit'): ?JsonResponse
     {
         $owner = $this->ownerFromRecord($record);
 
         if (!$user->isAdminLevel() && $owner->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $requiredPermission = ($owner instanceof Activity ? 'activities' : 'hotels') . ".{$permissionAction}.own";
+        if (!$user->isAdminLevel() && !$user->hasPermission($requiredPermission)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

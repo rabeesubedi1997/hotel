@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRestaurantPos;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Activity extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasRestaurantPos;
 
     const STATUS_ACTIVE = 'active';
     const STATUS_INACTIVE = 'inactive';
@@ -81,26 +81,6 @@ class Activity extends Model
     public function bookings(): \Illuminate\Database\Eloquent\Relations\MorphMany
     {
         return $this->morphMany(Booking::class, 'bookable');
-    }
-
-    public function menuItems(): HasMany
-    {
-        return $this->hasMany(MenuItem::class);
-    }
-
-    public function menuCategories(): HasMany
-    {
-        return $this->hasMany(MenuCategory::class);
-    }
-
-    public function restaurantTables(): HasMany
-    {
-        return $this->hasMany(RestaurantTable::class);
-    }
-
-    public function orders(): HasMany
-    {
-        return $this->hasMany(Order::class);
     }
 
     public function user(): BelongsTo

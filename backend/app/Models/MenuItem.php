@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurantOwner;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MenuItem extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToRestaurantOwner;
 
     protected $fillable = [
-        'hotel_id',
-        'activity_id',
+        'owner_id',
+        'owner_type',
         'name',
         'description',
         'price',
@@ -54,16 +54,6 @@ class MenuItem extends Model
         }
 
         return round((((float) $this->price - (float) $this->cost_price) / (float) $this->price) * 100, 1);
-    }
-
-    public function hotel(): BelongsTo
-    {
-        return $this->belongsTo(Hotel::class);
-    }
-
-    public function activity(): BelongsTo
-    {
-        return $this->belongsTo(Activity::class);
     }
 
     public function scopeAvailable($query)

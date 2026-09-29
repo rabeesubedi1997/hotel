@@ -20,14 +20,13 @@ class ReportController extends Controller
     {
         $user = auth()->user();
         $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
-        $ownerColumn = $this->ownerColumn($owner);
 
         $from = $request->filled('from') ? Carbon::parse($request->input('from'))->startOfDay() : now()->subDays(29)->startOfDay();
         $to = $request->filled('to') ? Carbon::parse($request->input('to'))->endOfDay() : now()->endOfDay();
 
         $revenueStatuses = [Order::STATUS_SERVED, Order::STATUS_COMPLETED];
 
-        $baseQuery = Order::where($ownerColumn, $owner->id)->whereBetween('created_at', [$from, $to]);
+        $baseQuery = $owner->orders()->whereBetween('created_at', [$from, $to]);
 
         $revenueOrders = (clone $baseQuery)->whereIn('status', $revenueStatuses);
         $totalRevenue = (clone $revenueOrders)->sum('total_amount');
@@ -51,7 +50,8 @@ class ReportController extends Controller
         $topItems = OrderItem::query()
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->join('menu_items', 'menu_items.id', '=', 'order_items.menu_item_id')
-            ->where("orders.{$ownerColumn}", $owner->id)
+            ->where('orders.owner_type', $owner->getMorphClass())
+            ->where('orders.owner_id', $owner->id)
             ->whereIn('orders.status', $revenueStatuses)
             ->whereBetween('orders.created_at', [$from, $to])
             ->selectRaw('menu_items.id, menu_items.name, SUM(order_items.quantity) as quantity_sold, SUM(order_items.subtotal) as revenue')
@@ -60,7 +60,7 @@ class ReportController extends Controller
             ->limit(10)
             ->get();
 
-        $lowStockItems = MenuItem::where($ownerColumn, $owner->id)
+        $lowStockItems = $owner->menuItems()
             ->whereNotNull('stock_quantity')
             ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
             ->get(['id', 'name', 'stock_quantity', 'low_stock_threshold']);

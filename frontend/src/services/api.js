@@ -11,10 +11,16 @@ const api = axios.create({
   },
 });
 
-// Add token to requests
+// Add token to requests.
+// Never overwrite an Authorization header a caller already set explicitly
+// (e.g. a checkout flow pinning the session it created a booking under) —
+// 'token' is a single shared localStorage key, so logging in/out in ANY
+// other tab changes it for every open tab immediately. Without this guard,
+// a booking created under one account could get paid for under whatever
+// account happens to be logged in by the time the payment request fires.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
@@ -104,7 +110,7 @@ export const bookingsAPI = {
 // Payments APIs
 export const paymentsAPI = {
   getMethods: () => api.get('/payments/methods'),
-  createCOD: (data) => api.post('/payments/cod', data),
+  createCOD: (data, config) => api.post('/payments/cod', data, config),
   initiateKhalti: (data) => api.post('/payments/khalti/initiate', data),
   verifyKhalti: (data) => api.post('/payments/khalti/verify', data),
   createStripeIntent: (data) => api.post('/payments/stripe/intent', data),
