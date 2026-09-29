@@ -15,6 +15,10 @@ class Order extends Model
     const TYPE_ROOM_SERVICE = 'room_service';
     const TYPE_TAKEAWAY = 'takeaway';
 
+    const CHANNEL_DIRECT = 'direct';
+    const CHANNEL_UBER_EATS = 'uber_eats';
+    const CHANNEL_DOORDASH = 'doordash';
+
     const STATUS_PENDING = 'pending';
     const STATUS_CONFIRMED = 'confirmed';
     const STATUS_PREPARING = 'preparing';
@@ -29,7 +33,9 @@ class Order extends Model
         'table_id',
         'booking_id',
         'order_type',
+        'channel',
         'status',
+        'is_rush',
         'subtotal',
         'total_amount',
         'notes',
@@ -39,6 +45,7 @@ class Order extends Model
     protected $casts = [
         'subtotal' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'is_rush' => 'boolean',
     ];
 
     protected static function boot(): void

@@ -61,6 +61,7 @@ class OrderController extends Controller
             'table_id' => 'nullable|exists:restaurant_tables,id',
             'booking_id' => 'nullable|exists:bookings,id',
             'order_type' => 'required|in:dine_in,room_service,takeaway',
+            'channel' => 'sometimes|in:direct,uber_eats,doordash',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
@@ -100,6 +101,7 @@ class OrderController extends Controller
                 'table_id' => $validated['table_id'] ?? null,
                 'booking_id' => $validated['booking_id'] ?? null,
                 'order_type' => $validated['order_type'],
+                'channel' => $validated['channel'] ?? Order::CHANNEL_DIRECT,
                 'status' => Order::STATUS_PENDING,
                 'subtotal' => $subtotal,
                 'total_amount' => $subtotal,
@@ -247,6 +249,28 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Item status updated',
             'order' => $order->fresh()->load(['items.menuItem', 'table']),
+        ]);
+    }
+
+    public function updateRush(Request $request, $orderId)
+    {
+        $user = auth()->user();
+        $order = Order::findOrFail($orderId);
+        $hotel = $order->hotel;
+
+        if (!$user->isAdminLevel() && $hotel->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'is_rush' => 'required|boolean',
+        ]);
+
+        $order->update(['is_rush' => $validated['is_rush']]);
+
+        return response()->json([
+            'message' => 'Order updated',
+            'order' => $order->load(['items.menuItem', 'table']),
         ]);
     }
 

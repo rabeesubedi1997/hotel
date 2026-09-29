@@ -53,7 +53,13 @@ class MenuController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
             'category' => 'required|string|max:255',
+            'sku' => 'nullable|string|max:100',
+            'station' => 'nullable|string|max:100',
+            'allergens' => 'nullable|array',
+            'allergens.*' => 'string|max:50',
+            'prep_time_minutes' => 'nullable|integer|min:0',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
             'stock_quantity' => 'nullable|integer|min:0',
@@ -87,7 +93,13 @@ class MenuController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
             'category' => 'sometimes|string|max:255',
+            'sku' => 'nullable|string|max:100',
+            'station' => 'nullable|string|max:100',
+            'allergens' => 'nullable|array',
+            'allergens.*' => 'string|max:50',
+            'prep_time_minutes' => 'nullable|integer|min:0',
             'image' => 'sometimes|string',
             'is_available' => 'sometimes|boolean',
             'stock_quantity' => 'nullable|integer|min:0',
@@ -99,6 +111,33 @@ class MenuController extends Controller
         return response()->json([
             'message' => 'Menu item updated successfully',
             'item' => $item,
+        ]);
+    }
+
+    public function bulkAvailability(Request $request, $hotelId)
+    {
+        $user = auth()->user();
+        $hotel = $this->resolveHotel($user, $hotelId);
+
+        if ($blocked = $this->blockIfUnapproved($user, $hotel)) {
+            return $blocked;
+        }
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:menu_items,id',
+            'is_available' => 'required|boolean',
+        ]);
+
+        $items = $hotel->menuItems()->whereIn('id', $validated['ids']);
+        $count = $items->count();
+        $items->update(['is_available' => $validated['is_available']]);
+
+        return response()->json([
+            'message' => $validated['is_available']
+                ? "{$count} item(s) restored"
+                : "{$count} item(s) 86'd",
+            'items' => $hotel->menuItems()->whereIn('id', $validated['ids'])->get(),
         ]);
     }
 

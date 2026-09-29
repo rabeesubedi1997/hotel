@@ -15,7 +15,12 @@ class MenuItem extends Model
         'name',
         'description',
         'price',
+        'cost_price',
         'category',
+        'sku',
+        'station',
+        'allergens',
+        'prep_time_minutes',
         'image',
         'is_available',
         'stock_quantity',
@@ -24,12 +29,30 @@ class MenuItem extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'cost_price' => 'decimal:2',
         'is_available' => 'boolean',
+        'allergens' => 'array',
     ];
+
+    protected $appends = ['margin_percent'];
+
+    public function getMarginPercentAttribute(): ?float
+    {
+        return $this->marginPercent();
+    }
 
     public function isLowStock(): bool
     {
         return $this->stock_quantity !== null && $this->stock_quantity <= $this->low_stock_threshold;
+    }
+
+    public function marginPercent(): ?float
+    {
+        if ($this->cost_price === null || (float) $this->price <= 0) {
+            return null;
+        }
+
+        return round((((float) $this->price - (float) $this->cost_price) / (float) $this->price) * 100, 1);
     }
 
     public function hotel(): BelongsTo

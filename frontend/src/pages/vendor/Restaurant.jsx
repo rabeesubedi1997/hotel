@@ -4,6 +4,7 @@ import {
   Plus, Edit, Trash2, Loader2, ArrowLeft, ChefHat, UtensilsCrossed, Grid3x3,
   Image as ImageIcon, X, BarChart3, AlertTriangle, Search, Users, DollarSign,
   Receipt, Wallet, CheckCircle2, XCircle, Circle, ShoppingBag, BedDouble, Timer,
+  Flame, Download, Tags, CheckSquare, Square, Printer, GripVertical,
 } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -23,6 +24,23 @@ const ORDER_TYPE_ICON = {
   takeaway: ShoppingBag,
 };
 
+const STATION_OPTIONS = [
+  { value: 'grill', label: 'Grill Line' },
+  { value: 'saute', label: 'Sauté / Expo' },
+  { value: 'pizza', label: 'Woodfire Pizza' },
+  { value: 'cold', label: 'Cold / Raw Bar' },
+  { value: 'pastry', label: 'Pastry / Dessert' },
+  { value: 'bar', label: 'Service Bar' },
+];
+const STATION_LABEL = Object.fromEntries(STATION_OPTIONS.map((s) => [s.value, s.label]));
+
+const ALLERGEN_OPTIONS = ['gluten', 'dairy', 'nuts', 'shellfish', 'egg', 'soy'];
+
+const CHANNEL_LABEL = { direct: 'Direct / POS', uber_eats: 'UberEats', doordash: 'DoorDash' };
+
+// Kitchen tickets that sit this long without moving get flagged as running late.
+const RUSH_THRESHOLD_MINUTES = 20;
+
 const REPORT_PRESETS = [
   { key: 'today', label: 'Today', days: 0 },
   { key: '7d', label: '7 Days', days: 6 },
@@ -34,7 +52,12 @@ const emptyMenuForm = {
   name: '',
   description: '',
   price: '',
+  cost_price: '',
   category: 'main_course',
+  sku: '',
+  station: '',
+  allergens: [],
+  prep_time_minutes: '',
   image: '',
   is_available: true,
   track_inventory: false,
@@ -51,6 +74,7 @@ const emptyTableForm = {
 const emptyOrderForm = {
   table_id: '',
   order_type: 'dine_in',
+  channel: 'direct',
   notes: '',
   items: [],
 };
@@ -100,6 +124,7 @@ const VendorRestaurant = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   const [menuFormOpen, setMenuFormOpen] = useState(false);
   const [editingMenuItem, setEditingMenuItem] = useState(null);
@@ -108,6 +133,17 @@ const VendorRestaurant = () => {
   const [menuImagePickerOpen, setMenuImagePickerOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
+
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categoryEdits, setCategoryEdits] = useState({});
+
+  const [bulk86Mode, setBulk86Mode] = useState(false);
+  const [selectedMenuIds, setSelectedMenuIds] = useState(() => new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
 
   const [tableFormOpen, setTableFormOpen] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
@@ -127,16 +163,18 @@ const VendorRestaurant = () => {
 
   const loadAll = useCallback(async () => {
     try {
-      const [hotelRes, menuRes, tablesRes, ordersRes] = await Promise.all([
+      const [hotelRes, menuRes, tablesRes, ordersRes, categoriesRes] = await Promise.all([
         vendorAPI.getHotel(hotelId),
         vendorAPI.getMenuItems(hotelId),
         vendorAPI.getTables(hotelId),
         vendorAPI.getOrders(hotelId),
+        vendorAPI.getMenuCategories(hotelId),
       ]);
       setHotel(hotelRes.data);
       setMenuItems(menuRes.data || []);
       setTables(tablesRes.data || []);
       setOrders(ordersRes.data || []);
+      setCategories(categoriesRes.data || []);
     } catch (error) {
       console.error('Failed to load restaurant data', error);
       toast.error('Failed to load restaurant data');
@@ -208,7 +246,12 @@ const VendorRestaurant = () => {
       name: item.name || '',
       description: item.description || '',
       price: item.price ?? '',
+      cost_price: item.cost_price ?? '',
       category: item.category || 'main_course',
+      sku: item.sku || '',
+      station: item.station || '',
+      allergens: item.allergens || [],
+      prep_time_minutes: item.prep_time_minutes ?? '',
       image: item.image || '',
       is_available: !!item.is_available,
       track_inventory: item.stock_quantity !== null && item.stock_quantity !== undefined,
@@ -216,6 +259,15 @@ const VendorRestaurant = () => {
       low_stock_threshold: item.low_stock_threshold ?? 5,
     });
     setMenuFormOpen(true);
+  };
+
+  const toggleAllergen = (allergen) => {
+    setMenuFormData((prev) => ({
+      ...prev,
+      allergens: prev.allergens.includes(allergen)
+        ? prev.allergens.filter((a) => a !== allergen)
+        : [...prev.allergens, allergen],
+    }));
   };
 
   const closeMenuForm = () => {
@@ -230,6 +282,10 @@ const VendorRestaurant = () => {
     const { track_inventory, ...rest } = menuFormData;
     const payload = {
       ...rest,
+      cost_price: menuFormData.cost_price === '' ? null : Number(menuFormData.cost_price),
+      prep_time_minutes: menuFormData.prep_time_minutes === '' ? null : Number(menuFormData.prep_time_minutes),
+      sku: menuFormData.sku || null,
+      station: menuFormData.station || null,
       stock_quantity: track_inventory ? Number(menuFormData.stock_quantity || 0) : null,
     };
     try {
@@ -272,10 +328,15 @@ const VendorRestaurant = () => {
     }
   };
 
-  const menuCategories = useMemo(
-    () => Array.from(new Set(menuItems.map((m) => m.category))).sort(),
-    [menuItems]
-  );
+  // Category pills follow the managed sort order from Category Manager;
+  // any legacy free-text category not yet formalized there still shows up
+  // (alphabetically, after the managed ones) so no item silently disappears.
+  const menuCategories = useMemo(() => {
+    const managedNames = categories.map((c) => c.name);
+    const managedSet = new Set(managedNames);
+    const unmanaged = Array.from(new Set(menuItems.map((m) => m.category))).filter((c) => !managedSet.has(c)).sort();
+    return [...managedNames, ...unmanaged];
+  }, [categories, menuItems]);
 
   const filteredMenuItems = useMemo(() => {
     const q = menuSearch.trim().toLowerCase();
@@ -297,6 +358,116 @@ const VendorRestaurant = () => {
     });
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredMenuItems]);
+
+  // --- Menu categories ---
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setSavingCategory(true);
+    try {
+      const response = await vendorAPI.createMenuCategory(hotelId, { name });
+      setCategories((prev) => [...prev, response.data.category]);
+      setNewCategoryName('');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add category');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleRenameCategory = async (category) => {
+    const name = (categoryEdits[category.id] ?? category.name).trim();
+    if (!name || name === category.name) return;
+    try {
+      const response = await vendorAPI.updateMenuCategory(category.id, { name });
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? response.data.category : c)));
+      setMenuItems((prev) => prev.map((m) => (m.category === category.name ? { ...m, category: name } : m)));
+      toast.success('Category renamed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to rename category');
+    }
+  };
+
+  const handleDeleteCategory = async (category) => {
+    if (!window.confirm(`Delete category "${category.name}"?`)) return;
+    try {
+      await vendorAPI.deleteMenuCategory(category.id);
+      setCategories((prev) => prev.filter((c) => c.id !== category.id));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete category');
+    }
+  };
+
+  const moveCategory = async (index, direction) => {
+    const next = [...categories];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setCategories(next);
+    try {
+      await vendorAPI.reorderMenuCategories(hotelId, next.map((c) => c.id));
+    } catch (error) {
+      toast.error('Failed to save new order');
+    }
+  };
+
+  // --- Bulk 86 mode ---
+  const toggleBulkSelection = (itemId) => {
+    setSelectedMenuIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      return next;
+    });
+  };
+
+  const exitBulkMode = () => {
+    setBulk86Mode(false);
+    setSelectedMenuIds(new Set());
+  };
+
+  const applyBulkAvailability = async (isAvailable) => {
+    if (selectedMenuIds.size === 0) return;
+    setBulkSaving(true);
+    try {
+      const ids = Array.from(selectedMenuIds);
+      const response = await vendorAPI.bulkUpdateMenuAvailability(hotelId, { ids, is_available: isAvailable });
+      const updatedById = new Map(response.data.items.map((i) => [i.id, i]));
+      setMenuItems((prev) => prev.map((m) => updatedById.get(m.id) || m));
+      toast.success(response.data.message);
+      exitBulkMode();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Bulk update failed');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  // --- CSV export (client-side — the data's already loaded, no need for a
+  // dedicated backend export endpoint) ---
+  const exportMenuCsv = () => {
+    const header = ['Name', 'Category', 'SKU', 'Station', 'Price', 'Cost', 'Margin %', 'Stock', 'Available', 'Allergens'];
+    const rows = filteredMenuItems.map((item) => [
+      item.name,
+      item.category,
+      item.sku || '',
+      item.station ? (STATION_LABEL[item.station] || item.station) : '',
+      Number(item.price).toFixed(2),
+      item.cost_price !== null && item.cost_price !== undefined ? Number(item.cost_price).toFixed(2) : '',
+      item.margin_percent !== null && item.margin_percent !== undefined ? `${item.margin_percent}%` : '',
+      item.stock_quantity === null ? 'Not tracked' : item.stock_quantity,
+      item.is_available ? 'Yes' : 'No',
+      (item.allergens || []).join('; '),
+    ]);
+    const escapeCsv = (value) => `"${String(value).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `menu-${hotel?.name?.toLowerCase().replace(/\s+/g, '-') || hotelId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // --- Tables ---
   const openAddTableForm = () => {
@@ -414,6 +585,7 @@ const VendorRestaurant = () => {
     try {
       const payload = {
         order_type: orderFormData.order_type,
+        channel: orderFormData.channel,
         notes: orderFormData.notes || undefined,
         table_id: orderFormData.order_type === 'dine_in' && orderFormData.table_id ? orderFormData.table_id : undefined,
         items: orderFormData.items,
@@ -457,6 +629,77 @@ const VendorRestaurant = () => {
       toast.error(error.response?.data?.message || 'Failed to update item');
     }
   };
+
+  const toggleRush = async (order) => {
+    try {
+      const response = await vendorAPI.updateOrderRush(order.id, !order.is_rush);
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? response.data.order : o)));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update rush flag');
+    }
+  };
+
+  const printChit = (order) => {
+    const win = window.open('', '_blank', 'width=380,height=600');
+    if (!win) return;
+    const itemRows = (order.items || []).map((line) => `
+      <tr>
+        <td style="padding:4px 0;">${line.quantity}x ${line.menu_item?.name || ''}</td>
+      </tr>
+      ${line.notes ? `<tr><td style="padding:0 0 4px 16px;font-style:italic;color:#555;">Note: ${line.notes}</td></tr>` : ''}
+    `).join('');
+    win.document.write(`
+      <html>
+        <head>
+          <title>${order.order_number}</title>
+          <style>
+            body { font-family: monospace; padding: 16px; }
+            h1 { font-size: 20px; margin: 0 0 4px; }
+            p { margin: 2px 0; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+            hr { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+          </style>
+        </head>
+        <body onload="window.print()">
+          <h1>${order.order_number}</h1>
+          <p>${order.order_type.replace('_', ' ').toUpperCase()}${order.table ? ' · TABLE ' + order.table.table_number : ''}</p>
+          <p>${new Date(order.created_at).toLocaleString()}</p>
+          <hr />
+          <table>${itemRows}</table>
+          <hr />
+          <p style="font-weight:bold;">Total: $${Number(order.total_amount).toFixed(2)}</p>
+          ${order.notes ? `<p>Order notes: ${order.notes}</p>` : ''}
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  const kitchenOrders = useMemo(
+    () => (kitchenTypeFilter === 'all' ? orders : orders.filter((o) => o.order_type === kitchenTypeFilter)),
+    [orders, kitchenTypeFilter]
+  );
+
+  const activeKitchenOrders = useMemo(
+    () => kitchenOrders.filter((o) => !['completed', 'cancelled'].includes(o.status)),
+    [kitchenOrders]
+  );
+
+  const avgTicketMinutes = useMemo(() => {
+    if (activeKitchenOrders.length === 0) return 0;
+    const total = activeKitchenOrders.reduce((sum, o) => sum + elapsedMinutes(o, now), 0);
+    return Math.round(total / activeKitchenOrders.length);
+  }, [activeKitchenOrders, now]);
+
+  const delayedOrders = useMemo(
+    () => activeKitchenOrders.filter((o) => o.is_rush || elapsedMinutes(o, now) >= RUSH_THRESHOLD_MINUTES),
+    [activeKitchenOrders, now]
+  );
+
+  const mostDelayedOrder = useMemo(() => {
+    if (delayedOrders.length === 0) return null;
+    return [...delayedOrders].sort((a, b) => elapsedMinutes(b, now) - elapsedMinutes(a, now))[0];
+  }, [delayedOrders, now]);
 
   const cancelOrder = async (order) => {
     if (!window.confirm('Cancel this order?')) return;
@@ -517,19 +760,55 @@ const VendorRestaurant = () => {
 
       {tab === 'kitchen' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-neutral-500">
-              {orders.filter((o) => !['completed', 'cancelled'].includes(o.status)).length} active order(s)
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'dine_in', label: 'Dine-in' },
+                { key: 'room_service', label: 'Room Service' },
+                { key: 'takeaway', label: 'Takeaway' },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setKitchenTypeFilter(f.key)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    kitchenTypeFilter === f.key ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  {f.label}
+                  <span className={`px-1.5 rounded text-[10px] font-bold ${kitchenTypeFilter === f.key ? 'bg-white/20' : 'bg-white text-neutral-500'}`}>
+                    {f.key === 'all' ? orders.length : orders.filter((o) => o.order_type === f.key).length}
+                  </span>
+                </button>
+              ))}
+            </div>
             <Button size="sm" onClick={openNewOrder} disabled={!isApproved}>
               <Plus className="h-4 w-4" />
               New Order
             </Button>
           </div>
 
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <StatCard icon={Receipt} title="Active Orders" value={activeKitchenOrders.length} tone="primary" />
+            <StatCard icon={Timer} title="Avg Ticket Time" value={`${avgTicketMinutes}m`} tone="neutral" />
+            <StatCard icon={Flame} title="Rush / Delayed" value={delayedOrders.length} tone={delayedOrders.length > 0 ? 'warning' : 'neutral'} />
+            <StatCard icon={Grid3x3} title="Tables Occupied" value={tables.filter((t) => t.status === 'occupied').length} tone="accent" />
+          </div>
+
+          {mostDelayedOrder && (
+            <div className="w-full bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-xl flex items-center justify-between gap-3 mb-4">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <Flame className="h-4 w-4 text-red-600" />
+                Rush alert: {mostDelayedOrder.order_number} has been active for {elapsedMinutes(mostDelayedOrder, now)}m
+                {mostDelayedOrder.table ? ` — Table ${mostDelayedOrder.table.table_number}` : ''}. Clear it next.
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {KITCHEN_COLUMNS.map((status) => {
-              const columnOrders = orders.filter((o) => o.status === status);
+              const columnOrders = kitchenOrders.filter((o) => o.status === status);
               return (
               <div key={status} className="bg-neutral-50 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-3">
@@ -540,17 +819,20 @@ const VendorRestaurant = () => {
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {orders.filter((o) => o.status === status).map((order) => {
+                  {columnOrders.map((order) => {
                     const minutes = elapsedMinutes(order, now);
                     const readyCount = order.items?.filter((i) => ['ready', 'served'].includes(i.status)).length || 0;
                     const itemCount = order.items?.length || 0;
                     const activeTracking = !['served', 'completed', 'cancelled'].includes(order.status);
                     const TypeIcon = ORDER_TYPE_ICON[order.order_type] || UtensilsCrossed;
                     return (
-                      <div key={order.id} className="bg-white rounded-xl shadow-sm border border-neutral-100 overflow-hidden flex flex-col">
+                      <div key={order.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col ${order.is_rush ? 'border-red-300 ring-1 ring-red-200' : 'border-neutral-100'}`}>
                         {/* Colored priority header — spot a running-late ticket at a glance */}
                         <div className={`px-3 py-2 flex items-center justify-between ${urgencyBarClass(minutes, !activeTracking)}`}>
-                          <span className="font-display font-bold text-sm leading-none">{order.order_number}</span>
+                          <span className="font-display font-bold text-sm leading-none flex items-center gap-1.5">
+                            {order.order_number}
+                            {order.is_rush && <Flame className="h-3.5 w-3.5" />}
+                          </span>
                           <span className="flex items-center gap-1 text-xs font-semibold">
                             <Timer className="h-3.5 w-3.5" />
                             {minutes < 1 ? 'just now' : `${minutes}m`}
@@ -562,7 +844,14 @@ const VendorRestaurant = () => {
                             <TypeIcon className="h-3.5 w-3.5 text-primary-600" />
                             {order.order_type.replace('_', ' ')}
                           </span>
-                          {order.table && <span>Table {order.table.table_number}</span>}
+                          <span className="flex items-center gap-2">
+                            {order.channel && order.channel !== 'direct' && (
+                              <span className="text-[10px] font-bold uppercase text-secondary-700 bg-secondary-100 px-1.5 py-0.5 rounded">
+                                {CHANNEL_LABEL[order.channel] || order.channel}
+                              </span>
+                            )}
+                            {order.table && <span>Table {order.table.table_number}</span>}
+                          </span>
                         </div>
 
                         <div className="p-3 flex-1 flex flex-col">
@@ -624,6 +913,24 @@ const VendorRestaurant = () => {
                               {ACTION_LABEL[order.status]}
                             </button>
                           )}
+                          <div className="grid grid-cols-2 gap-1 mt-1">
+                            {activeTracking && (
+                              <button
+                                onClick={() => toggleRush(order)}
+                                className={`flex items-center justify-center gap-1 text-xs font-medium rounded-lg py-1.5 ${
+                                  order.is_rush ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'text-neutral-600 hover:bg-neutral-100'
+                                }`}
+                              >
+                                <Flame className="h-3.5 w-3.5" /> {order.is_rush ? 'Unflag Rush' : 'Mark Rush'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => printChit(order)}
+                              className="flex items-center justify-center gap-1 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded-lg py-1.5"
+                            >
+                              <Printer className="h-3.5 w-3.5" /> Print
+                            </button>
+                          </div>
                           {activeTracking && (
                             <button
                               onClick={() => cancelOrder(order)}
@@ -661,11 +968,53 @@ const VendorRestaurant = () => {
               />
             </div>
             <div className="flex-1" />
+            <Button size="sm" variant="secondary" onClick={exportMenuCsv} disabled={menuItems.length === 0}>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button
+              size="sm"
+              variant={bulk86Mode ? 'danger' : 'secondary'}
+              onClick={() => (bulk86Mode ? exitBulkMode() : setBulk86Mode(true))}
+              disabled={!isApproved}
+            >
+              {bulk86Mode ? <X className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+              {bulk86Mode ? 'Exit Bulk Mode' : "Bulk 86' Mode"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setCategoryManagerOpen(true)} disabled={!isApproved}>
+              <Tags className="h-4 w-4" />
+              Category Manager
+            </Button>
             <Button size="sm" onClick={openAddMenuForm} disabled={!isApproved}>
               <Plus className="h-4 w-4" />
               Add Menu Item
             </Button>
           </div>
+
+          {bulk86Mode && (
+            <div className="flex items-center justify-between gap-3 bg-neutral-900 text-white rounded-xl px-4 py-3 mb-4">
+              <span className="text-sm font-medium">{selectedMenuIds.size} item(s) selected</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => applyBulkAvailability(false)}
+                  disabled={selectedMenuIds.size === 0 || bulkSaving}
+                  className="text-xs font-bold uppercase tracking-wide bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg px-3 py-2"
+                >
+                  86 Selected
+                </button>
+                <button
+                  onClick={() => applyBulkAvailability(true)}
+                  disabled={selectedMenuIds.size === 0 || bulkSaving}
+                  className="text-xs font-bold uppercase tracking-wide bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg px-3 py-2"
+                >
+                  Restore Selected
+                </button>
+                <button onClick={exitBulkMode} className="text-xs font-medium text-neutral-300 hover:text-white px-2">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {menuItems.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-2 -mx-1 px-1">
@@ -740,9 +1089,12 @@ const VendorRestaurant = () => {
                     {items.map((item) => (
                       <div
                         key={item.id}
+                        onClick={() => bulk86Mode && toggleBulkSelection(item.id)}
                         className={`bg-white rounded-2xl border shadow-card overflow-hidden flex flex-col ${
-                          item.is_available ? 'border-neutral-100' : 'border-neutral-100 opacity-60'
-                        }`}
+                          bulk86Mode ? 'cursor-pointer' : ''
+                        } ${
+                          selectedMenuIds.has(item.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-neutral-100'
+                        } ${item.is_available ? '' : 'opacity-60'}`}
                       >
                         <div className="relative h-36 bg-neutral-100">
                           {item.image ? (
@@ -752,26 +1104,58 @@ const VendorRestaurant = () => {
                               <ImageIcon className="h-8 w-8 text-neutral-300" />
                             </div>
                           )}
+                          {bulk86Mode && (
+                            <span className="absolute top-2 left-2 bg-white rounded-md shadow">
+                              {selectedMenuIds.has(item.id)
+                                ? <CheckSquare className="h-6 w-6 text-primary-600" />
+                                : <Square className="h-6 w-6 text-neutral-400" />}
+                            </span>
+                          )}
+                          {item.station && !bulk86Mode && (
+                            <span className="absolute bottom-0 right-0 bg-neutral-900/80 text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5">
+                              {STATION_LABEL[item.station] || item.station}
+                            </span>
+                          )}
                           <span className="absolute top-2 right-2 bg-white/95 text-neutral-900 text-sm font-bold px-2 py-1 rounded-lg shadow-sm">
                             ${Number(item.price).toFixed(2)}
                           </span>
-                          {item.stock_quantity !== null && item.stock_quantity <= item.low_stock_threshold && (
-                            <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                          {!bulk86Mode && item.stock_quantity !== null && item.stock_quantity <= item.low_stock_threshold && (
+                            <span className="absolute top-9 left-2 inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">
                               <AlertTriangle className="h-3 w-3" />
                               Low stock
                             </span>
                           )}
                         </div>
                         <div className="p-4 flex-1 flex flex-col">
-                          <h4 className="font-semibold text-neutral-900 mb-1">{item.name}</h4>
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                            <h4 className="font-semibold text-neutral-900">{item.name}</h4>
+                            {item.sku && <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">{item.sku}</span>}
+                          </div>
                           {item.description && (
-                            <p className="text-sm text-neutral-500 line-clamp-2 mb-3">{item.description}</p>
+                            <p className="text-sm text-neutral-500 line-clamp-2 mb-2">{item.description}</p>
+                          )}
+                          <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
+                            {item.cost_price !== null && item.cost_price !== undefined ? (
+                              <span>Cost ${Number(item.cost_price).toFixed(2)} ({item.margin_percent}% margin)</span>
+                            ) : <span />}
+                            {item.prep_time_minutes !== null && item.prep_time_minutes !== undefined && (
+                              <span>{item.prep_time_minutes}m prep</span>
+                            )}
+                          </div>
+                          {item.allergens?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {item.allergens.map((a) => (
+                                <span key={a} className="text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
                           )}
                           <div className="mt-auto pt-2">
                             <button
                               type="button"
-                              onClick={() => toggleMenuAvailability(item)}
-                              disabled={!isApproved}
+                              onClick={(e) => { e.stopPropagation(); toggleMenuAvailability(item); }}
+                              disabled={!isApproved || bulk86Mode}
                               title={item.is_available ? 'Click to 86 this item' : 'Click to bring back in stock'}
                               className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide rounded-lg py-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                 item.is_available
@@ -787,15 +1171,15 @@ const VendorRestaurant = () => {
                           </div>
                           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-neutral-100">
                             <button
-                              onClick={() => openEditMenuForm(item)}
-                              disabled={!isApproved}
+                              onClick={(e) => { e.stopPropagation(); openEditMenuForm(item); }}
+                              disabled={!isApproved || bulk86Mode}
                               className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-primary-700 bg-primary-50 rounded-lg py-1.5 hover:bg-primary-100 disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                               <Edit className="h-3.5 w-3.5" /> Edit
                             </button>
                             <button
-                              onClick={() => handleMenuDelete(item.id)}
-                              disabled={!isApproved}
+                              onClick={(e) => { e.stopPropagation(); handleMenuDelete(item.id); }}
+                              disabled={!isApproved || bulk86Mode}
                               className="flex items-center justify-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg py-1.5 px-3 hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1047,11 +1431,68 @@ const VendorRestaurant = () => {
               value={menuFormData.category}
               onChange={(e) => setMenuFormData({ ...menuFormData, category: e.target.value })}
             >
-              <option value="starter">Starter</option>
-              <option value="main_course">Main Course</option>
-              <option value="dessert">Dessert</option>
-              <option value="beverage">Beverage</option>
+              {menuCategories.length === 0 && <option value="main_course">Main Course</option>}
+              {menuCategories.map((cat) => (
+                <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+              ))}
             </Select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Input
+              label="Cost Price ($)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={menuFormData.cost_price}
+              onChange={(e) => setMenuFormData({ ...menuFormData, cost_price: e.target.value })}
+            />
+            <Input
+              label="SKU"
+              type="text"
+              value={menuFormData.sku}
+              onChange={(e) => setMenuFormData({ ...menuFormData, sku: e.target.value })}
+            />
+            <Input
+              label="Prep Time (min)"
+              type="number"
+              min="0"
+              value={menuFormData.prep_time_minutes}
+              onChange={(e) => setMenuFormData({ ...menuFormData, prep_time_minutes: e.target.value })}
+            />
+          </div>
+          {menuFormData.price && menuFormData.cost_price !== '' && (
+            <p className="text-xs text-neutral-500 -mt-2">
+              Margin: {(((Number(menuFormData.price) - Number(menuFormData.cost_price)) / Number(menuFormData.price)) * 100).toFixed(1)}%
+            </p>
+          )}
+          <Select
+            label="Kitchen Station"
+            value={menuFormData.station}
+            onChange={(e) => setMenuFormData({ ...menuFormData, station: e.target.value })}
+          >
+            <option value="">Unassigned</option>
+            {STATION_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </Select>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">Allergens</label>
+            <div className="flex flex-wrap gap-2">
+              {ALLERGEN_OPTIONS.map((allergen) => (
+                <button
+                  key={allergen}
+                  type="button"
+                  onClick={() => toggleAllergen(allergen)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors ${
+                    menuFormData.allergens.includes(allergen)
+                      ? 'bg-red-100 text-red-700 border-red-200'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  {allergen}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1.5">Image</label>
@@ -1130,6 +1571,79 @@ const VendorRestaurant = () => {
         folder="menu-items"
       />
 
+      {/* Category Manager */}
+      <Modal open={categoryManagerOpen} onClose={() => setCategoryManagerOpen(false)} title="Category Manager" size="md">
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCategory())}
+              placeholder="New category name..."
+              className="flex-1 px-3 py-2 text-sm rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <Button size="sm" onClick={handleAddCategory} loading={savingCategory} disabled={!newCategoryName.trim()}>
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+
+          {categories.length === 0 ? (
+            <p className="text-sm text-neutral-500 text-center py-6">
+              No managed categories yet. Add one above, or keep using free-text categories on items.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {categories.map((category, index) => (
+                <div key={category.id} className="flex items-center gap-2 bg-neutral-50 rounded-xl p-2">
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={() => moveCategory(index, -1)}
+                      disabled={index === 0}
+                      className="text-neutral-400 hover:text-neutral-700 disabled:opacity-20"
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={categoryEdits[category.id] ?? category.name}
+                    onChange={(e) => setCategoryEdits((prev) => ({ ...prev, [category.id]: e.target.value }))}
+                    onBlur={() => handleRenameCategory(category)}
+                    onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                    className="flex-1 bg-white px-3 py-1.5 text-sm rounded-lg border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <span className="text-xs text-neutral-400 shrink-0">
+                    {menuItems.filter((m) => m.category === category.name).length} item(s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => moveCategory(index, 1)}
+                    disabled={index === categories.length - 1}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-700 disabled:opacity-20"
+                    title="Move down"
+                  >
+                    <GripVertical className="h-4 w-4 rotate-180" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(category)}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                    title="Delete category"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-neutral-400">
+            Renaming a category here updates every menu item using it. A category with items assigned cannot be deleted — reassign or delete those items first.
+          </p>
+        </div>
+      </Modal>
+
       {/* Table form */}
       <Modal open={tableFormOpen} onClose={closeTableForm} title={editingTable ? 'Edit Table' : 'Add Table'} size="md">
         <form onSubmit={handleTableSubmit} className="space-y-4">
@@ -1195,6 +1709,15 @@ const VendorRestaurant = () => {
                 ))}
               </Select>
             )}
+            <Select
+              label="Channel"
+              value={orderFormData.channel}
+              onChange={(e) => setOrderFormData({ ...orderFormData, channel: e.target.value })}
+            >
+              <option value="direct">Direct / POS</option>
+              <option value="uber_eats">UberEats</option>
+              <option value="doordash">DoorDash</option>
+            </Select>
           </div>
 
           <div>

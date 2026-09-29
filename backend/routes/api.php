@@ -225,8 +225,16 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     // Restaurant POS: Menu Management
     Route::get('/hotels/{hotel}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'index'])->middleware('permission:hotels.view.own');
     Route::post('/hotels/{hotel}/menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'store'])->middleware('permission:hotels.edit.own');
+    Route::post('/hotels/{hotel}/menu-items/bulk-availability', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'bulkAvailability'])->middleware('permission:hotels.edit.own');
     Route::put('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'update'])->middleware('permission:hotels.edit.own');
     Route::delete('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'destroy'])->middleware('permission:hotels.delete.own');
+
+    // Restaurant POS: Menu Categories
+    Route::get('/hotels/{hotel}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'index'])->middleware('permission:hotels.view.own');
+    Route::post('/hotels/{hotel}/menu-categories', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'store'])->middleware('permission:hotels.edit.own');
+    Route::post('/hotels/{hotel}/menu-categories/reorder', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'reorder'])->middleware('permission:hotels.edit.own');
+    Route::put('/menu-categories/{menuCategory}', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'update'])->middleware('permission:hotels.edit.own');
+    Route::delete('/menu-categories/{menuCategory}', [\App\Http\Controllers\Api\Vendor\MenuCategoryController::class, 'destroy'])->middleware('permission:hotels.delete.own');
 
     // Restaurant POS: Table Management
     Route::get('/hotels/{hotel}/tables', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'index'])->middleware('permission:hotels.view.own');
@@ -239,6 +247,7 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::post('/hotels/{hotel}/orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'store'])->middleware('permission:hotels.edit.own');
     Route::get('/orders/{order}', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'show'])->middleware('permission:hotels.view.own');
     Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own');
+    Route::put('/orders/{order}/rush', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateRush'])->middleware('permission:hotels.edit.own');
     Route::put('/orders/{order}/items/{item}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateItemStatus'])->middleware('permission:hotels.edit.own');
 
     // Restaurant POS: Earnings/Inventory Report

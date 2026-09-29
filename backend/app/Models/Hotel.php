@@ -76,6 +76,11 @@ class Hotel extends Model
         return $this->hasMany(MenuItem::class);
     }
 
+    public function menuCategories(): HasMany
+    {
+        return $this->hasMany(MenuCategory::class);
+    }
+
     public function restaurantTables(): HasMany
     {
         return $this->hasMany(RestaurantTable::class);

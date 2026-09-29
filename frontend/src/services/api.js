@@ -454,6 +454,14 @@ export const vendorAPI = {
   createMenuItem: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-items`, data),
   updateMenuItem: (itemId, data) => api.put(`/vendor/menu-items/${itemId}`, data),
   deleteMenuItem: (itemId) => api.delete(`/vendor/menu-items/${itemId}`),
+  bulkUpdateMenuAvailability: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-items/bulk-availability`, data),
+
+  // Restaurant POS: Menu Categories
+  getMenuCategories: (hotelId) => api.get(`/vendor/hotels/${hotelId}/menu-categories`),
+  createMenuCategory: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/menu-categories`, data),
+  updateMenuCategory: (categoryId, data) => api.put(`/vendor/menu-categories/${categoryId}`, data),
+  deleteMenuCategory: (categoryId) => api.delete(`/vendor/menu-categories/${categoryId}`),
+  reorderMenuCategories: (hotelId, ids) => api.post(`/vendor/hotels/${hotelId}/menu-categories/reorder`, { ids }),
 
   // Restaurant POS: Tables
   getTables: (hotelId) => api.get(`/vendor/hotels/${hotelId}/tables`),
@@ -465,6 +473,7 @@ export const vendorAPI = {
   getOrders: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/orders`, { params }),
   createOrder: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/orders`, data),
   updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
+  updateOrderRush: (orderId, isRush) => api.put(`/vendor/orders/${orderId}/rush`, { is_rush: isRush }),
   updateOrderItemStatus: (orderId, itemId, status) => api.put(`/vendor/orders/${orderId}/items/${itemId}/status`, { status }),
   getEarningsReport: (hotelId, params) => api.get(`/vendor/hotels/${hotelId}/reports/earnings`, { params }),
 
