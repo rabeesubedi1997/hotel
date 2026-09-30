@@ -8,10 +8,17 @@ import { ACTION_LABEL, CHANNEL_LABEL, ITEM_NEXT_STATUS, ITEM_STATUS_LABEL, NEXT_
  * out, not build them. Behavior (advance/rush/print/cancel/item-toggle) is
  * unchanged from the original monolith, just handed in via callbacks.
  */
-const OrderTicket = ({ order, now, onAdvance, onToggleItemStatus, onToggleRush, onPrint, onCancel }) => {
+const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleItemStatus, onToggleRush, onPrint, onCancel }) => {
   const minutes = elapsedMinutes(order, now);
-  const readyCount = order.items?.filter((i) => ['ready', 'served'].includes(i.status)).length || 0;
-  const itemCount = order.items?.length || 0;
+  // Station routing narrows which lines this screen shows (e.g. the grill
+  // screen only needs grill items) — the order itself still advances as a
+  // whole via the item-status ranking in OrderController, so counts here
+  // are scoped to the visible lines, not the full ticket.
+  const visibleItems = stationFilter === 'all'
+    ? (order.items || [])
+    : (order.items || []).filter((i) => i.menu_item?.station === stationFilter);
+  const readyCount = visibleItems.filter((i) => ['ready', 'served'].includes(i.status)).length;
+  const itemCount = visibleItems.length;
   const activeTracking = !['served', 'completed', 'cancelled'].includes(order.status);
   const TypeIcon = ORDER_TYPE_ICON[order.order_type] || UtensilsCrossed;
 
@@ -65,7 +72,7 @@ const OrderTicket = ({ order, now, onAdvance, onToggleItemStatus, onToggleRush, 
           </div>
         )}
         <ul className="text-xs text-neutral-700 mb-2 space-y-1 flex-1">
-          {order.items?.map((line) => {
+          {visibleItems.map((line) => {
             const lineStatus = line.status || 'pending';
             const isDone = ['ready', 'served'].includes(lineStatus);
             return (

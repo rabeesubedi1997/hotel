@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Flame, Grid3x3, Plus, Receipt, Timer, Users } from 'lucide-react';
 import { Badge, Button, StatCard } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
 import useAuthStore from '../../../stores/authStore';
 import { useRestaurant } from './context/RestaurantContext';
 import { useKitchenOrders, elapsedMinutes } from './hooks/useKitchenOrders';
-import { ITEM_NEXT_STATUS, KITCHEN_COLUMNS, NEXT_STATUS } from './constants';
+import { ITEM_NEXT_STATUS, KITCHEN_COLUMNS, NEXT_STATUS, STATION_LABEL, STATION_OPTIONS } from './constants';
 import OrderTicket from './OrderTicket';
 import OrderFormModal from './modals/OrderFormModal';
 import KitchenStaffModal from './modals/KitchenStaffModal';
 
 const RestaurantKitchen = () => {
-  const { ownerType, orders, tables, setOrders, isApproved, loadAll, toast } = useRestaurant();
+  const { ownerType, orders, tables, menuItems, setOrders, isApproved, loadAll, toast } = useRestaurant();
   const { hasAnyPermission } = useAuthStore();
   // A scoped Kitchen Staff login only holds restaurant.kitchen.*, never the
   // full hotels/activities.*.own permissions — hide the actions that
@@ -19,11 +19,30 @@ const RestaurantKitchen = () => {
   // else gets kitchen access) rather than let them 403 on click.
   const canManageRestaurant = hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
   const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
+  const [stationFilter, setStationFilter] = useState('all');
   const [orderFormOpen, setOrderFormOpen] = useState(false);
   const [staffModalOpen, setStaffModalOpen] = useState(false);
 
+  // Only offer stations actually assigned to a menu item here — a seafood
+  // shack's kitchen screen shouldn't show a "Pastry" tab it'll never use.
+  const stationsInUse = useMemo(
+    () => STATION_OPTIONS.filter((s) => menuItems.some((m) => m.station === s.value)),
+    [menuItems]
+  );
+
+  // Station routing narrows the board (and its stats) to tickets that
+  // actually have a line for this station — e.g. the grill screen doesn't
+  // need to count or show a dessert-only order. OrderTicket itself further
+  // narrows which LINES within a ticket render.
+  const stationScopedOrders = useMemo(
+    () => stationFilter === 'all'
+      ? orders
+      : orders.filter((o) => o.items?.some((i) => i.menu_item?.station === stationFilter)),
+    [orders, stationFilter]
+  );
+
   const { now, kitchenOrders, activeKitchenOrders, avgTicketMinutes, delayedOrders, mostDelayedOrder } =
-    useKitchenOrders(orders, kitchenTypeFilter);
+    useKitchenOrders(stationScopedOrders, kitchenTypeFilter);
 
   const advanceOrder = async (order) => {
     const next = NEXT_STATUS[order.status];
@@ -147,6 +166,32 @@ const RestaurantKitchen = () => {
         )}
       </div>
 
+      {stationsInUse.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto mb-4">
+          <button
+            type="button"
+            onClick={() => setStationFilter('all')}
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              stationFilter === 'all' ? 'bg-primary-600 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+            }`}
+          >
+            All Stations
+          </button>
+          {stationsInUse.map((station) => (
+            <button
+              key={station.value}
+              type="button"
+              onClick={() => setStationFilter(station.value)}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                stationFilter === station.value ? 'bg-primary-600 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {STATION_LABEL[station.value] || station.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <StatCard icon={Receipt} title="Active Orders" value={activeKitchenOrders.length} tone="primary" />
         <StatCard icon={Timer} title="Avg Ticket Time" value={`${avgTicketMinutes}m`} tone="neutral" />
@@ -182,6 +227,7 @@ const RestaurantKitchen = () => {
                     key={order.id}
                     order={order}
                     now={now}
+                    stationFilter={stationFilter}
                     onAdvance={advanceOrder}
                     onToggleItemStatus={toggleItemStatus}
                     onToggleRush={toggleRush}
