@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
+use App\Models\BookingCharge;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
@@ -19,7 +20,7 @@ class OrderController extends Controller
         $user = auth()->user();
         $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        $query = $owner->orders()->with(['items.menuItem', 'table'])->orderBy('id', 'desc');
+        $query = $owner->orders()->with(['items.menuItem', 'table', 'booking.room'])->orderBy('id', 'desc');
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
@@ -114,7 +115,7 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Order created successfully',
-            'order' => $order->load(['items.menuItem', 'table']),
+            'order' => $order->load(['items.menuItem', 'table', 'booking.room']),
         ], 201);
     }
 
@@ -161,6 +162,26 @@ class OrderController extends Controller
             $order->update(['stock_deducted' => true]);
         }
 
+        // Room-charge integration: a completed order tied to a booking gets
+        // posted to that booking's folio automatically — this is the one
+        // integration point between Restaurant POS and the hotel/activity
+        // booking side. firstOrCreate keyed on the order keeps this
+        // idempotent if updateStatus is ever called again for an order
+        // that's already completed.
+        if ($validated['status'] === Order::STATUS_COMPLETED && $order->booking_id) {
+            BookingCharge::firstOrCreate(
+                ['chargeable_type' => Order::class, 'chargeable_id' => $order->id],
+                [
+                    'booking_id' => $order->booking_id,
+                    'description' => "Restaurant order {$order->order_number}",
+                    'amount' => $order->total_amount,
+                    'status' => BookingCharge::STATUS_POSTED,
+                    'created_by' => $user->id,
+                    'posted_at' => now(),
+                ]
+            );
+        }
+
         $order->update(['status' => $validated['status']]);
 
         // Keep per-item kitchen tracking in step with the whole-order status
@@ -201,7 +222,7 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Order status updated successfully',
-            'order' => $order->load(['items.menuItem', 'table']),
+            'order' => $order->load(['items.menuItem', 'table', 'booking.room']),
         ]);
     }
 
@@ -222,7 +243,7 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Order updated',
-            'order' => $order->load(['items.menuItem', 'table']),
+            'order' => $order->load(['items.menuItem', 'table', 'booking.room']),
         ]);
     }
 
@@ -277,14 +298,14 @@ class OrderController extends Controller
 
         return response()->json([
             'message' => 'Item status updated',
-            'order' => $order->fresh()->load(['items.menuItem', 'table']),
+            'order' => $order->fresh()->load(['items.menuItem', 'table', 'booking.room']),
         ]);
     }
 
     public function show($orderId)
     {
         $user = auth()->user();
-        $order = Order::with(['items.menuItem', 'table'])->findOrFail($orderId);
+        $order = Order::with(['items.menuItem', 'table', 'booking.room'])->findOrFail($orderId);
 
         if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'view')) {
             return $blocked;

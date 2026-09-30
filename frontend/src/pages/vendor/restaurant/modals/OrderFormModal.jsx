@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { BedDouble, Loader2, Search, X } from 'lucide-react';
 import { Button, Modal, Select, Textarea } from '../../../../components/ui';
 import { vendorAPI } from '../../../../services/api';
 import { useRestaurant } from '../context/RestaurantContext';
@@ -7,16 +8,48 @@ import { emptyOrderForm } from '../constants';
 /**
  * "New Order" form, opened from the Kitchen tab. Extracted verbatim from
  * the old Restaurant.jsx monolith — same payload shape, same optimistic
- * table-status update on submit.
+ * table-status update on submit — plus "Charge to Room": staff can look up
+ * a guest's active booking and attach it via booking_id, which
+ * OrderController auto-posts to that booking's folio once the order is
+ * marked completed, instead of taking a separate payment at the table.
  */
 const OrderFormModal = ({ open, onClose, onPlaced }) => {
   const { ownerType, ownerId, menuItems, tables, setOrders, setTables, toast } = useRestaurant();
   const [orderFormData, setOrderFormData] = useState(emptyOrderForm);
   const [savingOrder, setSavingOrder] = useState(false);
 
+  const [chargeToRoom, setChargeToRoom] = useState(false);
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [bookingResults, setBookingResults] = useState([]);
+  const [searchingBookings, setSearchingBookings] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  // "Charge to Room" only makes sense once there's a table/booking context —
+  // not for a takeaway order with no guest tied to a stay.
+  const canChargeToRoom = orderFormData.order_type !== 'takeaway';
+
+  useEffect(() => {
+    if (!chargeToRoom || !bookingSearch.trim()) {
+      setBookingResults([]);
+      return;
+    }
+    setSearchingBookings(true);
+    const handle = setTimeout(() => {
+      vendorAPI.getActiveBookings(ownerType, ownerId, { search: bookingSearch.trim() })
+        .then((res) => setBookingResults(res.data || []))
+        .catch(() => setBookingResults([]))
+        .finally(() => setSearchingBookings(false));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [chargeToRoom, bookingSearch, ownerType, ownerId]);
+
   const close = () => {
     onClose();
     setOrderFormData(emptyOrderForm);
+    setChargeToRoom(false);
+    setBookingSearch('');
+    setBookingResults([]);
+    setSelectedBooking(null);
   };
 
   const addOrderLine = (menuItemId) => {
@@ -59,6 +92,7 @@ const OrderFormModal = ({ open, onClose, onPlaced }) => {
         channel: orderFormData.channel,
         notes: orderFormData.notes || undefined,
         table_id: orderFormData.order_type === 'dine_in' && orderFormData.table_id ? orderFormData.table_id : undefined,
+        booking_id: chargeToRoom && selectedBooking ? selectedBooking.id : undefined,
         items: orderFormData.items,
       };
       const response = await vendorAPI.createOrder(ownerType, ownerId, payload);
@@ -111,6 +145,69 @@ const OrderFormModal = ({ open, onClose, onPlaced }) => {
             <option value="doordash">DoorDash</option>
           </Select>
         </div>
+
+        {canChargeToRoom && (
+          <div className="border border-neutral-200 rounded-xl p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm text-neutral-700">
+              <input
+                type="checkbox"
+                checked={chargeToRoom}
+                onChange={(e) => {
+                  setChargeToRoom(e.target.checked);
+                  if (!e.target.checked) { setSelectedBooking(null); setBookingSearch(''); }
+                }}
+              />
+              Charge to Room / Booking
+            </label>
+            {chargeToRoom && (
+              selectedBooking ? (
+                <div className="flex items-center justify-between gap-3 bg-primary-50 rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm text-primary-800 min-w-0">
+                    <BedDouble className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {selectedBooking.user?.name || 'Guest'}
+                      {selectedBooking.room ? ` · Room ${selectedBooking.room.room_number}` : ''}
+                      {' · '}{selectedBooking.booking_number}
+                    </span>
+                  </span>
+                  <button type="button" onClick={() => setSelectedBooking(null)} className="text-primary-600 hover:text-primary-800 shrink-0">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="h-4 w-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    placeholder="Search guest name, room number, or booking #..."
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  {searchingBookings && <Loader2 className="h-4 w-4 animate-spin text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2" />}
+                  {bookingResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {bookingResults.map((booking) => (
+                        <button
+                          key={booking.id}
+                          type="button"
+                          onClick={() => { setSelectedBooking(booking); setBookingSearch(''); setBookingResults([]); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-primary-50 flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">{booking.user?.name || 'Guest'}{booking.room ? ` · Room ${booking.room.room_number}` : ''}</span>
+                          <span className="text-xs text-neutral-400 shrink-0">{booking.booking_number}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!searchingBookings && bookingSearch.trim() && bookingResults.length === 0 && (
+                    <p className="text-xs text-neutral-400 mt-1">No active bookings match.</p>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
         <div>
           <p className="text-sm font-medium text-neutral-700 mb-2">Menu Items</p>

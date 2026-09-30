@@ -1,4 +1,4 @@
-import { CheckCircle2, Flame, Printer, Timer, UtensilsCrossed } from 'lucide-react';
+import { BedDouble, CheckCircle2, Flame, Printer, Timer, UtensilsCrossed } from 'lucide-react';
 import { elapsedMinutes } from './hooks/useKitchenOrders';
 import { ACTION_LABEL, CHANNEL_LABEL, ITEM_NEXT_STATUS, ITEM_STATUS_LABEL, NEXT_STATUS, ORDER_TYPE_ICON, urgencyBarClass } from './constants';
 
@@ -41,6 +41,12 @@ const OrderTicket = ({ order, now, onAdvance, onToggleItemStatus, onToggleRush, 
             </span>
           )}
           {order.table && <span>Table {order.table.table_number}</span>}
+          {order.booking && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-primary-700 bg-primary-100 px-1.5 py-0.5 rounded" title={`Charged to ${order.booking.booking_number}`}>
+              <BedDouble className="h-3 w-3" />
+              {order.booking.room ? `Rm ${order.booking.room.room_number}` : 'Room'}
+            </span>
+          )}
         </span>
       </div>
 

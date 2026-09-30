@@ -216,6 +216,10 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::get('/bookings/{booking}', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'show'])->middleware('permission:bookings.view.own');
     Route::put('/bookings/{booking}/status', [\App\Http\Controllers\Api\Vendor\BookingController::class, 'updateStatus'])->middleware('permission:bookings.edit.own');
 
+    // Room-charge folio: void a charge (e.g. a restaurant order posted in
+    // error) before the guest checks out.
+    Route::put('/booking-charges/{bookingCharge}/void', [\App\Http\Controllers\Api\Vendor\BookingChargeController::class, 'void'])->middleware('permission:bookings.edit.own');
+
     // Room Management (Vendor needs to manage rooms for their hotels)
     Route::get('/hotels/{hotel}/rooms', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'index'])->middleware('permission:hotels.view.own');
     Route::post('/hotels/{hotel}/rooms', [\App\Http\Controllers\Api\Vendor\RoomController::class, 'store'])->middleware('permission:hotels.edit.own');
@@ -259,6 +263,10 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
 
     // Restaurant POS: Inventory Settings (when stock decrements — on order placed vs on order completed)
     \App\Support\RestaurantPosRoutes::ownerScoped('put', 'inventory-settings', [\App\Http\Controllers\Api\Vendor\InventorySettingsController::class, 'update'], 'edit');
+
+    // Restaurant POS: "Charge to Room" — active booking lookup for attaching
+    // an order to a guest's folio instead of a separate payment at the table.
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'active-bookings', [\App\Http\Controllers\Api\Vendor\ActiveBookingLookupController::class, 'index'], 'view');
 
     // Media Library (Vendor needs to upload images too)
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');

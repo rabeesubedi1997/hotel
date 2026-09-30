@@ -57,6 +57,13 @@ class Booking extends Model
         'discount_amount' => 'decimal:2',
     ];
 
+    protected $appends = ['folio_total'];
+
+    public function getFolioTotalAttribute(): float
+    {
+        return $this->folioTotal();
+    }
+
     protected static function boot(): void
     {
         parent::boot();
@@ -99,6 +106,20 @@ class Booking extends Model
     public function extras(): HasMany
     {
         return $this->hasMany(BookingExtra::class);
+    }
+
+    public function charges(): HasMany
+    {
+        return $this->hasMany(BookingCharge::class);
+    }
+
+    // Additive on top of total_amount (the original room/activity price) —
+    // never mutate total_amount itself, since pricing/refund logic elsewhere
+    // reads it as the base price. Only 'posted' charges count; 'pending'
+    // charges are awaiting front-desk review and 'voided' ones were reversed.
+    public function folioTotal(): float
+    {
+        return (float) $this->total_amount + (float) $this->charges()->posted()->sum('amount');
     }
 
     public function scopeActive($query)

@@ -34,7 +34,7 @@ class BookingController extends Controller
                       ->where('bookable_type', Activity::class);
             });
         })
-        ->with(['bookable', 'user'])
+        ->with(['bookable', 'user', 'charges'])
         ->orderBy('created_at', 'desc')
         ->get();
         
@@ -58,9 +58,9 @@ class BookingController extends Controller
                       ->where('bookable_type', Activity::class);
             });
         })->where('id', $id)
-        ->with(['bookable', 'user'])
+        ->with(['bookable', 'user', 'charges'])
         ->firstOrFail();
-        
+
         return response()->json($booking);
     }
 

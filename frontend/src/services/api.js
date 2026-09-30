@@ -494,11 +494,15 @@ export const vendorAPI = {
   updateOrderItemStatus: (orderId, itemId, status) => api.put(`/vendor/orders/${orderId}/items/${itemId}/status`, { status }),
   getEarningsReport: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/reports/earnings`, { params }),
 
+  // Restaurant POS: "Charge to Room" — active booking lookup
+  getActiveBookings: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/active-bookings`, { params }),
+
   // Bookings Management
   getBookings: () => api.get('/vendor/bookings'),
   getBooking: (id) => api.get(`/vendor/bookings/${id}`),
   updateBookingStatus: (id, data) => api.put(`/vendor/bookings/${id}/status`, data),
   getBookingStats: () => api.get('/vendor/bookings/stats'),
+  voidBookingCharge: (chargeId) => api.put(`/vendor/booking-charges/${chargeId}/void`),
 
   // Media Library
   getMediaLibrary: (params) => api.get('/vendor/media-library', { params }),

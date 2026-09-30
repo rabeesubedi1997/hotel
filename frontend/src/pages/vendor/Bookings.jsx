@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { XCircle } from 'lucide-react';
 import { Button, Table, Th, Td, Badge, Modal } from '../../components/ui';
 
 const VendorBookings = () => {
@@ -10,6 +11,7 @@ const VendorBookings = () => {
   const [viewModal, setViewModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [voidingChargeId, setVoidingChargeId] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -32,6 +34,14 @@ const VendorBookings = () => {
   });
 
   const isHotelBooking = (booking) => (booking.bookable_type || '').includes('Hotel');
+
+  // Computed client-side (rather than trusting the fetched folio_total
+  // snapshot) so voiding a charge above updates this total immediately
+  // without a full refetch.
+  const folioTotal = (booking) => {
+    const posted = (booking.charges || []).filter((c) => c.status === 'posted');
+    return Number(booking.total_amount) + posted.reduce((sum, c) => sum + Number(c.amount), 0);
+  };
 
   const getBookableType = (booking) => {
     return isHotelBooking(booking) ? 'Hotel' : 'Activity';
@@ -65,6 +75,28 @@ const VendorBookings = () => {
   };
 
   const confirmBooking = (id) => updateStatus(id, 'confirmed');
+
+  // Room charges (e.g. restaurant orders posted to this booking's folio)
+  // are voided here rather than deleted, so the record of the mistake stays
+  // auditable — see BookingCharge::STATUS_VOIDED.
+  const voidCharge = async (charge) => {
+    if (!window.confirm(`Void this ${charge.description} charge?`)) return;
+    setVoidingChargeId(charge.id);
+    try {
+      const response = await vendorAPI.voidBookingCharge(charge.id);
+      const updateCharges = (booking) => booking.id !== charge.booking_id ? booking : {
+        ...booking,
+        charges: (booking.charges || []).map((c) => (c.id === charge.id ? response.data.charge : c)),
+      };
+      setBookings((prev) => prev.map(updateCharges));
+      setSelectedBooking((prev) => (prev ? updateCharges(prev) : prev));
+      toast.success('Charge voided');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to void charge');
+    } finally {
+      setVoidingChargeId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -122,7 +154,12 @@ const VendorBookings = () => {
                 <Td>{booking.user?.name || 'N/A'}</Td>
                 <Td>{getBookableType(booking)}</Td>
                 <Td>{booking.bookable?.name || 'N/A'}</Td>
-                <Td>${booking.total_amount}</Td>
+                <Td>
+                  ${folioTotal(booking).toFixed(2)}
+                  {(booking.charges || []).some((c) => c.status === 'posted') && (
+                    <span className="block text-[11px] text-neutral-400">incl. room charges</span>
+                  )}
+                </Td>
                 <Td>
                   <Badge status={booking.status}>{booking.status.replace('_', ' ')}</Badge>
                 </Td>
@@ -229,7 +266,7 @@ const VendorBookings = () => {
                   </>
                 )}
                 <div>
-                  <p className="text-sm text-neutral-500">Total Amount</p>
+                  <p className="text-sm text-neutral-500">{isHotelBooking(selectedBooking) ? 'Room' : 'Activity'} Amount</p>
                   <p className="font-bold text-primary-600">${selectedBooking.total_amount}</p>
                 </div>
               </div>
@@ -240,6 +277,47 @@ const VendorBookings = () => {
                 </div>
               )}
             </div>
+
+            {/* Room charges — e.g. restaurant orders posted to this
+                booking's folio via "Charge to Room" instead of a separate
+                payment at the table. */}
+            {(selectedBooking.charges || []).length > 0 && (
+              <div className="bg-neutral-50 rounded-2xl p-4">
+                <h4 className="font-display font-semibold text-neutral-900 mb-3">Room Charges</h4>
+                <div className="space-y-2">
+                  {selectedBooking.charges.map((charge) => (
+                    <div key={charge.id} className="flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2 border border-neutral-100">
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium truncate ${charge.status === 'voided' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
+                          {charge.description}
+                        </p>
+                        <p className="text-xs text-neutral-400">{new Date(charge.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-sm font-semibold ${charge.status === 'voided' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
+                          ${Number(charge.amount).toFixed(2)}
+                        </span>
+                        {charge.status !== 'voided' && (
+                          <button
+                            type="button"
+                            onClick={() => voidCharge(charge)}
+                            disabled={voidingChargeId === charge.id}
+                            title="Void this charge"
+                            className="text-red-500 hover:bg-red-50 rounded-lg p-1 disabled:opacity-40"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-200">
+                  <span className="text-sm font-semibold text-neutral-700">Folio Total</span>
+                  <span className="font-bold text-primary-700">${folioTotal(selectedBooking).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
 
             {selectedBooking.status === 'pending' && (
               <Button
