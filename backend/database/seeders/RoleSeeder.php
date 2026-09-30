@@ -191,11 +191,38 @@ class RoleSeeder extends Seeder
                     'media.upload',
                     'media.delete.own',
 
-                    // Restaurant POS: Kitchen Display (a Vendor already has
-                    // full access via hotels/activities.edit.own — these are
-                    // the standalone permissions Kitchen Staff gets instead)
+                    // Restaurant POS: Kitchen Display + Waiter/Counter (a
+                    // Vendor already has full access via hotels/
+                    // activities.edit.own — these are the standalone
+                    // permissions Kitchen Staff/Waiter get instead)
                     'restaurant.kitchen.view',
                     'restaurant.kitchen.manage',
+                    'restaurant.waiter.view',
+                    'restaurant.waiter.manage',
+                ],
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Waiter',
+                'slug' => 'waiter',
+                'description' => 'Takes orders and manages tables/floor — no menu editing, reports, or per-item kitchen ticket control',
+                'level' => 28,
+                'permissions' => [
+                    // Needed to resolve which hotel/activity owns the
+                    // Restaurant POS this login is scoped to, and to load
+                    // the menu/tables to build an order from.
+                    'hotels.view.own',
+                    'activities.view.own',
+
+                    // Take orders, advance/rush/cancel/transfer/merge whole
+                    // orders — everything EXCEPT per-item kitchen ticket
+                    // control (restaurant.kitchen.manage), which stays the
+                    // kitchen's job.
+                    'restaurant.waiter.view',
+                    'restaurant.waiter.manage',
+                    // Full visibility into the kitchen board so a waiter can
+                    // see how their table's order is progressing.
+                    'restaurant.kitchen.view',
                 ],
                 'is_active' => true,
             ],

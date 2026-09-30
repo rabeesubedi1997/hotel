@@ -8,7 +8,7 @@ import { ACTION_LABEL, CHANNEL_LABEL, ITEM_NEXT_STATUS, ITEM_STATUS_LABEL, NEXT_
  * out, not build them. Behavior (advance/rush/print/cancel/item-toggle) is
  * unchanged from the original monolith, just handed in via callbacks.
  */
-const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleItemStatus, onToggleRush, onPrint, onCancel }) => {
+const OrderTicket = ({ order, now, stationFilter = 'all', canAdvanceItems = true, onAdvance, onToggleItemStatus, onToggleRush, onPrint, onCancel }) => {
   const minutes = elapsedMinutes(order, now);
   // Station routing narrows which lines this screen shows (e.g. the grill
   // screen only needs grill items) — the order itself still advances as a
@@ -79,12 +79,12 @@ const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleIte
               <li key={line.id}>
                 <button
                   type="button"
-                  onClick={() => activeTracking && onToggleItemStatus(order, line)}
-                  disabled={!activeTracking || !ITEM_NEXT_STATUS[lineStatus]}
+                  onClick={() => canAdvanceItems && activeTracking && onToggleItemStatus(order, line)}
+                  disabled={!canAdvanceItems || !activeTracking || !ITEM_NEXT_STATUS[lineStatus]}
                   className={`w-full flex items-start gap-2.5 text-left px-3 py-2 rounded-xl transition ${
                     isDone ? 'bg-primary-50' : 'bg-neutral-50 hover:bg-neutral-100'
-                  } ${activeTracking && ITEM_NEXT_STATUS[lineStatus] ? 'cursor-pointer' : 'cursor-default'}`}
-                  title={activeTracking ? `Mark ${ITEM_STATUS_LABEL[ITEM_NEXT_STATUS[lineStatus]] || ''}` : ''}
+                  } ${canAdvanceItems && activeTracking && ITEM_NEXT_STATUS[lineStatus] ? 'cursor-pointer' : 'cursor-default'}`}
+                  title={canAdvanceItems && activeTracking ? `Mark ${ITEM_STATUS_LABEL[ITEM_NEXT_STATUS[lineStatus]] || ''}` : ''}
                 >
                   <span className={`mt-0.5 h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isDone ? 'bg-primary-600 border-primary-600' : 'border-neutral-300'}`}>
                     {isDone && <CheckCircle2 className="h-3.5 w-3.5 text-white" strokeWidth={3} />}

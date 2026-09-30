@@ -37,14 +37,18 @@ const VendorRestaurant = () => {
 const RestaurantShell = () => {
   const navigate = useNavigate();
   const { ownerType, owner, loading, isApproved } = useRestaurant();
-  const { hasAnyPermission } = useAuthStore();
+  const { hasAnyPermission, isAdminLevel } = useAuthStore();
   const [tab, setTab] = useState('kitchen');
   const backLink = ownerType === 'activity' ? '/vendor/activities' : '/vendor/hotels';
 
-  // Kitchen Staff (restaurant.kitchen.* only, no hotels/activities.*.own)
-  // gets the Kitchen Display and nothing else — no Menu/Tables/Reports tabs.
-  const isKitchenOnly = !hasAnyPermission(['hotels.edit.own', 'activities.edit.own'])
-    && hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
+  const isOwnerAccount = isAdminLevel() || hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
+  const isWaiter = hasAnyPermission(['restaurant.waiter.view', 'restaurant.waiter.manage']);
+  // Department-scoped logins only see the tabs relevant to their job: Kitchen
+  // Staff gets the board and nothing else; a Waiter also needs Tables (to
+  // seat guests and manage the floor) but not Menu editing or Reports.
+  const visibleTabs = isOwnerAccount
+    ? TABS
+    : TABS.filter((t) => t.key === 'kitchen' || (t.key === 'tables' && isWaiter));
 
   if (loading) {
     return (
@@ -72,17 +76,11 @@ const RestaurantShell = () => {
         </div>
       )}
 
-      {isKitchenOnly ? (
-        <RestaurantKitchen />
-      ) : (
-        <>
-          <Tabs tabs={TABS} active={tab} onChange={setTab} className="mb-6" />
-          {tab === 'kitchen' && <RestaurantKitchen />}
-          {tab === 'menu' && <RestaurantMenu />}
-          {tab === 'tables' && <RestaurantTables />}
-          {tab === 'reports' && <RestaurantReports />}
-        </>
-      )}
+      {visibleTabs.length > 1 && <Tabs tabs={visibleTabs} active={tab} onChange={setTab} className="mb-6" />}
+      {tab === 'kitchen' && <RestaurantKitchen />}
+      {tab === 'menu' && isOwnerAccount && <RestaurantMenu />}
+      {tab === 'tables' && (isOwnerAccount || isWaiter) && <RestaurantTables />}
+      {tab === 'reports' && isOwnerAccount && <RestaurantReports />}
     </div>
   );
 };

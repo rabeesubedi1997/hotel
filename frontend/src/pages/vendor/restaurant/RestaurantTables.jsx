@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ArrowRightLeft, CheckCircle2, Circle, Combine, Edit, Grid3x3, Plus, Trash2, Users, X } from 'lucide-react';
 import { Badge, Button, StatCard } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
+import useAuthStore from '../../../stores/authStore';
 import { useRestaurant } from './context/RestaurantContext';
 import { ITEM_STATUS_LABEL } from './constants';
 import TableFormModal from './modals/TableFormModal';
@@ -16,6 +17,10 @@ const STATUS_BAR_CLASS = {
 
 const RestaurantTables = () => {
   const { tables, setTables, orders, setOrders, isApproved, loadAll, toast } = useRestaurant();
+  const { hasAnyPermission, isAdminLevel } = useAuthStore();
+  // Adding/removing tables is one-time floor setup — kept owner-only even
+  // though a Waiter can seat/clear/transfer/merge day to day.
+  const isOwnerAccount = isAdminLevel() || hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
   const [tableFormOpen, setTableFormOpen] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
   const [selectedTableId, setSelectedTableId] = useState(null);
@@ -117,10 +122,12 @@ const RestaurantTables = () => {
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="font-display headline-sm text-on-surface">Floor Plan</h2>
-        <Button size="sm" onClick={openAddTableForm} disabled={!isApproved}>
-          <Plus className="h-4 w-4" />
-          Add Table
-        </Button>
+        {isOwnerAccount && (
+          <Button size="sm" onClick={openAddTableForm} disabled={!isApproved}>
+            <Plus className="h-4 w-4" />
+            Add Table
+          </Button>
+        )}
       </div>
 
       {tables.length > 0 && (
@@ -134,11 +141,15 @@ const RestaurantTables = () => {
       {tables.length === 0 ? (
         <div className="col-span-full bg-white rounded-3xl border border-dashed border-neutral-200 py-16 text-center">
           <Grid3x3 className="h-10 w-10 text-neutral-300 mx-auto mb-3" />
-          <p className="text-neutral-500 mb-4">No tables added yet. Set up your dining room layout.</p>
-          <Button size="sm" onClick={openAddTableForm} disabled={!isApproved} className="mx-auto">
-            <Plus className="h-4 w-4" />
-            Add Your First Table
-          </Button>
+          <p className="text-neutral-500 mb-4">
+            {isOwnerAccount ? 'No tables added yet. Set up your dining room layout.' : 'No tables have been set up yet.'}
+          </p>
+          {isOwnerAccount && (
+            <Button size="sm" onClick={openAddTableForm} disabled={!isApproved} className="mx-auto">
+              <Plus className="h-4 w-4" />
+              Add Your First Table
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -280,14 +291,16 @@ const RestaurantTables = () => {
                     <p className="text-body-sm text-neutral-400 border-t border-neutral-100 pt-4">No active order at this table.</p>
                   )}
 
-                  <div className="flex items-center gap-2 mt-5 pt-4 border-t border-neutral-100">
-                    <button onClick={() => openEditTableForm(selectedTable)} disabled={!isApproved} className="flex-1 flex items-center justify-center gap-1.5 text-body-sm font-medium text-primary-700 bg-primary-50 rounded-xl py-2 hover:bg-primary-100 disabled:opacity-30 disabled:cursor-not-allowed">
-                      <Edit className="h-4 w-4" /> Edit
-                    </button>
-                    <button onClick={() => handleTableDelete(selectedTable.id)} disabled={!isApproved} className="flex items-center justify-center gap-1.5 text-body-sm font-medium text-red-600 bg-red-50 rounded-xl py-2 px-4 hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {isOwnerAccount && (
+                    <div className="flex items-center gap-2 mt-5 pt-4 border-t border-neutral-100">
+                      <button onClick={() => openEditTableForm(selectedTable)} disabled={!isApproved} className="flex-1 flex items-center justify-center gap-1.5 text-body-sm font-medium text-primary-700 bg-primary-50 rounded-xl py-2 hover:bg-primary-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <Edit className="h-4 w-4" /> Edit
+                      </button>
+                      <button onClick={() => handleTableDelete(selectedTable.id)} disabled={!isApproved} className="flex items-center justify-center gap-1.5 text-body-sm font-medium text-red-600 bg-red-50 rounded-xl py-2 px-4 hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

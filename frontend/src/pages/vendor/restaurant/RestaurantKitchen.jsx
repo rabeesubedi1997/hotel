@@ -8,18 +8,23 @@ import { useKitchenOrders, elapsedMinutes } from './hooks/useKitchenOrders';
 import { ITEM_NEXT_STATUS, KITCHEN_COLUMNS, NEXT_STATUS, STATION_LABEL, STATION_OPTIONS } from './constants';
 import OrderTicket from './OrderTicket';
 import OrderFormModal from './modals/OrderFormModal';
-import KitchenStaffModal from './modals/KitchenStaffModal';
+import StaffAccessModal from './modals/StaffAccessModal';
 
 const RestaurantKitchen = () => {
   const { ownerType, orders, tables, menuItems, setOrders, isApproved, loadAll, toast } = useRestaurant();
   const { hasAnyPermission, isAdminLevel } = useAuthStore();
-  // A scoped Kitchen Staff login only holds restaurant.kitchen.*, never the
-  // full hotels/activities.*.own permissions — hide the actions that
-  // require actually owning the property (taking new orders, managing who
-  // else gets kitchen access) rather than let them 403 on click. Admins use
-  // hotels.edit.all (not .own) and bypass permission checks entirely on the
-  // backend, so they need their own explicit allow here too.
-  const canManageRestaurant = isAdminLevel() || hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
+  // Admins use hotels.edit.all (not .own) and bypass permission checks
+  // entirely on the backend, so they need their own explicit allow here too.
+  const isOwnerAccount = isAdminLevel() || hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
+  // Waiter (restaurant.waiter.manage) can take orders and run front-of-house
+  // actions but never gets full ownership — Kitchen Staff alone cannot.
+  const canTakeOrders = isOwnerAccount || hasAnyPermission(['restaurant.waiter.manage']);
+  // Per-item ticket control (cooking status) stays Kitchen/owner-only — a
+  // waiter watching the board shouldn't be able to bump a dish's status.
+  const canAdvanceItems = isOwnerAccount || hasAnyPermission(['restaurant.kitchen.manage']);
+  // Staff-access management (granting/revoking department logins) is
+  // owner-only — no scoped staff account manages who else gets access.
+  const canManageStaffAccess = isOwnerAccount;
   const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
   const [stationFilter, setStationFilter] = useState('all');
   const [orderFormOpen, setOrderFormOpen] = useState(false);
@@ -157,16 +162,20 @@ const RestaurantKitchen = () => {
             </button>
           ))}
         </div>
-        {canManageRestaurant && (
+        {(canManageStaffAccess || canTakeOrders) && (
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setStaffModalOpen(true)} disabled={!isApproved}>
-              <Users className="h-4 w-4" />
-              Kitchen Staff
-            </Button>
-            <Button size="sm" onClick={() => setOrderFormOpen(true)} disabled={!isApproved}>
-              <Plus className="h-4 w-4" />
-              New Order
-            </Button>
+            {canManageStaffAccess && (
+              <Button size="sm" variant="secondary" onClick={() => setStaffModalOpen(true)} disabled={!isApproved}>
+                <Users className="h-4 w-4" />
+                Staff Access
+              </Button>
+            )}
+            {canTakeOrders && (
+              <Button size="sm" onClick={() => setOrderFormOpen(true)} disabled={!isApproved}>
+                <Plus className="h-4 w-4" />
+                New Order
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -235,6 +244,7 @@ const RestaurantKitchen = () => {
                     order={order}
                     now={now}
                     stationFilter={stationFilter}
+                    canAdvanceItems={canAdvanceItems}
                     onAdvance={advanceOrder}
                     onToggleItemStatus={toggleItemStatus}
                     onToggleRush={toggleRush}
@@ -251,12 +261,8 @@ const RestaurantKitchen = () => {
         })}
       </div>
 
-      {canManageRestaurant && (
-        <>
-          <OrderFormModal open={orderFormOpen} onClose={() => setOrderFormOpen(false)} />
-          <KitchenStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
-        </>
-      )}
+      {canTakeOrders && <OrderFormModal open={orderFormOpen} onClose={() => setOrderFormOpen(false)} />}
+      {canManageStaffAccess && <StaffAccessModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />}
     </div>
   );
 };

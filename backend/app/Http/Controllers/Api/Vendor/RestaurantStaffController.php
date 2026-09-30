@@ -7,16 +7,23 @@ use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\RestaurantStaff;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
- * Lets a Hotel/Activity owner grant an existing user Kitchen Display-only
- * access to their Restaurant POS, without handing over the full vendor
- * account — see the restaurant_staff migration for why this table exists
- * alongside the restaurant.kitchen.* permissions.
+ * Lets a Hotel/Activity owner grant an existing user department-scoped
+ * access to their Restaurant POS (Kitchen or Waiter/Counter) without
+ * handing over the full vendor account — see the restaurant_staff
+ * migration for why this table exists alongside the restaurant.kitchen.*
+ * / restaurant.waiter.* permissions. One RestaurantStaff row just means
+ * "this user has some staff access to this property" — which department(s)
+ * they belong to comes entirely from which of those roles are attached to
+ * their account, so the same row covers a user holding both.
  */
 class RestaurantStaffController extends Controller
 {
     use ResolvesRestaurantOwner;
+
+    const ASSIGNABLE_ROLES = ['kitchen_staff', 'waiter'];
 
     /**
      * The properties the CURRENT user has been granted kitchen access to
@@ -41,7 +48,14 @@ class RestaurantStaffController extends Controller
         $user = auth()->user();
         $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        return response()->json($owner->restaurantStaff()->with('user:id,name,email')->get());
+        $staff = $owner->restaurantStaff()->with('user:id,name,email')->get();
+        $staff->each(function ($s) {
+            $s->setAttribute('roles', $s->user
+                ? $s->user->roles()->whereIn('slug', self::ASSIGNABLE_ROLES)->pluck('slug')
+                : collect());
+        });
+
+        return response()->json($staff);
     }
 
     public function store(Request $request, $ownerId)
@@ -51,6 +65,7 @@ class RestaurantStaffController extends Controller
 
         $validated = $request->validate([
             'email' => 'required|email',
+            'role' => ['required', Rule::in(self::ASSIGNABLE_ROLES)],
         ]);
 
         $staffUser = User::where('email', $validated['email'])->first();
@@ -61,7 +76,7 @@ class RestaurantStaffController extends Controller
             return response()->json(['message' => 'This user already owns the property — they have full access.'], 422);
         }
 
-        $staffUser->assignRole('kitchen_staff');
+        $staffUser->assignRole($validated['role']);
 
         $staff = RestaurantStaff::firstOrCreate([
             'user_id' => $staffUser->id,
@@ -70,7 +85,7 @@ class RestaurantStaffController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Kitchen access granted',
+            'message' => ($validated['role'] === 'waiter' ? 'Waiter' : 'Kitchen') . ' access granted',
             'staff' => $staff->load('user:id,name,email'),
         ], 201);
     }
@@ -87,6 +102,6 @@ class RestaurantStaffController extends Controller
 
         $staff->delete();
 
-        return response()->json(['message' => 'Kitchen access revoked']);
+        return response()->json(['message' => 'Access revoked']);
     }
 }

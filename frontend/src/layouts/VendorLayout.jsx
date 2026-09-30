@@ -18,16 +18,19 @@ const VendorLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAdminLevel = ADMIN_LEVEL_ROLES.includes(user?.role);
-  // A Kitchen Staff login is a separate account (primary role stays
+  // A Kitchen Staff/Waiter login is a separate account (primary role stays
   // whatever it was, e.g. customer) that only holds the standalone
-  // restaurant.kitchen.* permissions, scoped to one property via
-  // RestaurantStaff — not a vendor and not admin-level, but still allowed
-  // into this layout to reach their one Restaurant POS's Kitchen tab.
-  const isKitchenStaff = hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
-  // A Vendor also holds restaurant.kitchen.* (see RoleSeeder) so their own
-  // full account isn't affected by this — it only strips the sidebar down
-  // for an account that has NOTHING else (no vendor role, not admin-level).
-  const isKitchenOnly = isKitchenStaff && user?.role !== 'vendor' && !isAdminLevel;
+  // restaurant.kitchen.*/restaurant.waiter.* permissions, scoped to one
+  // property via RestaurantStaff — not a vendor and not admin-level, but
+  // still allowed into this layout to reach their one Restaurant POS.
+  const isDepartmentStaff = hasAnyPermission([
+    'restaurant.kitchen.view', 'restaurant.kitchen.manage',
+    'restaurant.waiter.view', 'restaurant.waiter.manage',
+  ]);
+  // A Vendor also holds these (see RoleSeeder) so their own full account
+  // isn't affected by this — it only strips the sidebar down for an
+  // account that has NOTHING else (no vendor role, not admin-level).
+  const isDepartmentOnly = isDepartmentStaff && user?.role !== 'vendor' && !isAdminLevel;
 
   // The vendor's own business name where possible, so the panel doesn't
   // read as a generic shell — falls back to the acting-vendor label for
@@ -49,7 +52,7 @@ const VendorLayout = () => {
       navigate('/login', { replace: true });
       return;
     }
-    if (user?.role !== 'vendor' && !isAdminLevel && !isKitchenStaff) {
+    if (user?.role !== 'vendor' && !isAdminLevel && !isDepartmentStaff) {
       navigate('/', { replace: true });
       return;
     }
@@ -57,13 +60,13 @@ const VendorLayout = () => {
       navigate('/select-vendor', { replace: true });
       return;
     }
-    // Kitchen Staff has no use for the vendor Dashboard (bookings/revenue
-    // stats they have no permission to see) — send them straight to the
-    // Restaurant POS picker, which auto-forwards if they only have one.
-    if (isKitchenOnly && location.pathname === '/vendor') {
+    // Kitchen Staff/Waiter has no use for the vendor Dashboard (bookings/
+    // revenue stats they have no permission to see) — send them straight
+    // to the Restaurant POS picker, which auto-forwards if they only have one.
+    if (isDepartmentOnly && location.pathname === '/vendor') {
       navigate('/vendor/restaurant', { replace: true });
     }
-  }, [isAuthenticated, user, isAdminLevel, isKitchenStaff, isKitchenOnly, vendorId, location.pathname, navigate]);
+  }, [isAuthenticated, user, isAdminLevel, isDepartmentStaff, isDepartmentOnly, vendorId, location.pathname, navigate]);
 
   // Live notification bell (e.g. listing approval/rejection decisions).
   useEffect(() => {
@@ -93,10 +96,10 @@ const VendorLayout = () => {
     navigate('/select-vendor');
   };
 
-  // Kitchen Staff can't use any of Hotels/Activities/Tour Guides/Bookings/
-  // Profile (they own nothing) — the sidebar only offers what they can
-  // actually act on, instead of a wall of links that all 403.
-  const menuItems = isKitchenOnly
+  // Kitchen Staff/Waiter can't use any of Hotels/Activities/Tour Guides/
+  // Bookings/Profile (they own nothing) — the sidebar only offers what
+  // they can actually act on, instead of a wall of links that all 403.
+  const menuItems = isDepartmentOnly
     ? [{ path: '/vendor/restaurant', icon: UtensilsCrossed, label: 'Restaurant POS' }]
     : [
         { path: '/vendor', icon: LayoutDashboard, label: 'Dashboard' },
@@ -128,7 +131,7 @@ const VendorLayout = () => {
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-primary-400">
-                {isAdminLevel ? 'Management System' : isKitchenOnly ? 'Kitchen Access' : 'Vendor Portal'}
+                {isAdminLevel ? 'Management System' : isDepartmentOnly ? 'Staff Access' : 'Vendor Portal'}
               </span>
               <p className="font-display text-lg font-bold truncate mt-0.5">{displayName}</p>
             </div>

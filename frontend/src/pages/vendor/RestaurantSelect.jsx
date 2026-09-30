@@ -9,33 +9,33 @@ import { Badge } from '../../components/ui';
 // Restaurant POS is scoped per owner (menu/tables/orders all belong to one
 // hotel OR one activity), so the sidebar's "Restaurant POS" link lands here
 // first to pick which one, then hands off to /vendor/hotels/:id/restaurant
-// or /vendor/activities/:id/restaurant. A Kitchen Staff login owns nothing
-// (getHotels/getActivities come back empty for them) — kitchenAccess is
-// their RestaurantStaff-granted properties instead, and if that's their
-// only option, skip the picker and go straight there.
+// or /vendor/activities/:id/restaurant. A Kitchen Staff/Waiter login owns
+// nothing (getHotels/getActivities come back empty for them) —
+// staffAccess is their RestaurantStaff-granted properties instead, and if
+// that's their only option, skip the picker and go straight there.
 const VendorRestaurantSelect = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { hasAnyPermission } = useAuthStore();
-  const isKitchenOnly = !hasAnyPermission(['hotels.edit.own', 'activities.edit.own'])
-    && hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
+  const isDepartmentOnly = !hasAnyPermission(['hotels.edit.own', 'activities.edit.own'])
+    && hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage', 'restaurant.waiter.view', 'restaurant.waiter.manage']);
   const [hotels, setHotels] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [kitchenAccess, setKitchenAccess] = useState([]);
+  const [staffAccess, setStaffAccess] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([vendorAPI.getHotels(), vendorAPI.getActivities(), vendorAPI.getMyKitchenAccess()])
-      .then(([hotelsRes, activitiesRes, kitchenRes]) => {
+    Promise.all([vendorAPI.getHotels(), vendorAPI.getActivities(), vendorAPI.getMyRestaurantAccess()])
+      .then(([hotelsRes, activitiesRes, staffRes]) => {
         const hotelList = hotelsRes.data || [];
         const activityList = activitiesRes.data || [];
-        const kitchenList = kitchenRes.data || [];
+        const staffList = staffRes.data || [];
         setHotels(hotelList);
         setActivities(activityList);
-        setKitchenAccess(kitchenList);
+        setStaffAccess(staffList);
 
-        if (isKitchenOnly && kitchenList.length === 1 && hotelList.length === 0 && activityList.length === 0) {
-          navigate(`/vendor/${kitchenList[0].owner_type === 'activity' ? 'activities' : 'hotels'}/${kitchenList[0].owner_id}/restaurant`, { replace: true });
+        if (isDepartmentOnly && staffList.length === 1 && hotelList.length === 0 && activityList.length === 0) {
+          navigate(`/vendor/${staffList[0].owner_type === 'activity' ? 'activities' : 'hotels'}/${staffList[0].owner_id}/restaurant`, { replace: true });
         }
       })
       .catch((error) => {
@@ -59,25 +59,25 @@ const VendorRestaurantSelect = () => {
       <h2 className="font-display text-2xl font-bold text-neutral-900 mb-2">Restaurant POS</h2>
       <p className="text-sm text-neutral-500 mb-6">Choose a hotel or activity to manage its menu, tables, and kitchen orders.</p>
 
-      {kitchenAccess.length > 0 && (
+      {staffAccess.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-3">
             <ChefHat className="h-4 w-4 text-neutral-400" />
-            <h3 className="font-display text-lg font-bold text-neutral-900">Kitchen Access</h3>
+            <h3 className="font-display text-lg font-bold text-neutral-900">Staff Access</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {kitchenAccess.map((grant) => (
+            {staffAccess.map((grant) => (
               <button
-                key={`kitchen-${grant.id}`}
+                key={`staff-${grant.id}`}
                 onClick={() => navigate(`/vendor/${grant.owner_type === 'activity' ? 'activities' : 'hotels'}/${grant.owner_id}/restaurant`)}
                 className="text-left bg-white rounded-xl border border-neutral-100 shadow-sm p-5 hover:border-primary-300 hover:shadow-md transition-all"
               >
                 <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center mb-2">
                   <ChefHat className="h-5 w-5 text-orange-600" />
                 </div>
-                <h3 className="font-semibold text-neutral-900 mb-3">{grant.owner_name || 'Kitchen'}</h3>
+                <h3 className="font-semibold text-neutral-900 mb-3">{grant.owner_name || 'Restaurant'}</h3>
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-primary-600">
-                  Open Kitchen Display <ArrowRight className="h-4 w-4" />
+                  Open Restaurant POS <ArrowRight className="h-4 w-4" />
                 </span>
               </button>
             ))}
@@ -86,9 +86,9 @@ const VendorRestaurantSelect = () => {
       )}
 
       {hotels.length === 0 && activities.length === 0 ? (
-        isKitchenOnly ? (
-          kitchenAccess.length === 0 && (
-            <p className="text-center text-neutral-500 py-12">No kitchen access has been granted to your account yet — ask the property owner to add you under Kitchen Staff.</p>
+        isDepartmentOnly ? (
+          staffAccess.length === 0 && (
+            <p className="text-center text-neutral-500 py-12">No access has been granted to your account yet — ask the property owner to add you under Staff Access.</p>
           )
         ) : (
           <p className="text-center text-neutral-500 py-12">You don&apos;t have any hotels or activities yet. Add one first.</p>
