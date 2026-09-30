@@ -16,8 +16,13 @@ class VendorMiddleware
         
         // Allow vendors to access admin panel with their data filtered, and
         // admin-level users to manage a vendor's panel on their behalf
-        // (see ActsForVendor).
-        if (!$request->user()->isAdminLevel() && !$request->user()->isVendor()) {
+        // (see ActsForVendor). Also let a Kitchen Staff login through —
+        // it's a separate account (primary role stays whatever it was,
+        // e.g. customer) that only holds the standalone restaurant.kitchen.*
+        // permissions, scoped to one property via RestaurantStaff; every
+        // route inside still gates on that permission or on ownership.
+        $isKitchenStaff = $request->user()->hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
+        if (!$request->user()->isAdminLevel() && !$request->user()->isVendor() && !$isKitchenStaff) {
             return response()->json(['message' => 'Forbidden. Vendor or admin access required.'], 403);
         }
         

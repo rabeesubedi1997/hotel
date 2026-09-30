@@ -166,14 +166,17 @@ const AdminRoute = ({ children }) => {
 
 // Vendor Route Component
 const VendorRoute = ({ children }) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, hasAnyPermission } = useAuthStore();
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   // Admin-level users can also enter the Management System (managing a
   // vendor's panel on their behalf — see SelectVendor.jsx); VendorLayout
   // itself then redirects them to /select-vendor if they haven't picked
-  // a vendor yet.
-  if (user?.role !== 'vendor' && !['admin', 'manager', 'super_admin'].includes(user?.role)) {
+  // a vendor yet. A Kitchen Staff login is a separate account (its primary
+  // role stays whatever it was) that only holds restaurant.kitchen.*
+  // permissions, scoped to one property's Restaurant POS via RestaurantStaff.
+  const isKitchenStaff = hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
+  if (user?.role !== 'vendor' && !['admin', 'manager', 'super_admin'].includes(user?.role) && !isKitchenStaff) {
     return <Navigate to="/" replace />;
   }
   return children;

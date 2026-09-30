@@ -24,10 +24,19 @@ class HotelController extends Controller
 
     public function show(Request $request, $id)
     {
+        $user = $request->user();
         $query = Hotel::withCount('rooms')->with('rooms');
 
-        if (!$request->user()->isAdminLevel()) {
-            $query->where('user_id', $this->vendorId($request));
+        if (!$user->isAdminLevel()) {
+            // A Kitchen Staff login doesn't own the hotel — vendorId() would
+            // still return their own id — so it's also let through when a
+            // RestaurantStaff row scopes them to this specific hotel's
+            // Restaurant POS (see restaurant_staff migration).
+            $vendorId = $this->vendorId($request);
+            $query->where(function ($q) use ($vendorId, $user) {
+                $q->where('user_id', $vendorId)
+                    ->orWhereHas('restaurantStaff', fn ($s) => $s->where('user_id', $user->id));
+            });
         }
 
         return response()->json($query->findOrFail($id));

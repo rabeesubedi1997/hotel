@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BarChart3, ChefHat, Grid3x3, Loader2, UtensilsCrossed } from 'lucide-react';
 import { Tabs } from '../../components/ui';
+import useAuthStore from '../../stores/authStore';
 import { RestaurantProvider, useRestaurant } from './restaurant/context/RestaurantContext';
 import RestaurantKitchen from './restaurant/RestaurantKitchen';
 import RestaurantMenu from './restaurant/RestaurantMenu';
@@ -36,8 +37,14 @@ const VendorRestaurant = () => {
 const RestaurantShell = () => {
   const navigate = useNavigate();
   const { ownerType, owner, loading, isApproved } = useRestaurant();
+  const { hasAnyPermission } = useAuthStore();
   const [tab, setTab] = useState('kitchen');
   const backLink = ownerType === 'activity' ? '/vendor/activities' : '/vendor/hotels';
+
+  // Kitchen Staff (restaurant.kitchen.* only, no hotels/activities.*.own)
+  // gets the Kitchen Display and nothing else — no Menu/Tables/Reports tabs.
+  const isKitchenOnly = !hasAnyPermission(['hotels.edit.own', 'activities.edit.own'])
+    && hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
 
   if (loading) {
     return (
@@ -65,12 +72,17 @@ const RestaurantShell = () => {
         </div>
       )}
 
-      <Tabs tabs={TABS} active={tab} onChange={setTab} className="mb-6" />
-
-      {tab === 'kitchen' && <RestaurantKitchen />}
-      {tab === 'menu' && <RestaurantMenu />}
-      {tab === 'tables' && <RestaurantTables />}
-      {tab === 'reports' && <RestaurantReports />}
+      {isKitchenOnly ? (
+        <RestaurantKitchen />
+      ) : (
+        <>
+          <Tabs tabs={TABS} active={tab} onChange={setTab} className="mb-6" />
+          {tab === 'kitchen' && <RestaurantKitchen />}
+          {tab === 'menu' && <RestaurantMenu />}
+          {tab === 'tables' && <RestaurantTables />}
+          {tab === 'reports' && <RestaurantReports />}
+        </>
+      )}
     </div>
   );
 };

@@ -5,6 +5,7 @@ namespace App\Models\Concerns;
 use App\Models\MenuCategory;
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\RestaurantStaff;
 use App\Models\RestaurantTable;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
@@ -33,5 +34,10 @@ trait HasRestaurantPos
     public function orders(): MorphMany
     {
         return $this->morphMany(Order::class, 'owner');
+    }
+
+    public function restaurantStaff(): MorphMany
+    {
+        return $this->morphMany(RestaurantStaff::class, 'owner');
     }
 }

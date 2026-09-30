@@ -190,6 +190,28 @@ class RoleSeeder extends Seeder
                     'media.view.own',
                     'media.upload',
                     'media.delete.own',
+
+                    // Restaurant POS: Kitchen Display (a Vendor already has
+                    // full access via hotels/activities.edit.own — these are
+                    // the standalone permissions Kitchen Staff gets instead)
+                    'restaurant.kitchen.view',
+                    'restaurant.kitchen.manage',
+                ],
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Kitchen Staff',
+                'slug' => 'kitchen_staff',
+                'description' => 'Restaurant POS Kitchen Display only — no menu, tables, reports, or booking access',
+                'level' => 30,
+                'permissions' => [
+                    // Needed to resolve which hotel/activity owns the
+                    // Restaurant POS this login is scoped to.
+                    'hotels.view.own',
+                    'activities.view.own',
+
+                    'restaurant.kitchen.view',
+                    'restaurant.kitchen.manage',
                 ],
                 'is_active' => true,
             ],

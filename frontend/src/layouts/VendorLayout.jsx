@@ -10,7 +10,7 @@ import SEO from '../components/SEO';
 const ADMIN_LEVEL_ROLES = ['admin', 'manager', 'super_admin'];
 
 const VendorLayout = () => {
-  const { user, logout, isAuthenticated } = useAuthStore();
+  const { user, logout, isAuthenticated, hasAnyPermission } = useAuthStore();
   const { fetchUnreadCount, subscribe, unsubscribe } = useNotificationStore();
   const { vendorId, vendorName, clearActingVendor } = useActingVendorStore();
   const navigate = useNavigate();
@@ -18,6 +18,12 @@ const VendorLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAdminLevel = ADMIN_LEVEL_ROLES.includes(user?.role);
+  // A Kitchen Staff login is a separate account (primary role stays
+  // whatever it was, e.g. customer) that only holds the standalone
+  // restaurant.kitchen.* permissions, scoped to one property via
+  // RestaurantStaff — not a vendor and not admin-level, but still allowed
+  // into this layout to reach their one Restaurant POS's Kitchen tab.
+  const isKitchenStaff = hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
 
   // The vendor's own business name where possible, so the panel doesn't
   // read as a generic shell — falls back to the acting-vendor label for
@@ -39,14 +45,14 @@ const VendorLayout = () => {
       navigate('/login', { replace: true });
       return;
     }
-    if (user?.role !== 'vendor' && !isAdminLevel) {
+    if (user?.role !== 'vendor' && !isAdminLevel && !isKitchenStaff) {
       navigate('/', { replace: true });
       return;
     }
     if (isAdminLevel && !vendorId) {
       navigate('/select-vendor', { replace: true });
     }
-  }, [isAuthenticated, user, isAdminLevel, vendorId, navigate]);
+  }, [isAuthenticated, user, isAdminLevel, isKitchenStaff, vendorId, navigate]);
 
   // Live notification bell (e.g. listing approval/rejection decisions).
   useEffect(() => {

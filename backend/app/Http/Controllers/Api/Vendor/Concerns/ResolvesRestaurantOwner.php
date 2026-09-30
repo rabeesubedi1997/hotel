@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Vendor\Concerns;
 
 use App\Models\Activity;
 use App\Models\Hotel;
+use App\Models\RestaurantStaff;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -31,7 +32,24 @@ trait ResolvesRestaurantOwner
             return $modelClass::findOrFail($ownerId);
         }
 
+        if ($this->isRestaurantStaffFor($user, $modelClass, $ownerId)) {
+            return $modelClass::findOrFail($ownerId);
+        }
+
         return $modelClass::where('user_id', $user->id)->findOrFail($ownerId);
+    }
+
+    /**
+     * Kitchen Staff doesn't own the property (Vendor's user_id does) — their
+     * access instead comes from a RestaurantStaff assignment scoping them
+     * to this one Hotel/Activity. See the restaurant_staff migration.
+     */
+    private function isRestaurantStaffFor($user, string $ownerClass, $ownerId): bool
+    {
+        return RestaurantStaff::where('user_id', $user->id)
+            ->where('owner_type', $ownerClass)
+            ->where('owner_id', $ownerId)
+            ->exists();
     }
 
     private function ownerFromRecord($record): Hotel|Activity
@@ -65,9 +83,19 @@ trait ResolvesRestaurantOwner
     private function authorizeOwnerOfRecord($user, $record, string $permissionAction = 'edit'): ?JsonResponse
     {
         $owner = $this->ownerFromRecord($record);
+        $isOwnerAccount = $owner->user_id === $user->id;
+        $isScopedStaff = !$isOwnerAccount && $this->isRestaurantStaffFor($user, get_class($owner), $owner->id);
 
-        if (!$user->isAdminLevel() && $owner->user_id !== $user->id) {
+        if (!$user->isAdminLevel() && !$isOwnerAccount && !$isScopedStaff) {
             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // A scoped staff account (e.g. Kitchen Staff) never holds the full
+        // hotels/activities.*.own permission the owner account has — it's
+        // authorized via the standalone restaurant.kitchen.* permissions
+        // instead, which the route middleware already required to get here.
+        if ($isScopedStaff) {
+            return null;
         }
 
         $requiredPermission = ($owner instanceof Activity ? 'activities' : 'hotels') . ".{$permissionAction}.own";

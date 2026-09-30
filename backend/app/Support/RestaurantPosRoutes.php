@@ -14,12 +14,20 @@ use Illuminate\Support\Facades\Route;
  */
 class RestaurantPosRoutes
 {
-    public static function ownerScoped(string $method, string $uri, array $action, string $permissionAction): void
+    /**
+     * $extraPermissions are additional slugs OR'd into the same check —
+     * e.g. Restaurant POS's Kitchen Display routes also accept
+     * restaurant.kitchen.view/manage, granted to a Kitchen Staff login
+     * that never gets the full hotels/activities.*.own permissions.
+     */
+    public static function ownerScoped(string $method, string $uri, array $action, string $permissionAction, array $extraPermissions = []): void
     {
         foreach (['hotel' => 'hotels', 'activity' => 'activities'] as $ownerType => $prefix) {
+            $permissions = array_merge(["{$prefix}.{$permissionAction}.own"], $extraPermissions);
+
             Route::{$method}("/{$prefix}/{{$ownerType}}/{$uri}", $action)
                 ->defaults('ownerType', $ownerType)
-                ->middleware("permission:{$prefix}.{$permissionAction}.own");
+                ->middleware('permission:' . implode('|', $permissions));
         }
     }
 }

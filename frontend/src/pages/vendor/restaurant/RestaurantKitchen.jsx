@@ -1,17 +1,26 @@
 import { useState } from 'react';
-import { Flame, Grid3x3, Plus, Receipt, Timer } from 'lucide-react';
+import { Flame, Grid3x3, Plus, Receipt, Timer, Users } from 'lucide-react';
 import { Badge, Button, StatCard } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
+import useAuthStore from '../../../stores/authStore';
 import { useRestaurant } from './context/RestaurantContext';
 import { useKitchenOrders, elapsedMinutes } from './hooks/useKitchenOrders';
 import { ITEM_NEXT_STATUS, KITCHEN_COLUMNS, NEXT_STATUS } from './constants';
 import OrderTicket from './OrderTicket';
 import OrderFormModal from './modals/OrderFormModal';
+import KitchenStaffModal from './modals/KitchenStaffModal';
 
 const RestaurantKitchen = () => {
   const { ownerType, orders, tables, setOrders, isApproved, loadAll, toast } = useRestaurant();
+  const { hasAnyPermission } = useAuthStore();
+  // A scoped Kitchen Staff login only holds restaurant.kitchen.*, never the
+  // full hotels/activities.*.own permissions — hide the actions that
+  // require actually owning the property (taking new orders, managing who
+  // else gets kitchen access) rather than let them 403 on click.
+  const canManageRestaurant = hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
   const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
   const [orderFormOpen, setOrderFormOpen] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
 
   const { now, kitchenOrders, activeKitchenOrders, avgTicketMinutes, delayedOrders, mostDelayedOrder } =
     useKitchenOrders(orders, kitchenTypeFilter);
@@ -124,10 +133,18 @@ const RestaurantKitchen = () => {
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={() => setOrderFormOpen(true)} disabled={!isApproved}>
-          <Plus className="h-4 w-4" />
-          New Order
-        </Button>
+        {canManageRestaurant && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setStaffModalOpen(true)} disabled={!isApproved}>
+              <Users className="h-4 w-4" />
+              Kitchen Staff
+            </Button>
+            <Button size="sm" onClick={() => setOrderFormOpen(true)} disabled={!isApproved}>
+              <Plus className="h-4 w-4" />
+              New Order
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -181,7 +198,12 @@ const RestaurantKitchen = () => {
         })}
       </div>
 
-      <OrderFormModal open={orderFormOpen} onClose={() => setOrderFormOpen(false)} />
+      {canManageRestaurant && (
+        <>
+          <OrderFormModal open={orderFormOpen} onClose={() => setOrderFormOpen(false)} />
+          <KitchenStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
+        </>
+      )}
     </div>
   );
 };

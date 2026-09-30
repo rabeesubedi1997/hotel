@@ -251,12 +251,15 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::delete('/tables/{table}', [\App\Http\Controllers\Api\Vendor\RestaurantTableController::class, 'destroy'])->middleware('permission:hotels.delete.own|activities.delete.own');
 
     // Restaurant POS: Orders & Kitchen Display
-    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'index'], 'view');
+    // Kitchen Staff (restaurant.kitchen.view/manage) never holds the full
+    // hotels/activities.*.own permissions, so these routes OR in the
+    // standalone kitchen permissions alongside the normal vendor ones.
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'index'], 'view', ['restaurant.kitchen.view']);
     \App\Support\RestaurantPosRoutes::ownerScoped('post', 'orders', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'store'], 'edit');
-    Route::get('/orders/{order}', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'show'])->middleware('permission:hotels.view.own|activities.view.own');
-    Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own|activities.edit.own');
-    Route::put('/orders/{order}/rush', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateRush'])->middleware('permission:hotels.edit.own|activities.edit.own');
-    Route::put('/orders/{order}/items/{item}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateItemStatus'])->middleware('permission:hotels.edit.own|activities.edit.own');
+    Route::get('/orders/{order}', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'show'])->middleware('permission:hotels.view.own|activities.view.own|restaurant.kitchen.view');
+    Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
+    Route::put('/orders/{order}/rush', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateRush'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
+    Route::put('/orders/{order}/items/{item}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateItemStatus'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
 
     // Restaurant POS: Earnings/Inventory Report
     \App\Support\RestaurantPosRoutes::ownerScoped('get', 'reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'], 'view');
@@ -267,6 +270,12 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     // Restaurant POS: "Charge to Room" — active booking lookup for attaching
     // an order to a guest's folio instead of a separate payment at the table.
     \App\Support\RestaurantPosRoutes::ownerScoped('get', 'active-bookings', [\App\Http\Controllers\Api\Vendor\ActiveBookingLookupController::class, 'index'], 'view');
+
+    // Restaurant POS: Kitchen Staff access (owner-only — a scoped staff
+    // login never gets to manage who else has kitchen access)
+    \App\Support\RestaurantPosRoutes::ownerScoped('get', 'staff', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'index'], 'edit');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'staff', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'store'], 'edit');
+    Route::delete('/restaurant-staff/{staff}', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'destroy'])->middleware('permission:hotels.edit.own|activities.edit.own');
 
     // Media Library (Vendor needs to upload images too)
     Route::get('/media-library', [\App\Http\Controllers\Api\Vendor\MediaLibraryController::class, 'index'])->middleware('permission:media.view.own');

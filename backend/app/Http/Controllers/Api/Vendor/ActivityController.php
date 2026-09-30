@@ -23,7 +23,17 @@ class ActivityController extends Controller
 
     public function show(Request $request, $id)
     {
-        $activity = Activity::where('user_id', $this->vendorId($request))->findOrFail($id);
+        $user = $request->user();
+        $vendorId = $this->vendorId($request);
+
+        // A Kitchen Staff login doesn't own the activity — vendorId() would
+        // still return their own id — so it's also let through when a
+        // RestaurantStaff row scopes them to this specific activity's
+        // Restaurant POS (see restaurant_staff migration).
+        $activity = Activity::where(function ($q) use ($vendorId, $user) {
+            $q->where('user_id', $vendorId)
+                ->orWhereHas('restaurantStaff', fn ($s) => $s->where('user_id', $user->id));
+        })->findOrFail($id);
 
         return response()->json($activity);
     }
