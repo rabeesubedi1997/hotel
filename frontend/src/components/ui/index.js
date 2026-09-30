@@ -11,3 +11,5 @@ export { default as StatCard } from './StatCard';
 export { default as Modal } from './Modal';
 export { Table, Th, Td } from './Table';
 export { Skeleton, CardSkeleton, CardGridSkeleton } from './Skeleton';
+export { default as Tabs } from './Tabs';
+export { default as Tag } from './Tag';
