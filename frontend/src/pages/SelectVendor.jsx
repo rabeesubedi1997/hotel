@@ -76,36 +76,44 @@ const SelectVendor = () => {
             <p className="text-neutral-500">No vendors found{search ? ` matching "${search}"` : ''}.</p>
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {filtered.map((vendor) => {
               const label = vendor.company_name || vendor.name || '?';
+              const stats = [
+                { icon: Building2, value: vendor.hotels_count ?? 0, title: 'Hotels' },
+                { icon: Compass, value: vendor.activities_count ?? 0, title: 'Activities' },
+                { icon: GuidesIcon, value: vendor.tour_guides_count ?? 0, title: 'Tour guides' },
+              ];
               return (
                 <button
                   key={vendor.id}
                   type="button"
                   onClick={() => enterVendorPanel(vendor)}
-                  className="group flex items-center gap-4 bg-white rounded-2xl border border-neutral-200 p-4 text-left
-                    shadow-sm transition-all duration-200 hover:border-secondary-300 hover:shadow-md"
+                  className="group relative flex flex-col gap-4 bg-white rounded-2xl border border-neutral-200 p-5 text-left
+                    shadow-sm transition-all duration-200 hover:border-secondary-300 hover:shadow-lg hover:-translate-y-0.5"
                 >
-                  <div className="h-11 w-11 rounded-full bg-secondary-100 text-secondary-700 font-display font-semibold flex items-center justify-center shrink-0 text-lg">
-                    {label.charAt(0).toUpperCase()}
+                  <div className="flex items-center gap-3.5">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-secondary-500 to-secondary-700 text-white font-display font-semibold flex items-center justify-center shrink-0 text-lg shadow-sm">
+                      {label.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-neutral-900 truncate leading-tight">{label}</p>
+                      <p className="text-sm text-neutral-500 truncate">{vendor.email}</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-neutral-300 group-hover:text-secondary-500 group-hover:translate-x-0.5 shrink-0 transition-all" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-neutral-900 truncate">{label}</p>
-                    <p className="text-xs text-neutral-500 truncate">{vendor.email}</p>
+
+                  <div className="flex items-center gap-2 pt-3.5 border-t border-neutral-100">
+                    {stats.map(({ icon: Icon, value, title }) => (
+                      <span
+                        key={title}
+                        title={title}
+                        className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 bg-neutral-50 rounded-lg px-2.5 py-1.5"
+                      >
+                        <Icon className="h-3.5 w-3.5 text-neutral-400" /> {value}
+                      </span>
+                    ))}
                   </div>
-                  <div className="hidden sm:flex items-center gap-4 text-xs text-neutral-500 shrink-0">
-                    <span className="flex items-center gap-1.5 bg-neutral-50 rounded-full px-2.5 py-1">
-                      <Building2 className="h-3.5 w-3.5" /> {vendor.hotels_count ?? 0}
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-neutral-50 rounded-full px-2.5 py-1">
-                      <Compass className="h-3.5 w-3.5" /> {vendor.activities_count ?? 0}
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-neutral-50 rounded-full px-2.5 py-1">
-                      <GuidesIcon className="h-3.5 w-3.5" /> {vendor.tour_guides_count ?? 0}
-                    </span>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-neutral-300 group-hover:text-secondary-500 shrink-0 transition-colors" />
                 </button>
               );
             })}
