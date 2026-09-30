@@ -24,6 +24,10 @@ const VendorLayout = () => {
   // RestaurantStaff — not a vendor and not admin-level, but still allowed
   // into this layout to reach their one Restaurant POS's Kitchen tab.
   const isKitchenStaff = hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage']);
+  // A Vendor also holds restaurant.kitchen.* (see RoleSeeder) so their own
+  // full account isn't affected by this — it only strips the sidebar down
+  // for an account that has NOTHING else (no vendor role, not admin-level).
+  const isKitchenOnly = isKitchenStaff && user?.role !== 'vendor' && !isAdminLevel;
 
   // The vendor's own business name where possible, so the panel doesn't
   // read as a generic shell — falls back to the acting-vendor label for
@@ -51,8 +55,15 @@ const VendorLayout = () => {
     }
     if (isAdminLevel && !vendorId) {
       navigate('/select-vendor', { replace: true });
+      return;
     }
-  }, [isAuthenticated, user, isAdminLevel, isKitchenStaff, vendorId, navigate]);
+    // Kitchen Staff has no use for the vendor Dashboard (bookings/revenue
+    // stats they have no permission to see) — send them straight to the
+    // Restaurant POS picker, which auto-forwards if they only have one.
+    if (isKitchenOnly && location.pathname === '/vendor') {
+      navigate('/vendor/restaurant', { replace: true });
+    }
+  }, [isAuthenticated, user, isAdminLevel, isKitchenStaff, isKitchenOnly, vendorId, location.pathname, navigate]);
 
   // Live notification bell (e.g. listing approval/rejection decisions).
   useEffect(() => {
@@ -82,16 +93,21 @@ const VendorLayout = () => {
     navigate('/select-vendor');
   };
 
-  const menuItems = [
-    { path: '/vendor', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/vendor/hotels', icon: Building2, label: 'My Hotels' },
-    { path: '/vendor/restaurant', icon: UtensilsCrossed, label: 'Restaurant POS' },
-    { path: '/vendor/activities', icon: Compass, label: 'My Activities' },
-    { path: '/vendor/tour-guides', icon: GuidesIcon, label: 'My Tour Guides' },
-    { path: '/vendor/bookings', icon: Calendar, label: 'Bookings' },
-    { path: '/vendor/messages', icon: MessageSquare, label: 'Messages' },
-    { path: '/vendor/profile', icon: UserCog, label: 'Business Profile' },
-  ];
+  // Kitchen Staff can't use any of Hotels/Activities/Tour Guides/Bookings/
+  // Profile (they own nothing) — the sidebar only offers what they can
+  // actually act on, instead of a wall of links that all 403.
+  const menuItems = isKitchenOnly
+    ? [{ path: '/vendor/restaurant', icon: UtensilsCrossed, label: 'Restaurant POS' }]
+    : [
+        { path: '/vendor', icon: LayoutDashboard, label: 'Dashboard' },
+        { path: '/vendor/hotels', icon: Building2, label: 'My Hotels' },
+        { path: '/vendor/restaurant', icon: UtensilsCrossed, label: 'Restaurant POS' },
+        { path: '/vendor/activities', icon: Compass, label: 'My Activities' },
+        { path: '/vendor/tour-guides', icon: GuidesIcon, label: 'My Tour Guides' },
+        { path: '/vendor/bookings', icon: Calendar, label: 'Bookings' },
+        { path: '/vendor/messages', icon: MessageSquare, label: 'Messages' },
+        { path: '/vendor/profile', icon: UserCog, label: 'Business Profile' },
+      ];
 
   return (
     <div className="min-h-screen bg-neutral-100 flex">
@@ -112,7 +128,7 @@ const VendorLayout = () => {
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-primary-400">
-                {isAdminLevel ? 'Management System' : 'Vendor Portal'}
+                {isAdminLevel ? 'Management System' : isKitchenOnly ? 'Kitchen Access' : 'Vendor Portal'}
               </span>
               <p className="font-display text-lg font-bold truncate mt-0.5">{displayName}</p>
             </div>

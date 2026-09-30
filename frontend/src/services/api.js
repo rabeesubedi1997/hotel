@@ -498,6 +498,7 @@ export const vendorAPI = {
   getActiveBookings: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/active-bookings`, { params }),
 
   // Restaurant POS: Kitchen Staff access
+  getMyKitchenAccess: () => api.get('/vendor/my-kitchen-access'),
   getRestaurantStaff: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/staff`),
   addRestaurantStaff: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/staff`, data),
   removeRestaurantStaff: (staffId) => api.delete(`/vendor/restaurant-staff/${staffId}`),

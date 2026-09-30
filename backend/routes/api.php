@@ -273,6 +273,7 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
 
     // Restaurant POS: Kitchen Staff access (owner-only — a scoped staff
     // login never gets to manage who else has kitchen access)
+    Route::get('/my-kitchen-access', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'mine'])->middleware('permission:restaurant.kitchen.view|restaurant.kitchen.manage');
     \App\Support\RestaurantPosRoutes::ownerScoped('get', 'staff', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'index'], 'edit');
     \App\Support\RestaurantPosRoutes::ownerScoped('post', 'staff', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'store'], 'edit');
     Route::delete('/restaurant-staff/{staff}', [\App\Http\Controllers\Api\Vendor\RestaurantStaffController::class, 'destroy'])->middleware('permission:hotels.edit.own|activities.edit.own');

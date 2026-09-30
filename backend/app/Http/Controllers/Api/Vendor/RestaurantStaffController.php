@@ -18,6 +18,24 @@ class RestaurantStaffController extends Controller
 {
     use ResolvesRestaurantOwner;
 
+    /**
+     * The properties the CURRENT user has been granted kitchen access to
+     * (as opposed to index(), which lists staff for a property its OWNER
+     * is looking at) — lets a Kitchen Staff login land on their restaurant
+     * directly instead of a "My Hotels" list they have nothing in.
+     */
+    public function mine()
+    {
+        $staff = RestaurantStaff::where('user_id', auth()->id())->with('owner')->get();
+
+        return response()->json($staff->map(fn ($s) => [
+            'id' => $s->id,
+            'owner_type' => $s->owner instanceof \App\Models\Activity ? 'activity' : 'hotel',
+            'owner_id' => $s->owner_id,
+            'owner_name' => $s->owner?->name,
+        ]));
+    }
+
     public function index(Request $request, $ownerId)
     {
         $user = auth()->user();
