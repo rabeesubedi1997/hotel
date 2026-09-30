@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle2, CheckSquare, Download, Edit, Image as ImageIcon, Plus, Search,
   Settings2, Square, Tags, Trash2, UtensilsCrossed, X, XCircle,
 } from 'lucide-react';
-import { Button } from '../../../components/ui';
+import { Button, Table, Td, Th } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
 import { useRestaurant } from './context/RestaurantContext';
 import { CATEGORY_LABELS, STATION_LABEL } from './constants';
@@ -85,15 +85,10 @@ const RestaurantMenu = () => {
     });
   }, [menuItems, menuSearch, menuCategoryFilter, menuStockFilter]);
 
-  const menuItemsByCategory = useMemo(() => {
-    const groups = new Map();
-    filteredMenuItems.forEach((item) => {
-      const key = item.category || 'main_course';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
-    });
-    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredMenuItems]);
+  const sortedMenuItems = useMemo(
+    () => [...filteredMenuItems].sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name)),
+    [filteredMenuItems]
+  );
 
   // --- Bulk 86 mode ---
   const toggleBulkSelection = (itemId) => {
@@ -155,15 +150,16 @@ const RestaurantMenu = () => {
 
   return (
     <div>
+      <h2 className="font-display headline-sm text-on-surface mb-4">Menu</h2>
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-sm">
-          <Search className="h-4 w-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="h-4 w-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={menuSearch}
             onChange={(e) => setMenuSearch(e.target.value)}
             placeholder="Search dish name or description..."
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="w-full pl-10 pr-3 py-2.5 text-body-sm rounded-full border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-colors"
           />
         </div>
         <div className="flex-1" />
@@ -195,24 +191,24 @@ const RestaurantMenu = () => {
       </div>
 
       {bulk86Mode && (
-        <div className="flex items-center justify-between gap-3 bg-neutral-900 text-white rounded-xl px-4 py-3 mb-4">
-          <span className="text-sm font-medium">{selectedMenuIds.size} item(s) selected</span>
+        <div className="flex items-center justify-between gap-3 bg-on-surface text-white rounded-2xl px-5 py-3.5 mb-4 shadow-card">
+          <span className="text-body-md font-medium">{selectedMenuIds.size} item(s) selected</span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => applyBulkAvailability(false)}
               disabled={selectedMenuIds.size === 0 || bulkSaving}
-              className="text-xs font-bold uppercase tracking-wide bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg px-3 py-2"
+              className="text-label-caps bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-full px-4 py-2 transition-colors"
             >
               86 Selected
             </button>
             <button
               onClick={() => applyBulkAvailability(true)}
               disabled={selectedMenuIds.size === 0 || bulkSaving}
-              className="text-xs font-bold uppercase tracking-wide bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg px-3 py-2"
+              className="text-label-caps bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-full px-4 py-2 transition-colors"
             >
               Restore Selected
             </button>
-            <button onClick={exitBulkMode} className="text-xs font-medium text-neutral-300 hover:text-white px-2">
+            <button onClick={exitBulkMode} className="text-body-sm font-medium text-neutral-300 hover:text-white px-2">
               Cancel
             </button>
           </div>
@@ -309,7 +305,7 @@ const RestaurantMenu = () => {
       )}
 
       {menuItems.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-neutral-200 py-16 text-center">
+        <div className="bg-white rounded-3xl border border-dashed border-neutral-200 py-16 text-center">
           <UtensilsCrossed className="h-10 w-10 text-neutral-300 mx-auto mb-3" />
           <p className="text-neutral-500 mb-4">No menu items yet. Build out your menu to start taking orders.</p>
           <Button size="sm" onClick={openAddMenuForm} disabled={!isApproved} className="mx-auto">
@@ -320,127 +316,116 @@ const RestaurantMenu = () => {
       ) : filteredMenuItems.length === 0 ? (
         <p className="text-center text-neutral-500 py-12">No items match your search.</p>
       ) : (
-        <div className="space-y-8">
-          {menuItemsByCategory.map(([category, items]) => (
-            <div key={category}>
-              {menuCategoryFilter === 'all' && (
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="font-display text-lg font-bold text-neutral-900">
-                    {CATEGORY_LABELS[category] || category.replace('_', ' ')}
-                  </h3>
-                  <span className="text-xs text-neutral-400 font-medium">{items.length}</span>
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {items.map((item) => (
-                  <div
+        <>
+          <Table>
+            <thead>
+              <tr>
+                {bulk86Mode && <Th className="w-10" />}
+                <Th>Item</Th>
+                <Th>Category / Station</Th>
+                <Th>Price</Th>
+                <Th>Stock</Th>
+                <Th className="text-right">Actions</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {sortedMenuItems.map((item) => {
+                const isLowStock = item.stock_quantity !== null && item.stock_quantity !== undefined && item.stock_quantity <= item.low_stock_threshold;
+                return (
+                  <tr
                     key={item.id}
                     onClick={() => bulk86Mode && toggleBulkSelection(item.id)}
-                    className={`bg-white rounded-2xl border shadow-card overflow-hidden flex flex-col ${
-                      bulk86Mode ? 'cursor-pointer' : ''
-                    } ${
-                      selectedMenuIds.has(item.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-neutral-100'
-                    } ${item.is_available ? '' : 'opacity-60'}`}
+                    className={`${bulk86Mode ? 'cursor-pointer' : ''} ${selectedMenuIds.has(item.id) ? 'bg-primary-50/60' : 'hover:bg-neutral-50/80'} ${item.is_available ? '' : 'opacity-60'} transition-colors`}
                   >
-                    <div className="relative h-36 bg-neutral-100">
-                      {item.image ? (
-                        <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                    {bulk86Mode && (
+                      <Td>
+                        {selectedMenuIds.has(item.id)
+                          ? <CheckSquare className="h-5 w-5 text-primary-600" />
+                          : <Square className="h-5 w-5 text-neutral-300" />}
+                      </Td>
+                    )}
+                    <Td className="whitespace-normal">
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-xl bg-neutral-100 overflow-hidden shrink-0">
+                          {item.image
+                            ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                            : <div className="h-full w-full flex items-center justify-center"><ImageIcon className="h-5 w-5 text-neutral-300" /></div>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-display font-semibold text-on-surface">{item.name}</span>
+                            {item.sku && <span className="text-label-caps text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">{item.sku}</span>}
+                          </div>
+                          {item.description && <p className="text-body-sm text-neutral-500 line-clamp-1 max-w-xs">{item.description}</p>}
+                          {item.allergens?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {item.allergens.map((a) => (
+                                <span key={a} className="text-label-caps text-red-600 bg-red-50 px-1.5 py-0.5 rounded">{a}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Td>
+                    <Td>
+                      <p className="text-body-sm text-on-surface capitalize">{CATEGORY_LABELS[item.category] || item.category?.replace('_', ' ')}</p>
+                      {item.station && <p className="text-label-caps text-secondary-600 mt-0.5">{STATION_LABEL[item.station] || item.station}</p>}
+                    </Td>
+                    <Td>
+                      <p className="font-display font-semibold text-on-surface">${Number(item.price).toFixed(2)}</p>
+                      {item.cost_price !== null && item.cost_price !== undefined && (
+                        <p className="text-label-caps text-neutral-400 mt-0.5">{item.margin_percent}% margin</p>
+                      )}
+                    </Td>
+                    <Td>
+                      {item.stock_quantity === null ? (
+                        <span className="text-body-sm text-neutral-400">Not tracked</span>
+                      ) : isLowStock ? (
+                        <span className="flex items-center gap-1 text-body-sm font-medium text-amber-700">
+                          <AlertTriangle className="h-3.5 w-3.5" /> {item.stock_quantity} left
+                        </span>
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-neutral-300" />
-                        </div>
+                        <span className="text-body-sm text-on-surface">{item.stock_quantity} in stock</span>
                       )}
-                      {bulk86Mode && (
-                        <span className="absolute top-2 left-2 bg-white rounded-md shadow">
-                          {selectedMenuIds.has(item.id)
-                            ? <CheckSquare className="h-6 w-6 text-primary-600" />
-                            : <Square className="h-6 w-6 text-neutral-400" />}
-                        </span>
-                      )}
-                      {item.station && !bulk86Mode && (
-                        <span className="absolute bottom-0 right-0 bg-neutral-900/80 text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5">
-                          {STATION_LABEL[item.station] || item.station}
-                        </span>
-                      )}
-                      <span className="absolute top-2 right-2 bg-white/95 text-neutral-900 text-sm font-bold px-2 py-1 rounded-lg shadow-sm">
-                        ${Number(item.price).toFixed(2)}
-                      </span>
-                      {!bulk86Mode && item.stock_quantity !== null && item.stock_quantity <= item.low_stock_threshold && (
-                        <span className="absolute top-9 left-2 inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                          <AlertTriangle className="h-3 w-3" />
-                          Low stock
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <h4 className="font-semibold text-neutral-900">{item.name}</h4>
-                        {item.sku && <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">{item.sku}</span>}
-                      </div>
-                      {item.description && (
-                        <p className="text-sm text-neutral-500 line-clamp-2 mb-2">{item.description}</p>
-                      )}
-                      <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-                        {item.cost_price !== null && item.cost_price !== undefined ? (
-                          <span>Cost ${Number(item.cost_price).toFixed(2)} ({item.margin_percent}% margin)</span>
-                        ) : <span />}
-                        {item.prep_time_minutes !== null && item.prep_time_minutes !== undefined && (
-                          <span>{item.prep_time_minutes}m prep</span>
-                        )}
-                      </div>
-                      {item.allergens?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {item.allergens.map((a) => (
-                            <span key={a} className="text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
-                              {a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-auto pt-2">
+                    </Td>
+                    <Td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); toggleMenuAvailability(item); }}
                           disabled={!isApproved || bulk86Mode}
                           title={item.is_available ? 'Click to 86 this item' : 'Click to bring back in stock'}
-                          className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide rounded-lg py-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                            item.is_available
-                              ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                              : 'bg-red-600 text-white hover:bg-red-700'
+                          className={`px-3 py-1.5 rounded-full text-label-caps transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            item.is_available ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-600 text-white hover:bg-red-700'
                           }`}
                         >
-                          {item.is_available ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                          {item.is_available
-                            ? (item.stock_quantity === null ? 'Available' : `${item.stock_quantity} in stock`)
-                            : "86'd — Sold Out"}
+                          {item.is_available ? 'Available' : "86'd"}
                         </button>
-                      </div>
-                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-neutral-100">
                         <button
                           onClick={(e) => { e.stopPropagation(); openEditMenuForm(item); }}
                           disabled={!isApproved || bulk86Mode}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-primary-700 bg-primary-50 rounded-lg py-1.5 hover:bg-primary-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-2 rounded-full text-primary-700 hover:bg-primary-50 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <Edit className="h-3.5 w-3.5" /> Edit
+                          <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleMenuDelete(item.id); }}
                           disabled={!isApproved || bulk86Mode}
-                          className="flex items-center justify-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg py-1.5 px-3 hover:bg-red-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-2 rounded-full text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <p className="text-xs text-neutral-400 text-center">
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+          <p className="text-body-sm text-neutral-400 text-center mt-4">
             Showing {filteredMenuItems.length} of {menuItems.length} menu item(s)
           </p>
-        </div>
+        </>
       )}
 
       <MenuItemFormModal

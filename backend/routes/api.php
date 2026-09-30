@@ -260,6 +260,10 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     Route::put('/orders/{order}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateStatus'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
     Route::put('/orders/{order}/rush', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateRush'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
     Route::put('/orders/{order}/items/{item}/status', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'updateItemStatus'])->middleware('permission:hotels.edit.own|activities.edit.own|restaurant.kitchen.manage');
+    // Front-of-house actions (table management), not extended to Kitchen
+    // Staff — merging/moving a check is a floor-manager task, not a cook's.
+    Route::put('/orders/{order}/transfer-table', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'transferTable'])->middleware('permission:hotels.edit.own|activities.edit.own');
+    Route::post('/orders/{order}/merge', [\App\Http\Controllers\Api\Vendor\OrderController::class, 'mergeInto'])->middleware('permission:hotels.edit.own|activities.edit.own');
 
     // Restaurant POS: Earnings/Inventory Report
     \App\Support\RestaurantPosRoutes::ownerScoped('get', 'reports/earnings', [\App\Http\Controllers\Api\Vendor\ReportController::class, 'earnings'], 'view');

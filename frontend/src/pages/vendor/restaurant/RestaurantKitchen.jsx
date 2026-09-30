@@ -127,7 +127,10 @@ const RestaurantKitchen = () => {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h2 className="font-display headline-sm text-on-surface">Kitchen Display</h2>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-2 overflow-x-auto">
           {[
             { key: 'all', label: 'All' },
@@ -141,12 +144,12 @@ const RestaurantKitchen = () => {
               key={f.key}
               type="button"
               onClick={() => setKitchenTypeFilter(f.key)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                kitchenTypeFilter === f.key ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-body-sm font-semibold transition-colors ${
+                kitchenTypeFilter === f.key ? 'bg-on-surface text-white shadow-sm' : 'bg-white border border-neutral-200 text-outline hover:border-neutral-300'
               }`}
             >
               {f.label}
-              <span className={`px-1.5 rounded text-[10px] font-bold ${kitchenTypeFilter === f.key ? 'bg-white/20' : 'bg-white text-neutral-500'}`}>
+              <span className={`px-1.5 rounded-full text-label-caps ${kitchenTypeFilter === f.key ? 'bg-white/20' : 'bg-neutral-100 text-neutral-500'}`}>
                 {f.key === 'all' ? orders.length : orders.filter((o) => o.order_type === f.key).length}
               </span>
             </button>
@@ -167,12 +170,12 @@ const RestaurantKitchen = () => {
       </div>
 
       {stationsInUse.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto mb-4">
+        <div className="flex items-center gap-2 overflow-x-auto mb-5">
           <button
             type="button"
             onClick={() => setStationFilter('all')}
-            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              stationFilter === 'all' ? 'bg-primary-600 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+            className={`shrink-0 px-3.5 py-1.5 rounded-full text-body-sm font-semibold transition-colors ${
+              stationFilter === 'all' ? 'bg-primary-600 text-white shadow-sm' : 'bg-white border border-neutral-200 text-outline hover:border-neutral-300'
             }`}
           >
             All Stations
@@ -182,8 +185,8 @@ const RestaurantKitchen = () => {
               key={station.value}
               type="button"
               onClick={() => setStationFilter(station.value)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                stationFilter === station.value ? 'bg-primary-600 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-body-sm font-semibold transition-colors ${
+                stationFilter === station.value ? 'bg-primary-600 text-white shadow-sm' : 'bg-white border border-neutral-200 text-outline hover:border-neutral-300'
               }`}
             >
               {STATION_LABEL[station.value] || station.label}
@@ -192,7 +195,7 @@ const RestaurantKitchen = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <StatCard icon={Receipt} title="Active Orders" value={activeKitchenOrders.length} tone="primary" />
         <StatCard icon={Timer} title="Avg Ticket Time" value={`${avgTicketMinutes}m`} tone="neutral" />
         <StatCard icon={Flame} title="Rush / Delayed" value={delayedOrders.length} tone={delayedOrders.length > 0 ? 'warning' : 'neutral'} />
@@ -200,10 +203,12 @@ const RestaurantKitchen = () => {
       </div>
 
       {mostDelayedOrder && (
-        <div className="w-full bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-xl flex items-center justify-between gap-3 mb-4">
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <Flame className="h-4 w-4 text-red-600" />
-            Rush alert: {mostDelayedOrder.order_number} has been active for {elapsedMinutes(mostDelayedOrder, now)}m
+        <div className="w-full bg-red-50 border border-red-100 text-red-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-5 shadow-card">
+          <span className="h-9 w-9 rounded-xl bg-red-600 flex items-center justify-center shrink-0">
+            <Flame className="h-5 w-5 text-white" />
+          </span>
+          <span className="text-body-md font-medium">
+            <strong className="font-display font-semibold">Rush alert:</strong> {mostDelayedOrder.order_number} has been active for {elapsedMinutes(mostDelayedOrder, now)}m
             {mostDelayedOrder.table ? ` — Table ${mostDelayedOrder.table.table_number}` : ''}. Clear it next.
           </span>
         </div>
@@ -213,15 +218,15 @@ const RestaurantKitchen = () => {
         {KITCHEN_COLUMNS.map((status) => {
           const columnOrders = kitchenOrders.filter((o) => o.status === status);
           return (
-            <div key={status} className="bg-neutral-50 rounded-xl p-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold capitalize text-neutral-700">{status}</h3>
+            <div key={status} className="bg-neutral-100/70 rounded-3xl p-3.5">
+              <div className="flex items-center justify-between mb-4 px-1">
+                <h3 className="font-display text-label-md capitalize text-on-surface">{status}</h3>
                 <span className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-neutral-400">{columnOrders.length}</span>
+                  <span className="text-label-caps text-neutral-400">{columnOrders.length}</span>
                   <Badge status={status} />
                 </span>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {columnOrders.map((order) => (
                   <OrderTicket
                     key={order.id}
@@ -236,7 +241,7 @@ const RestaurantKitchen = () => {
                   />
                 ))}
                 {columnOrders.length === 0 && (
-                  <p className="text-xs text-neutral-400 text-center py-4">No orders</p>
+                  <p className="text-body-sm text-neutral-400 text-center py-6">No orders</p>
                 )}
               </div>
             </div>

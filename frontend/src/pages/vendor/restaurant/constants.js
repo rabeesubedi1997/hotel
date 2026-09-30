@@ -53,6 +53,7 @@ export const emptyMenuForm = {
 
 export const emptyTableForm = {
   table_number: '',
+  section: '',
   capacity: 2,
   status: 'available',
 };
@@ -89,8 +90,8 @@ export const ITEM_NEXT_STATUS = { pending: 'preparing', preparing: 'ready', read
 // Ticket header bar color — bolder than the small elapsed-time badge, so a
 // cook can spot a running-late order from across the pass at a glance.
 export const urgencyBarClass = (minutes, done) => {
-  if (done) return 'bg-primary-600 text-white';
+  if (done) return 'bg-primary-700 text-white';
   if (minutes >= 20) return 'bg-red-600 text-white';
-  if (minutes >= 10) return 'bg-amber-500 text-white';
-  return 'bg-neutral-800 text-white';
+  if (minutes >= 10) return 'bg-accent-500 text-white';
+  return 'bg-neutral-900 text-white';
 };

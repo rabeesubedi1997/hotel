@@ -23,33 +23,33 @@ const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleIte
   const TypeIcon = ORDER_TYPE_ICON[order.order_type] || UtensilsCrossed;
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col ${order.is_rush ? 'border-red-300 ring-1 ring-red-200' : 'border-neutral-100'}`}>
+    <div className={`bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow overflow-hidden flex flex-col ${order.is_rush ? 'ring-2 ring-red-300' : ''}`}>
       {/* Colored priority header — spot a running-late ticket at a glance */}
-      <div className={`px-3 py-2 flex items-center justify-between ${urgencyBarClass(minutes, !activeTracking)}`}>
-        <span className="font-display font-bold text-sm leading-none flex items-center gap-1.5">
+      <div className={`px-4 py-3 flex items-center justify-between ${urgencyBarClass(minutes, !activeTracking)}`}>
+        <span className="font-display font-bold text-base leading-none flex items-center gap-1.5">
           {order.order_number}
-          {order.is_rush && <Flame className="h-3.5 w-3.5" />}
+          {order.is_rush && <Flame className="h-4 w-4" />}
         </span>
-        <span className="flex items-center gap-1 text-xs font-semibold">
+        <span className="flex items-center gap-1 text-label-md">
           <Timer className="h-3.5 w-3.5" />
           {minutes < 1 ? 'just now' : `${minutes}m`}
         </span>
       </div>
       {/* Metadata subhead */}
-      <div className="px-3 py-1.5 bg-neutral-50 flex items-center justify-between text-xs text-neutral-500 border-b border-neutral-100">
-        <span className="flex items-center gap-1 font-medium text-neutral-700 capitalize">
-          <TypeIcon className="h-3.5 w-3.5 text-primary-600" />
+      <div className="px-4 py-2 bg-neutral-50 flex items-center justify-between border-b border-neutral-100">
+        <span className="flex items-center gap-1.5 font-semibold text-on-surface capitalize text-body-sm">
+          <TypeIcon className="h-4 w-4 text-primary-600" />
           {order.order_type.replace('_', ' ')}
         </span>
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
           {order.channel && order.channel !== 'direct' && (
-            <span className="text-[10px] font-bold uppercase text-secondary-700 bg-secondary-100 px-1.5 py-0.5 rounded">
+            <span className="text-label-caps text-secondary-700 bg-secondary-100 px-2 py-0.5 rounded-full">
               {CHANNEL_LABEL[order.channel] || order.channel}
             </span>
           )}
-          {order.table && <span>Table {order.table.table_number}</span>}
+          {order.table && <span className="text-body-sm text-outline font-medium">Table {order.table.table_number}</span>}
           {order.booking && (
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-primary-700 bg-primary-100 px-1.5 py-0.5 rounded" title={`Charged to ${order.booking.booking_number}`}>
+            <span className="flex items-center gap-1 text-label-caps text-primary-700 bg-primary-100 px-2 py-0.5 rounded-full" title={`Charged to ${order.booking.booking_number}`}>
               <BedDouble className="h-3 w-3" />
               {order.booking.room ? `Rm ${order.booking.room.room_number}` : 'Room'}
             </span>
@@ -57,21 +57,21 @@ const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleIte
         </span>
       </div>
 
-      <div className="p-3 flex-1 flex flex-col">
+      <div className="p-4 flex-1 flex flex-col">
         {itemCount > 0 && activeTracking && (
-          <div className="mb-2">
-            <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-1">
-              <span>{readyCount}/{itemCount} items ready</span>
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-body-sm text-outline mb-1.5">
+              <span className="font-medium">{readyCount}/{itemCount} items ready</span>
             </div>
-            <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-green-500 transition-all"
+                className="h-full bg-primary-500 rounded-full transition-all"
                 style={{ width: `${itemCount ? (readyCount / itemCount) * 100 : 0}%` }}
               />
             </div>
           </div>
         )}
-        <ul className="text-xs text-neutral-700 mb-2 space-y-1 flex-1">
+        <ul className="mb-3 space-y-1.5 flex-1">
           {visibleItems.map((line) => {
             const lineStatus = line.status || 'pending';
             const isDone = ['ready', 'served'].includes(lineStatus);
@@ -81,21 +81,21 @@ const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleIte
                   type="button"
                   onClick={() => activeTracking && onToggleItemStatus(order, line)}
                   disabled={!activeTracking || !ITEM_NEXT_STATUS[lineStatus]}
-                  className={`w-full flex items-start gap-2 text-left px-2 py-1.5 rounded-lg transition ${
-                    isDone ? 'bg-green-50 text-green-700' : 'bg-neutral-50 hover:bg-neutral-100'
+                  className={`w-full flex items-start gap-2.5 text-left px-3 py-2 rounded-xl transition ${
+                    isDone ? 'bg-primary-50' : 'bg-neutral-50 hover:bg-neutral-100'
                   } ${activeTracking && ITEM_NEXT_STATUS[lineStatus] ? 'cursor-pointer' : 'cursor-default'}`}
                   title={activeTracking ? `Mark ${ITEM_STATUS_LABEL[ITEM_NEXT_STATUS[lineStatus]] || ''}` : ''}
                 >
-                  <span className={`mt-0.5 h-4 w-4 rounded-full border shrink-0 flex items-center justify-center ${isDone ? 'bg-green-500 border-green-500' : 'border-neutral-300'}`}>
-                    {isDone && <CheckCircle2 className="h-3 w-3 text-white" strokeWidth={3} />}
+                  <span className={`mt-0.5 h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center ${isDone ? 'bg-primary-600 border-primary-600' : 'border-neutral-300'}`}>
+                    {isDone && <CheckCircle2 className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
                   </span>
                   <span className="flex-1 min-w-0">
-                    <span className={`block font-semibold ${isDone ? 'line-through decoration-green-400 text-green-700' : 'text-neutral-800'}`}>
+                    <span className={`block font-semibold text-body-md ${isDone ? 'line-through decoration-primary-300 text-primary-700' : 'text-on-surface'}`}>
                       {line.quantity}x {line.menu_item?.name}
                     </span>
-                    {line.notes && <span className="block text-[11px] text-amber-600 font-normal">Note: {line.notes}</span>}
+                    {line.notes && <span className="block text-body-sm text-accent-600 font-normal mt-0.5">Note: {line.notes}</span>}
                   </span>
-                  <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${isDone ? 'text-green-600' : 'text-neutral-400'}`}>
+                  <span className={`shrink-0 text-label-caps ${isDone ? 'text-primary-600' : 'text-neutral-400'}`}>
                     {ITEM_STATUS_LABEL[lineStatus]}
                   </span>
                 </button>
@@ -103,41 +103,41 @@ const OrderTicket = ({ order, now, stationFilter = 'all', onAdvance, onToggleIte
             );
           })}
         </ul>
-        <p className="text-sm font-bold text-neutral-900 mb-2">${Number(order.total_amount).toFixed(2)}</p>
+        <p className="font-display text-price-display text-on-surface">${Number(order.total_amount).toFixed(2)}</p>
       </div>
 
       {/* Bold bump action bar, mirrors a real KDS's primary touch target */}
-      <div className="p-2 bg-neutral-50 border-t border-neutral-100">
+      <div className="p-3 bg-neutral-50 border-t border-neutral-100">
         {NEXT_STATUS[order.status] && (
           <button
             onClick={() => onAdvance(order)}
-            className="w-full text-xs font-bold uppercase tracking-wide bg-primary-600 text-white rounded-lg py-2.5 hover:bg-primary-700 transition-colors"
+            className="w-full text-label-caps text-white bg-primary-600 rounded-xl py-3 hover:bg-primary-700 shadow-sm transition-colors"
           >
             {ACTION_LABEL[order.status]}
           </button>
         )}
-        <div className="grid grid-cols-2 gap-1 mt-1">
+        <div className="grid grid-cols-2 gap-1.5 mt-1.5">
           {activeTracking && (
             <button
               onClick={() => onToggleRush(order)}
-              className={`flex items-center justify-center gap-1 text-xs font-medium rounded-lg py-1.5 ${
-                order.is_rush ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'text-neutral-600 hover:bg-neutral-100'
+              className={`flex items-center justify-center gap-1.5 text-body-sm font-semibold rounded-xl py-2 transition-colors ${
+                order.is_rush ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'text-outline hover:bg-neutral-100'
               }`}
             >
-              <Flame className="h-3.5 w-3.5" /> {order.is_rush ? 'Unflag Rush' : 'Mark Rush'}
+              <Flame className="h-4 w-4" /> {order.is_rush ? 'Unflag Rush' : 'Mark Rush'}
             </button>
           )}
           <button
             onClick={() => onPrint(order)}
-            className="flex items-center justify-center gap-1 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded-lg py-1.5"
+            className="flex items-center justify-center gap-1.5 text-body-sm font-semibold text-outline hover:bg-neutral-100 rounded-xl py-2 transition-colors"
           >
-            <Printer className="h-3.5 w-3.5" /> Print
+            <Printer className="h-4 w-4" /> Print
           </button>
         </div>
         {activeTracking && (
           <button
             onClick={() => onCancel(order)}
-            className="w-full text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg py-1.5 mt-1"
+            className="w-full text-body-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl py-2 mt-1.5 transition-colors"
           >
             Cancel Order
           </button>

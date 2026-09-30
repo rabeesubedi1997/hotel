@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\RestaurantTable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
@@ -244,6 +245,120 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Order updated',
             'order' => $order->load(['items.menuItem', 'table', 'booking.room']),
+        ]);
+    }
+
+    public function transferTable(Request $request, $orderId)
+    {
+        $user = auth()->user();
+        $order = Order::findOrFail($orderId);
+
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'edit')) {
+            return $blocked;
+        }
+
+        if (in_array($order->status, [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])) {
+            return response()->json(['message' => 'Cannot move a completed or cancelled order.'], 422);
+        }
+
+        $validated = $request->validate([
+            // Same-owner scoping so a table can't be transferred to a
+            // different vendor's dining room by ID guessing.
+            'table_id' => ['required', Rule::exists('restaurant_tables', 'id')
+                ->where('owner_type', $order->owner_type)
+                ->where('owner_id', $order->owner_id)],
+        ]);
+
+        if ((string) $validated['table_id'] === (string) $order->table_id) {
+            return response()->json(['message' => 'Order is already at that table.'], 422);
+        }
+
+        DB::transaction(function () use ($order, $validated) {
+            $previousTableId = $order->table_id;
+
+            $order->update(['table_id' => $validated['table_id']]);
+            RestaurantTable::where('id', $validated['table_id'])->update(['status' => RestaurantTable::STATUS_OCCUPIED]);
+
+            if ($previousTableId) {
+                $stillActive = Order::where('table_id', $previousTableId)
+                    ->where('id', '!=', $order->id)
+                    ->whereNotIn('status', [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])
+                    ->exists();
+                if (!$stillActive) {
+                    RestaurantTable::where('id', $previousTableId)->update(['status' => RestaurantTable::STATUS_AVAILABLE]);
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => 'Order moved to new table',
+            'order' => $order->fresh()->load(['items.menuItem', 'table', 'booking.room']),
+        ]);
+    }
+
+    /**
+     * Merges this order's line items into another open order on the same
+     * check (e.g. two tables pushed together for one party) — the source
+     * order is left with no items and marked cancelled with a note, the
+     * target absorbs the items and its totals. Stock/charges are untouched:
+     * the items already existed, only which order they bill to changes.
+     */
+    public function mergeInto(Request $request, $orderId)
+    {
+        $user = auth()->user();
+        $order = Order::findOrFail($orderId);
+
+        if ($blocked = $this->authorizeOwnerOfRecord($user, $order, 'edit')) {
+            return $blocked;
+        }
+
+        if (in_array($order->status, [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])) {
+            return response()->json(['message' => 'Cannot merge a completed or cancelled order.'], 422);
+        }
+
+        $validated = $request->validate([
+            'target_order_id' => ['required', Rule::exists('orders', 'id')
+                ->where('owner_type', $order->owner_type)
+                ->where('owner_id', $order->owner_id)
+                ->whereNotIn('status', [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])],
+        ]);
+
+        if ((int) $validated['target_order_id'] === $order->id) {
+            return response()->json(['message' => 'Cannot merge an order into itself.'], 422);
+        }
+
+        $targetOrder = Order::findOrFail($validated['target_order_id']);
+
+        DB::transaction(function () use ($order, $targetOrder) {
+            $previousTableId = $order->table_id;
+
+            $order->items()->update(['order_id' => $targetOrder->id]);
+
+            $targetOrder->refresh();
+            $newSubtotal = $targetOrder->items()->sum('subtotal');
+            $targetOrder->update(['subtotal' => $newSubtotal, 'total_amount' => $newSubtotal]);
+
+            $order->update([
+                'subtotal' => 0,
+                'total_amount' => 0,
+                'status' => Order::STATUS_CANCELLED,
+                'notes' => trim(($order->notes ? $order->notes . ' — ' : '') . "Merged into {$targetOrder->order_number}"),
+            ]);
+
+            if ($previousTableId) {
+                $stillActive = Order::where('table_id', $previousTableId)
+                    ->where('id', '!=', $order->id)
+                    ->whereNotIn('status', [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])
+                    ->exists();
+                if (!$stillActive) {
+                    RestaurantTable::where('id', $previousTableId)->update(['status' => RestaurantTable::STATUS_AVAILABLE]);
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => "Merged into {$targetOrder->order_number}",
+            'order' => $targetOrder->fresh()->load(['items.menuItem', 'table', 'booking.room']),
         ]);
     }
 

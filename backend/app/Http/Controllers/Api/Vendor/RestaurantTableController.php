@@ -32,6 +32,7 @@ class RestaurantTableController extends Controller
 
         $validated = $request->validate([
             'table_number' => 'required|string|max:255',
+            'section' => 'nullable|string|max:255',
             'capacity' => 'required|integer|min:1',
             'status' => 'sometimes|in:available,occupied,reserved',
         ]);
@@ -58,6 +59,7 @@ class RestaurantTableController extends Controller
 
         $validated = $request->validate([
             'table_number' => 'sometimes|string|max:255',
+            'section' => 'nullable|string|max:255',
             'capacity' => 'sometimes|integer|min:1',
             'status' => 'sometimes|in:available,occupied,reserved',
         ]);

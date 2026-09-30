@@ -492,6 +492,8 @@ export const vendorAPI = {
   updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
   updateOrderRush: (orderId, isRush) => api.put(`/vendor/orders/${orderId}/rush`, { is_rush: isRush }),
   updateOrderItemStatus: (orderId, itemId, status) => api.put(`/vendor/orders/${orderId}/items/${itemId}/status`, { status }),
+  transferOrderTable: (orderId, tableId) => api.put(`/vendor/orders/${orderId}/transfer-table`, { table_id: tableId }),
+  mergeOrder: (orderId, targetOrderId) => api.post(`/vendor/orders/${orderId}/merge`, { target_order_id: targetOrderId }),
   getEarningsReport: (ownerType, ownerId, params) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/reports/earnings`, { params }),
 
   // Restaurant POS: "Charge to Room" — active booking lookup

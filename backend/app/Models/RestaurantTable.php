@@ -19,6 +19,7 @@ class RestaurantTable extends Model
         'owner_id',
         'owner_type',
         'table_number',
+        'section',
         'capacity',
         'status',
     ];

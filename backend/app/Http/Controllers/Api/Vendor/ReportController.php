@@ -38,6 +38,43 @@ class ReportController extends Controller
             ->groupBy('order_type')
             ->get();
 
+        // Direct/UberEats/DoorDash split — a separate facet from order_type
+        // (dine-in/room-service/takeaway), both stored on Order.
+        $revenueByChannel = (clone $revenueOrders)
+            ->selectRaw('channel, SUM(total_amount) as total, COUNT(*) as count')
+            ->groupBy('channel')
+            ->get();
+
+        // Daily revenue trend for the selected range — real created_at-based
+        // buckets, not a fabricated series. Zero-fills days with no revenue
+        // so the chart doesn't skip gaps.
+        $revenueByDayRaw = (clone $revenueOrders)
+            ->selectRaw('DATE(created_at) as day, SUM(total_amount) as total, COUNT(*) as count')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+        $revenueByDay = [];
+        for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
+            $key = $day->toDateString();
+            $revenueByDay[] = ['date' => $key, 'total' => (float) ($revenueByDayRaw[$key] ?? 0)];
+        }
+
+        // Avg minutes from "preparing" to "ready" per kitchen station, from
+        // real OrderItem timestamps — this is the Kitchen tab's own data,
+        // just aggregated instead of per-ticket.
+        $stationThroughput = OrderItem::query()
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('menu_items', 'menu_items.id', '=', 'order_items.menu_item_id')
+            ->where('orders.owner_type', $owner->getMorphClass())
+            ->where('orders.owner_id', $owner->id)
+            ->whereNotNull('menu_items.station')
+            ->whereNotNull('order_items.started_at')
+            ->whereNotNull('order_items.ready_at')
+            ->whereBetween('orders.created_at', [$from, $to])
+            ->selectRaw('menu_items.station, COUNT(*) as tickets, AVG(TIMESTAMPDIFF(MINUTE, order_items.started_at, order_items.ready_at)) as avg_minutes')
+            ->groupBy('menu_items.station')
+            ->orderByDesc('tickets')
+            ->get();
+
         $cancelled = (clone $baseQuery)->where('status', Order::STATUS_CANCELLED);
         $cancelledCount = (clone $cancelled)->count();
         $cancelledValue = (clone $cancelled)->sum('total_amount');
@@ -72,6 +109,9 @@ class ReportController extends Controller
             'orders_count' => $ordersCount,
             'avg_order_value' => (float) $avgOrderValue,
             'revenue_by_type' => $revenueByType,
+            'revenue_by_channel' => $revenueByChannel,
+            'revenue_by_day' => $revenueByDay,
+            'station_throughput' => $stationThroughput,
             'orders_by_status' => $ordersByStatus,
             'cancelled_count' => $cancelledCount,
             'cancelled_value' => (float) $cancelledValue,
