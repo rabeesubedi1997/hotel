@@ -12,12 +12,14 @@ import KitchenStaffModal from './modals/KitchenStaffModal';
 
 const RestaurantKitchen = () => {
   const { ownerType, orders, tables, menuItems, setOrders, isApproved, loadAll, toast } = useRestaurant();
-  const { hasAnyPermission } = useAuthStore();
+  const { hasAnyPermission, isAdminLevel } = useAuthStore();
   // A scoped Kitchen Staff login only holds restaurant.kitchen.*, never the
   // full hotels/activities.*.own permissions — hide the actions that
   // require actually owning the property (taking new orders, managing who
-  // else gets kitchen access) rather than let them 403 on click.
-  const canManageRestaurant = hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
+  // else gets kitchen access) rather than let them 403 on click. Admins use
+  // hotels.edit.all (not .own) and bypass permission checks entirely on the
+  // backend, so they need their own explicit allow here too.
+  const canManageRestaurant = isAdminLevel() || hasAnyPermission(['hotels.edit.own', 'activities.edit.own']);
   const [kitchenTypeFilter, setKitchenTypeFilter] = useState('all');
   const [stationFilter, setStationFilter] = useState('all');
   const [orderFormOpen, setOrderFormOpen] = useState(false);
