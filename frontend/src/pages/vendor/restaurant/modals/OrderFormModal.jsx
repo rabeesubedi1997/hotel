@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { BedDouble, Loader2, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BedDouble, Image as ImageIcon, Loader2, Search, X } from 'lucide-react';
 import { Button, Modal, Select, Textarea } from '../../../../components/ui';
 import { vendorAPI } from '../../../../services/api';
 import { useRestaurant } from '../context/RestaurantContext';
@@ -18,6 +18,7 @@ const OrderFormModal = ({ open, onClose, onPlaced }) => {
   const [orderFormData, setOrderFormData] = useState(emptyOrderForm);
   const [savingOrder, setSavingOrder] = useState(false);
 
+  const [menuSearch, setMenuSearch] = useState('');
   const [chargeToRoom, setChargeToRoom] = useState(false);
   const [bookingSearch, setBookingSearch] = useState('');
   const [bookingResults, setBookingResults] = useState([]);
@@ -46,11 +47,17 @@ const OrderFormModal = ({ open, onClose, onPlaced }) => {
   const close = () => {
     onClose();
     setOrderFormData(emptyOrderForm);
+    setMenuSearch('');
     setChargeToRoom(false);
     setBookingSearch('');
     setBookingResults([]);
     setSelectedBooking(null);
   };
+
+  const availableMenuItems = useMemo(() => {
+    const q = menuSearch.trim().toLowerCase();
+    return menuItems.filter((m) => m.is_available && (!q || m.name.toLowerCase().includes(q)));
+  }, [menuItems, menuSearch]);
 
   const addOrderLine = (menuItemId) => {
     setOrderFormData((prev) => {
@@ -211,20 +218,39 @@ const OrderFormModal = ({ open, onClose, onPlaced }) => {
 
         <div>
           <p className="text-sm font-medium text-neutral-700 mb-2">Menu Items</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto border border-neutral-100 rounded-lg p-2">
-            {menuItems.filter((m) => m.is_available).map((item) => (
+          <div className="relative mb-2">
+            <Search className="h-4 w-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+              placeholder="Search menu items..."
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto border border-neutral-100 rounded-lg p-2">
+            {availableMenuItems.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 onClick={() => addOrderLine(item.id)}
-                className="flex items-center justify-between text-left px-3 py-2 rounded-lg hover:bg-primary-50 border border-neutral-100"
+                className="flex items-center gap-2.5 text-left px-2.5 py-2 rounded-lg hover:bg-primary-50 border border-neutral-100"
               >
-                <span className="text-sm text-neutral-800">{item.name}</span>
-                <span className="text-sm font-medium text-neutral-500">${Number(item.price).toFixed(2)}</span>
+                <span className="h-10 w-10 rounded-lg bg-neutral-100 overflow-hidden shrink-0">
+                  {item.image
+                    ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                    : <span className="h-full w-full flex items-center justify-center"><ImageIcon className="h-4 w-4 text-neutral-300" /></span>}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm text-neutral-800 truncate">{item.name}</span>
+                  <span className="block text-sm font-medium text-neutral-500">${Number(item.price).toFixed(2)}</span>
+                </span>
               </button>
             ))}
-            {menuItems.filter((m) => m.is_available).length === 0 && (
-              <p className="col-span-full text-center text-sm text-neutral-500 py-4">No available menu items.</p>
+            {availableMenuItems.length === 0 && (
+              <p className="col-span-full text-center text-sm text-neutral-500 py-4">
+                {menuSearch.trim() ? 'No items match your search.' : 'No available menu items.'}
+              </p>
             )}
           </div>
         </div>
