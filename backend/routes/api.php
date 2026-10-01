@@ -234,6 +234,7 @@ Route::middleware(['auth:sanctum', 'vendor'])->prefix('vendor')->group(function 
     \App\Support\RestaurantPosRoutes::ownerScoped('get', 'menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'index'], 'view');
     \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-items', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'store'], 'edit');
     \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-items/bulk-availability', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'bulkAvailability'], 'edit');
+    \App\Support\RestaurantPosRoutes::ownerScoped('post', 'menu-items/import', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'import'], 'edit');
     Route::put('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'update'])->middleware('permission:hotels.edit.own|activities.edit.own');
     Route::delete('/menu-items/{menuItem}', [\App\Http\Controllers\Api\Vendor\MenuController::class, 'destroy'])->middleware('permission:hotels.delete.own|activities.delete.own');
 

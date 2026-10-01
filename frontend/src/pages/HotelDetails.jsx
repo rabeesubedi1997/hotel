@@ -298,6 +298,21 @@ const HotelDetails = () => {
     }
   };
 
+  // Auto-check availability whenever dates/room/guests change — no manual
+  // "Check Availability" click needed. Debounced so rapid +/- guest clicks
+  // or date picker re-renders don't fire a request per keystroke.
+  useEffect(() => {
+    if (!hotel || !checkInDate || !checkOutDate) {
+      setAvailabilityStatus(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkAvailability();
+    }, 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotel, checkInDate, checkOutDate, adults, children, selectedRoom]);
+
   // Handle proceed to checkout
   const handleProceedToCheckout = () => {
     if (!isAuthenticated) {
@@ -1027,8 +1042,14 @@ const HotelDetails = () => {
               </div>
             )}
 
-            {/* Availability Status */}
-            {availabilityStatus && (
+            {/* Availability Status — checked automatically in the background
+                as soon as dates/room/guests are set, no button to click. */}
+            {checkingAvailability ? (
+              <div className="mb-4 p-3 rounded-xl text-sm bg-neutral-50 text-neutral-500 flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking availability...
+              </div>
+            ) : availabilityStatus && (
               <div className={`mb-4 p-3 rounded-xl text-sm ${availabilityStatus.available ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                 {availabilityStatus.message}
               </div>
@@ -1060,28 +1081,19 @@ const HotelDetails = () => {
               </div>
             )}
 
-            {/* Check Availability Button */}
-            <Button
-              variant="secondary"
-              fullWidth
-              onClick={checkAvailability}
-              disabled={checkingAvailability || !checkInDate || !checkOutDate}
-              loading={checkingAvailability}
-              className="mb-3 border-primary-600 text-primary-600 hover:bg-primary-50"
-            >
-              {checkingAvailability ? 'Checking...' : 'Check Availability'}
-            </Button>
-
-            {/* Book Now Button */}
+            {/* Book Now Button — availability is already checked automatically
+                above, so this is the only click needed to proceed. */}
             <Button
               variant="primary"
               size="lg"
               fullWidth
               onClick={handleProceedToCheckout}
-              disabled={!availabilityStatus?.available || !selectedRoom}
+              disabled={checkingAvailability || !availabilityStatus?.available || !selectedRoom}
             >
-              {availabilityStatus?.available && selectedRoom ? 'Book Now' :
-               !selectedRoom ? 'Select Room Type to Book' : 'Select Dates to Book'}
+              {checkingAvailability ? 'Checking availability...' :
+               !checkInDate || !checkOutDate ? 'Select Dates to Book' :
+               !selectedRoom ? 'Select Room Type to Book' :
+               availabilityStatus?.available ? 'Book Now' : 'Not Available for These Dates'}
             </Button>
 
             <p className="text-xs text-neutral-500 mt-3 text-center">

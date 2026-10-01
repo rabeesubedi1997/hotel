@@ -469,6 +469,13 @@ export const vendorAPI = {
   updateMenuItem: (itemId, data) => api.put(`/vendor/menu-items/${itemId}`, data),
   deleteMenuItem: (itemId) => api.delete(`/vendor/menu-items/${itemId}`),
   bulkUpdateMenuAvailability: (ownerType, ownerId, data) => api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-items/bulk-availability`, data),
+  importMenuItems: (ownerType, ownerId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-items/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   // Restaurant POS: Menu Categories
   getMenuCategories: (ownerType, ownerId) => api.get(`/vendor/${ownerPath(ownerType)}/${ownerId}/menu-categories`),

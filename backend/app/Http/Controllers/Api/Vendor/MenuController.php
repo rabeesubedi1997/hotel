@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\MenuItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class MenuController extends Controller
 {
@@ -53,6 +55,116 @@ class MenuController extends Controller
             'message' => 'Menu item created successfully',
             'item' => $item,
         ], 201);
+    }
+
+    /**
+     * Bulk-create/update menu items (and their stock) from an uploaded CSV —
+     * the "Import" counterpart to the client-side "Export CSV" button.
+     * A row whose SKU matches an existing item for this owner updates that
+     * item (price/stock/etc.) instead of creating a duplicate, so the same
+     * template can be used both to add new items and to restock existing
+     * ones in bulk.
+     */
+    public function import(Request $request, $ownerId)
+    {
+        $user = auth()->user();
+        $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
+
+        if ($blocked = $this->blockIfOwnerUnapproved($user, $owner, 'manage its menu')) {
+            return $blocked;
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:2048',
+        ]);
+
+        $handle = fopen($request->file('file')->getRealPath(), 'r');
+        $header = fgetcsv($handle);
+        if (!$header) {
+            fclose($handle);
+            return response()->json(['message' => 'The file is empty.'], 422);
+        }
+        $header = array_map(fn ($h) => strtolower(trim((string) $h)), $header);
+
+        $created = 0;
+        $updated = 0;
+        $errors = [];
+        $rowNumber = 1; // header is row 1
+
+        DB::transaction(function () use ($handle, $header, $owner, &$created, &$updated, &$errors, &$rowNumber) {
+            while (($row = fgetcsv($handle)) !== false) {
+                $rowNumber++;
+
+                if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
+                    continue; // skip blank rows
+                }
+
+                $data = array_combine($header, array_pad(array_slice($row, 0, count($header)), count($header), null));
+
+                $sku = trim((string) ($data['sku'] ?? ''));
+                $allergens = trim((string) ($data['allergens'] ?? ''));
+                $available = strtolower(trim((string) ($data['available'] ?? 'yes')));
+
+                $payload = [
+                    'name' => trim((string) ($data['name'] ?? '')),
+                    'category' => trim((string) ($data['category'] ?? '')),
+                    'sku' => $sku !== '' ? $sku : null,
+                    'price' => trim((string) ($data['price'] ?? '')),
+                    'cost_price' => trim((string) ($data['cost_price'] ?? '')) !== '' ? $data['cost_price'] : null,
+                    'stock_quantity' => trim((string) ($data['stock_quantity'] ?? '')) !== '' ? $data['stock_quantity'] : null,
+                    'low_stock_threshold' => trim((string) ($data['low_stock_threshold'] ?? '')) !== '' ? $data['low_stock_threshold'] : 5,
+                    'station' => trim((string) ($data['station'] ?? '')) ?: null,
+                    'description' => trim((string) ($data['description'] ?? '')) ?: null,
+                    'allergens' => $allergens !== '' ? array_values(array_filter(array_map('trim', explode(';', $allergens)))) : [],
+                    'is_available' => in_array($available, ['yes', 'y', 'true', '1'], true),
+                ];
+
+                $validator = Validator::make($payload, [
+                    'name' => 'required|string|max:255',
+                    'category' => 'required|string|max:255',
+                    'sku' => 'nullable|string|max:100',
+                    'price' => 'required|numeric|min:0',
+                    'cost_price' => 'nullable|numeric|min:0',
+                    'stock_quantity' => 'nullable|integer|min:0',
+                    'low_stock_threshold' => 'nullable|integer|min:0',
+                    'station' => 'nullable|string|max:100',
+                    'description' => 'nullable|string',
+                    'allergens.*' => 'string|max:50',
+                    'is_available' => 'boolean',
+                ]);
+
+                if ($validator->fails()) {
+                    $errors[] = ['row' => $rowNumber, 'errors' => $validator->errors()->all()];
+                    continue;
+                }
+
+                $validated = $validator->validated();
+
+                $existing = $validated['sku'] ? $owner->menuItems()->where('sku', $validated['sku'])->first() : null;
+                if ($existing) {
+                    $existing->update($validated);
+                    $updated++;
+                } else {
+                    $owner->menuItems()->create($validated);
+                    $created++;
+                }
+            }
+        });
+
+        fclose($handle);
+
+        $summary = "{$created} item(s) created, {$updated} updated";
+        if (count($errors) > 0) {
+            $summary .= ', ' . count($errors) . ' row(s) skipped';
+        }
+
+        return response()->json([
+            'message' => $summary,
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+            'items' => $owner->menuItems()->orderBy('category')->orderBy('name')->get(),
+        ]);
     }
 
     public function update(Request $request, $itemId)

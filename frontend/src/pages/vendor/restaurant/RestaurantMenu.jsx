@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, CheckSquare, Download, Edit, Image as ImageIcon, Plus, Search,
-  Settings2, Square, Tags, Trash2, UtensilsCrossed, X, XCircle,
+  Settings2, Square, Tags, Trash2, Upload, UtensilsCrossed, X, XCircle,
 } from 'lucide-react';
 import { Button, Table, Td, Th } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
@@ -10,6 +10,7 @@ import { CATEGORY_LABELS, STATION_LABEL } from './constants';
 import MenuItemFormModal from './modals/MenuItemFormModal';
 import CategoryManagerModal from './modals/CategoryManagerModal';
 import InventorySettingsModal from './modals/InventorySettingsModal';
+import ImportMenuModal from './modals/ImportMenuModal';
 
 const RestaurantMenu = () => {
   const { ownerType, ownerId, owner, menuItems, setMenuItems, categories, isApproved, toast } = useRestaurant();
@@ -22,6 +23,7 @@ const RestaurantMenu = () => {
 
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [inventorySettingsOpen, setInventorySettingsOpen] = useState(false);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
 
   const [bulk86Mode, setBulk86Mode] = useState(false);
   const [selectedMenuIds, setSelectedMenuIds] = useState(() => new Set());
@@ -167,6 +169,10 @@ const RestaurantMenu = () => {
           <Download className="h-4 w-4" />
           Export CSV
         </Button>
+        <Button size="sm" variant="secondary" onClick={() => setImportMenuOpen(true)} disabled={!isApproved}>
+          <Upload className="h-4 w-4" />
+          Import
+        </Button>
         <Button
           size="sm"
           variant={bulk86Mode ? 'danger' : 'secondary'}
@@ -308,10 +314,16 @@ const RestaurantMenu = () => {
         <div className="bg-white rounded-3xl border border-dashed border-neutral-200 py-16 text-center">
           <UtensilsCrossed className="h-10 w-10 text-neutral-300 mx-auto mb-3" />
           <p className="text-neutral-500 mb-4">No menu items yet. Build out your menu to start taking orders.</p>
-          <Button size="sm" onClick={openAddMenuForm} disabled={!isApproved} className="mx-auto">
-            <Plus className="h-4 w-4" />
-            Add Your First Item
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button size="sm" onClick={openAddMenuForm} disabled={!isApproved}>
+              <Plus className="h-4 w-4" />
+              Add Your First Item
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setImportMenuOpen(true)} disabled={!isApproved}>
+              <Upload className="h-4 w-4" />
+              Import from CSV
+            </Button>
+          </div>
         </div>
       ) : filteredMenuItems.length === 0 ? (
         <p className="text-center text-neutral-500 py-12">No items match your search.</p>
@@ -436,6 +448,7 @@ const RestaurantMenu = () => {
       />
       <CategoryManagerModal open={categoryManagerOpen} onClose={() => setCategoryManagerOpen(false)} />
       <InventorySettingsModal open={inventorySettingsOpen} onClose={() => setInventorySettingsOpen(false)} />
+      <ImportMenuModal open={importMenuOpen} onClose={() => setImportMenuOpen(false)} />
     </div>
   );
 };
