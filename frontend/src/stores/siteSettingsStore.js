@@ -36,9 +36,11 @@ const useSiteSettingsStore = create((set, get) => ({
     return settings[key] !== undefined ? settings[key] : defaultValue;
   },
 
-  // Get site name
+  // Get site name — falls back to this deployment's actual brand (not the
+  // generic template default) so the brief gap before the settings fetch
+  // resolves never flashes the wrong name in the title/header.
   getSiteName: () => {
-    return get().getSetting('site_name', 'ReserveNow');
+    return get().getSetting('site_name', 'Paradise Nepal');
   },
 
   // Get site tagline
