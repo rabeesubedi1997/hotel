@@ -37,6 +37,8 @@ class PackageBooking extends Model
     ];
 
     protected $casts = [
+        // See Booking::$casts — keeps strict ownership checks type-safe.
+        'user_id' => 'integer',
         'travel_date' => 'date',
         'travelers' => 'integer',
         'package_price' => 'decimal:2',

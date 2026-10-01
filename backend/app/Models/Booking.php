@@ -46,6 +46,9 @@ class Booking extends Model
     ];
 
     protected $casts = [
+        // Ownership checks compare this strictly against Auth::id() (an
+        // int); some production MySQL drivers return it as a string.
+        'user_id' => 'integer',
         'check_in_date' => 'date',
         'check_out_date' => 'date',
         'activity_datetime' => 'datetime',

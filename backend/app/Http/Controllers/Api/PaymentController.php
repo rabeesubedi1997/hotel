@@ -45,7 +45,7 @@ class PaymentController extends Controller
 
         if ($request->filled('package_booking_id')) {
             $packageBooking = PackageBooking::findOrFail($request->package_booking_id);
-            if ($packageBooking->user_id !== Auth::id()) {
+            if ((int) $packageBooking->user_id !== (int) Auth::id()) {
                 Log::warning('Payment resolvePayable: package booking owner mismatch', [
                     'package_booking_id' => $packageBooking->id,
                     'package_booking_owner_id' => $packageBooking->user_id,
@@ -59,7 +59,7 @@ class PaymentController extends Controller
         }
 
         $booking = Booking::findOrFail($request->booking_id);
-        if ($booking->user_id !== Auth::id()) {
+        if ((int) $booking->user_id !== (int) Auth::id()) {
             // Temporary diagnostic logging — this exact 403 has reproduced
             // twice in what was reported as a single continuous checkout
             // session, after the multi-tab token-pinning fix. Logging the
@@ -193,7 +193,7 @@ class PaymentController extends Controller
         $isPackage = (bool) $payment->package_booking_id;
         $payable = $isPackage ? $payment->packageBooking : $payment->booking;
 
-        if ($payable->user_id !== Auth::id()) {
+        if ((int) $payable->user_id !== (int) Auth::id()) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
