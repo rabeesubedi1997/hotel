@@ -97,7 +97,7 @@ export const activitiesAPI = {
 export const bookingsAPI = {
   getAll: () => api.get('/bookings'),
   getById: (id) => api.get(`/bookings/${id}`),
-  create: (data) => api.post('/bookings', data),
+  create: (data, config) => api.post('/bookings', data, config),
   delete: (id) => api.delete(`/bookings/${id}`),
   cancel: (id, reason) => api.post(`/bookings/${id}/cancel`, { cancellation_reason: reason }),
   checkAvailability: (data) => api.post('/bookings/check-availability', data),
@@ -205,7 +205,7 @@ export const itinerariesAPI = {
 export const packageBookingsAPI = {
   getAll: () => api.get('/package-bookings'),
   getById: (id) => api.get(`/package-bookings/${id}`),
-  create: (data) => api.post('/package-bookings', data),
+  create: (data, config) => api.post('/package-bookings', data, config),
   cancel: (id, reason) => api.post(`/package-bookings/${id}/cancel`, { cancellation_reason: reason }),
   downloadInvoice: (id) => api.get(`/package-bookings/${id}/invoice`, { responseType: 'blob' }),
 };

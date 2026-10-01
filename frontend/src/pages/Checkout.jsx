@@ -307,16 +307,21 @@ const SingleItemCheckout = () => {
         room_id: bookingData.room_id,
         special_requests: bookingData.special_requests
       });
-      
-      const response = await bookingsAPI.create(bookingData);
+
+      // Pinned BEFORE the request fires, not after it returns — otherwise
+      // a token change in another tab during the round-trip would get
+      // captured here instead of the one that actually created the
+      // booking, and the later payment would still 403.
+      const tokenAtCreate = localStorage.getItem('token');
+      const response = await bookingsAPI.create(bookingData, pinnedAuthConfig(tokenAtCreate));
       console.log('Booking response status:', response.status);
       console.log('Booking response data:', response.data);
-      
+
       // Backend returns booking in response.data.booking
       const createdBooking = response.data.booking || response.data;
       console.log('Setting booking data:', createdBooking);
       setBooking(createdBooking);
-      setCheckoutToken(localStorage.getItem('token'));
+      setCheckoutToken(tokenAtCreate);
     } catch (error) {
       console.error('Error creating booking:', error);
       console.error('Error response:', error.response?.data);
@@ -408,9 +413,11 @@ const SingleItemCheckout = () => {
       }
 
       console.log('Sending booking data:', bookingData);
-      const response = await bookingsAPI.create(bookingData);
+      // Pinned BEFORE the request fires — see pinnedAuthConfig's comment.
+      const tokenAtCreate = localStorage.getItem('token');
+      const response = await bookingsAPI.create(bookingData, pinnedAuthConfig(tokenAtCreate));
       setBooking(response.data.booking);
-      setCheckoutToken(localStorage.getItem('token'));
+      setCheckoutToken(tokenAtCreate);
       setStep(2);
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -862,15 +869,17 @@ const PackageCheckout = () => {
     }
     setProcessing(true);
     try {
+      // Pinned BEFORE the request fires — see pinnedAuthConfig's comment.
+      const tokenAtCreate = localStorage.getItem('token');
       const response = await packageBookingsAPI.create({
         itinerary_id: itinerary.id,
         travel_date: travelDate,
         travelers,
         special_requests: specialRequests || undefined,
         ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
-      });
+      }, pinnedAuthConfig(tokenAtCreate));
       setPackageBooking(response.data.package_booking);
-      setCheckoutToken(localStorage.getItem('token'));
+      setCheckoutToken(tokenAtCreate);
       setStep(2);
     } catch (error) {
       console.error('Error booking package:', error);
@@ -1184,7 +1193,12 @@ const MultiItemCheckout = () => {
     }
 
     setProcessing(true);
-    setCheckoutToken(localStorage.getItem('token'));
+    // A local const, not just the state setter — setCheckoutToken() won't
+    // update the `checkoutToken` variable until the next render, but this
+    // function needs the pinned value synchronously for every create()
+    // call in the loop below.
+    const tokenAtCreate = localStorage.getItem('token');
+    setCheckoutToken(tokenAtCreate);
     const created = [];
 
     // Sequential on purpose: awaiting one booking at a time (instead of
@@ -1207,7 +1221,7 @@ const MultiItemCheckout = () => {
             check_out_date: formatYMD(checkOut),
             guests,
             itinerary_id: trip.id,
-          });
+          }, pinnedAuthConfig(tokenAtCreate));
           created.push(response.data.booking || response.data);
         } else if (item.bookable_label === 'activity') {
           const response = await bookingsAPI.create({
@@ -1216,7 +1230,7 @@ const MultiItemCheckout = () => {
             activity_datetime: `${ymd}T09:00`,
             participants: guests,
             itinerary_id: trip.id,
-          });
+          }, pinnedAuthConfig(tokenAtCreate));
           created.push(response.data.booking || response.data);
         }
       } catch (err) {
