@@ -763,12 +763,19 @@ const AdminHotels = () => {
                   onChange={(e) => setRoomFormData({ ...roomFormData, room_type: e.target.value })}
                   placeholder="e.g. Deluxe, Suite"
                 />
-                <Input
-                  label="Room Number"
-                  type="text"
-                  value={roomFormData.room_number}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, room_number: e.target.value })}
-                />
+                <div>
+                  <Input
+                    label="Room Number"
+                    type="text"
+                    value={roomFormData.room_number}
+                    onChange={(e) => setRoomFormData({ ...roomFormData, room_number: e.target.value })}
+                    placeholder="e.g. 102 — only if this is one specific room"
+                    disabled={Number(roomFormData.available_count || 0) > 1}
+                  />
+                  <p className="mt-1 text-xs text-neutral-400">
+                    Only applies when Available Count is 1 — a room number identifies a single physical room, not a count of identical rooms.
+                  </p>
+                </div>
                 <Textarea
                   label="Description"
                   rows="3"
@@ -790,13 +797,29 @@ const AdminHotels = () => {
                   value={roomFormData.capacity}
                   onChange={(e) => setRoomFormData({ ...roomFormData, capacity: e.target.value })}
                 />
-                <Input
-                  label="Available Count"
-                  type="number"
-                  min="0"
-                  value={roomFormData.available_count}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, available_count: e.target.value })}
-                />
+                <div>
+                  <Input
+                    label="Available Count"
+                    type="number"
+                    min="0"
+                    value={roomFormData.available_count}
+                    onChange={(e) => {
+                      const available_count = e.target.value;
+                      // A room number identifies one specific room — once
+                      // this represents more than one, it stops making sense
+                      // and gets cleared automatically rather than left to
+                      // show "5 Rooms" next to "Room 102".
+                      setRoomFormData((prev) => ({
+                        ...prev,
+                        available_count,
+                        room_number: Number(available_count) > 1 ? '' : prev.room_number,
+                      }));
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-neutral-400">
+                    How many identical rooms of this type exist — this is what drives availability, not the room number.
+                  </p>
+                </div>
                 <Select
                   label="Status"
                   value={roomFormData.status}
@@ -849,7 +872,7 @@ const AdminHotels = () => {
                               </div>
                             )}
                           </Td>
-                          <Td>{room.room_number || '-'}</Td>
+                          <Td>{room.room_number && room.available_count <= 1 ? room.room_number : '-'}</Td>
                           <Td className="font-semibold text-neutral-900">${room.price}/night</Td>
                           <Td>{room.capacity} guests</Td>
                           <Td>{room.bed_type} ({room.bed_count || 1})</Td>
