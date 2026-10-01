@@ -7,7 +7,8 @@ import { getHotelImage } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
 import useActingVendorStore from '../../stores/actingVendorStore';
-import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminHotels = () => {
   const { user } = useAuthStore();
@@ -88,29 +89,31 @@ const AdminHotels = () => {
   });
   const [vendors, setVendors] = useState([]);
 
-  // Pagination state
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    per_page: 20,
-    total: 0,
-  });
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const fetchHotels = async (params = {}) => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term always lands back on page 1 (a no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const fetchHotels = async () => {
+    setLoading(true);
     try {
       const response = await api.getHotels({
-        ...params,
         ...(vendorId ? { user_id: vendorId } : {}),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
         page: pagination.current_page,
         per_page: pagination.per_page,
       });
       setHotels(response.data.data || []);
-      setPagination({
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        per_page: response.data.per_page,
-        total: response.data.total,
-      });
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching hotels:', error);
     } finally {
@@ -120,12 +123,15 @@ const AdminHotels = () => {
 
   useEffect(() => {
     fetchHotels();
-  }, [pagination.current_page, pagination.per_page, vendorId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, vendorId, debouncedSearch]);
 
   useEffect(() => {
     if (isVendor) return;
-    adminAPI.getVendors()
-      .then((res) => setVendors(res.data || []))
+    // Populates a filter dropdown, not a browsable list — needs every
+    // vendor, so per_page: 200 (the max page size) rather than paginating.
+    adminAPI.getVendors({ per_page: 200 })
+      .then((res) => setVendors(res.data.data || []))
       .catch((error) => console.error('Error fetching vendors:', error));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -394,11 +400,6 @@ const AdminHotels = () => {
     }
   };
 
-  const filteredHotels = hotels.filter((hotel) =>
-    hotel.name.toLowerCase().includes(search.toLowerCase()) ||
-    hotel.city.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -456,7 +457,7 @@ const AdminHotels = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredHotels.map((hotel) => (
+          {hotels.map((hotel) => (
             <tr key={hotel.id}>
               <Td className="whitespace-normal">
                 <div className="flex items-center">
@@ -529,6 +530,10 @@ const AdminHotels = () => {
           ))}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="hotels" />
+      )}
 
       {/* Edit Modal */}
       <Modal

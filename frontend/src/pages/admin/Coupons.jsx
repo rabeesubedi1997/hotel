@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Tag, Plus, Edit2, Trash2, Eye, EyeOff, Check } from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Button, Input, Textarea, Select, Card, Badge, StatCard, Modal } from '../../components/ui';
+import { Button, Input, Textarea, Select, Card, Badge, StatCard, Modal, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const APPLICABLE_TO = [
   { value: 'all', label: 'Everything' },
@@ -35,26 +36,27 @@ const Coupons = () => {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
   const [message, setMessage] = useState('');
-  const hasFetchedRef = useRef(false);
+  const { pagination, applyResponse, goToPage, setPerPage } = usePagination();
 
-  useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetchCoupons();
-  }, []);
-
-  const fetchCoupons = useCallback(async () => {
+  const fetchCoupons = useCallback(async (page, perPage) => {
     try {
       setLoading(true);
-      const response = await adminAPI.getCoupons();
+      const response = await adminAPI.getCoupons({ page, per_page: perPage });
       setCoupons(response.data?.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching coupons:', error);
       setMessage('Error loading coupons');
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetchCoupons(pagination.current_page, pagination.per_page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page]);
 
   const showMessage = (text) => {
     setMessage(text);
@@ -84,7 +86,7 @@ const Coupons = () => {
       setShowModal(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchCoupons();
+      fetchCoupons(pagination.current_page, pagination.per_page);
     } catch (error) {
       console.error('Error saving coupon:', error);
       showMessage(error.response?.data?.message || 'Error saving coupon');
@@ -96,7 +98,7 @@ const Coupons = () => {
     try {
       await adminAPI.deleteCoupon(id);
       showMessage('Coupon deleted');
-      fetchCoupons();
+      fetchCoupons(pagination.current_page, pagination.per_page);
     } catch (error) {
       console.error('Error deleting coupon:', error);
       showMessage('Error deleting coupon');
@@ -211,6 +213,10 @@ const Coupons = () => {
             </Card>
           ))}
         </div>
+      )}
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="coupons" />
       )}
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Coupon' : 'New Coupon'} size="xl">

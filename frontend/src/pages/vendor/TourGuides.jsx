@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
-import { Button, Input, Textarea, Modal, Card, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Modal, Card, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const emptyForm = {
   name: '',
@@ -23,23 +24,27 @@ const VendorTourGuides = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGuide, setEditingGuide] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
+  const { pagination, applyResponse, goToPage, setPerPage } = usePagination();
 
-  const fetchGuides = useCallback(async () => {
+  const fetchGuides = useCallback(async (page, perPage) => {
     try {
       setLoading(true);
-      const response = await vendorAPI.getTourGuides();
-      setGuides(response.data || []);
+      const response = await vendorAPI.getTourGuides({ page, per_page: perPage });
+      setGuides(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Failed to fetch tour guides', error);
       toast.error('Failed to load tour guides');
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
   useEffect(() => {
-    fetchGuides();
-  }, [fetchGuides]);
+    fetchGuides(pagination.current_page, pagination.per_page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page]);
 
   const openCreateModal = () => {
     setEditingGuide(null);
@@ -161,6 +166,12 @@ const VendorTourGuides = () => {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {pagination.total > 0 && (
+        <div className="mt-6">
+          <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="guides" />
         </div>
       )}
 

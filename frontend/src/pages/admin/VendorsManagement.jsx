@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Users, Phone, MapPin, RefreshCw, X, Copy, Loader2, Eye, Mail, Calendar, Link2, Unlink, Search } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
-import { Button, Input, Textarea, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminVendors = () => {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [formData, setFormData] = useState({
@@ -46,14 +49,34 @@ const AdminVendors = () => {
     toast.success('Copied to clipboard!');
   };
 
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term always lands back on page 1 (a no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
   useEffect(() => {
     fetchVendors();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, debouncedSearch]);
 
   const fetchVendors = async () => {
+    setLoading(true);
     try {
-      const response = await adminAPI.getVendors();
-      setVendors(response.data);
+      const response = await adminAPI.getVendors({
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      });
+      setVendors(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Failed to fetch vendors:', error);
     } finally {
@@ -527,6 +550,14 @@ const AdminVendors = () => {
         </div>
       )}
 
+      <Input
+        icon={Search}
+        type="text"
+        placeholder="Search vendors by name, email, or company..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
       {/* Vendors List */}
       {vendors.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-neutral-100 shadow-card">
@@ -622,6 +653,15 @@ const AdminVendors = () => {
             ))}
           </tbody>
         </Table>
+      )}
+
+      {pagination.total > 0 && (
+        <Pagination
+          pagination={pagination}
+          onPageChange={goToPage}
+          onPerPageChange={setPerPage}
+          itemLabel="vendors"
+        />
       )}
 
       {/* View Details Modal */}

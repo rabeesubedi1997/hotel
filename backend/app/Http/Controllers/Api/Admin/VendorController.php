@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\User;
@@ -11,13 +12,27 @@ use Illuminate\Support\Str;
 
 class VendorController extends Controller
 {
+    use Paginatable;
+
     public function index(Request $request)
     {
-        $vendors = User::where('role', 'vendor')
-            ->withCount(['hotels', 'activities', 'tourGuides'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-            
+        $query = User::where('role', 'vendor')
+            ->withCount(['hotels', 'activities', 'tourGuides']);
+
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('company_name', 'like', "%{$search}%");
+            });
+        }
+
+        $vendors = $this->paginateQuery(
+            $query->orderBy('created_at', 'desc'),
+            $request
+        );
+
         return response()->json($vendors);
     }
 

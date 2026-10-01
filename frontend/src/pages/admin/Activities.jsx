@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, Check, UserCog, LogIn } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, Check, UserCog, LogIn } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { getActivityImage } from '../../utils/images';
@@ -8,7 +8,8 @@ import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
 import useActingVendorStore from '../../stores/actingVendorStore';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
   const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, onApprove, onReject, onLoginAsVendor, getDifficultyColor, getActivityImage, user }) => {
     const handleImageError = useCallback((e) => {
@@ -189,51 +190,49 @@ const AdminActivities = () => {
   });
   const [vendors, setVendors] = useState([]);
 
-  // Pagination state
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    per_page: 20,
-    total: 0,
-  });
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const hasFetchedRef = useRef(false);
-  const currentPageRef = useRef(1);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const fetchActivities = useCallback(async (params = {}) => {
+  // A new search term always lands back on page 1 (a no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const fetchActivities = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.getActivities({
-        ...params,
         ...(vendorId ? { user_id: vendorId } : {}),
-        page: currentPageRef.current,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        page: pagination.current_page,
         per_page: pagination.per_page,
       });
       setActivities(response.data.data || []);
-      setPagination({
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        per_page: response.data.per_page,
-        total: response.data.total,
-      });
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching activities:', error);
     } finally {
       setLoading(false);
     }
-  }, [pagination.per_page, vendorId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, vendorId, debouncedSearch]);
 
   useEffect(() => {
-    if (hasFetchedRef.current && currentPageRef.current === pagination.current_page) return;
-    hasFetchedRef.current = true;
-    currentPageRef.current = pagination.current_page;
     fetchActivities();
-  }, [pagination.current_page, pagination.per_page, fetchActivities]);
+  }, [fetchActivities]);
 
   useEffect(() => {
     if (isVendor) return;
-    adminAPI.getVendors()
-      .then((res) => setVendors(res.data || []))
+    // Populates a filter dropdown, not a browsable list — needs every
+    // vendor, so per_page: 200 (the max page size) rather than paginating.
+    adminAPI.getVendors({ per_page: 200 })
+      .then((res) => setVendors(res.data.data || []))
       .catch((error) => console.error('Error fetching vendors:', error));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -391,34 +390,6 @@ const AdminActivities = () => {
     }
   };
 
-  const filteredActivities = useMemo(() => {
-    return activities.filter((activity) =>
-      activity.name.toLowerCase().includes(search.toLowerCase()) ||
-      activity.city.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [activities, search]);
-
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= pagination.last_page) {
-      setPagination((prev) => ({ ...prev, current_page: page }));
-    }
-  };
-
-  const handlePerPageChange = (perPage) => {
-    setPagination((prev) => ({ ...prev, per_page: perPage, current_page: 1 }));
-  };
-
-  // Generate page numbers for pagination
-  const getPageNumbers = () => {
-    const pages = [];
-    const { current_page, last_page } = pagination;
-
-    for (let i = Math.max(1, current_page - 2); i <= Math.min(last_page, current_page + 2); i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -473,7 +444,7 @@ const AdminActivities = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredActivities.map((activity) => (
+          {activities.map((activity) => (
             <ActivityRow
               key={activity.id}
               activity={activity}
@@ -491,60 +462,14 @@ const AdminActivities = () => {
         </tbody>
       </Table>
 
-      {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-card gap-4">
-        <p className="text-neutral-600">
-          Showing {activities.length} of {pagination.total} activities
-        </p>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-600 text-sm">Rows per page:</span>
-            <Select
-              value={pagination.per_page}
-              onChange={(e) => handlePerPageChange(Number(e.target.value))}
-              className="w-20"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </Select>
-          </div>
-
-          {pagination.last_page > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handlePageChange(pagination.current_page - 1)}
-                disabled={pagination.current_page === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-
-              {getPageNumbers().map((page) => (
-                <Button
-                  key={page}
-                  variant={page === pagination.current_page ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => handlePageChange(page)}
-                  className="!px-4"
-                >
-                  {page}
-                </Button>
-              ))}
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handlePageChange(pagination.current_page + 1)}
-                disabled={pagination.current_page === pagination.last_page}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
+      {pagination.total > 0 && (
+        <Pagination
+          pagination={pagination}
+          onPageChange={goToPage}
+          onPerPageChange={setPerPage}
+          itemLabel="activities"
+        />
+      )}
 
       {/* Edit Modal */}
       <Modal open={editModal} onClose={closeEditModal} title={editingActivity ? 'Edit Activity' : 'Add New Activity'} size="lg">

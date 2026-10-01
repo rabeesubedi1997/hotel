@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, CheckCircle, Loader2, Eye, Trash2, UserCog } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
-import { Button, Input, Select, Table, Th, Td, Badge, Modal } from '../../components/ui';
+import { Button, Input, Select, Table, Th, Td, Badge, Modal, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminBookings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -17,16 +18,39 @@ const AdminBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
 
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term or status filter always lands back on page 1 (a
+  // no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterStatus, oversightUserId]);
+
   useEffect(() => {
     fetchBookings();
-  }, [oversightUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, debouncedSearch, filterStatus, oversightUserId]);
 
   const fetchBookings = async () => {
+    setLoading(true);
     try {
-      const params = filterStatus ? { status: filterStatus } : {};
+      const params = {
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(filterStatus ? { status: filterStatus } : {}),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      };
       if (oversightUserId) params.user_id = oversightUserId;
       const response = await adminAPI.getBookings(params);
       setBookings(response.data.data);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {
@@ -87,11 +111,6 @@ const AdminBookings = () => {
     }
   };
 
-  const filteredBookings = bookings.filter((booking) =>
-    booking.booking_number.toLowerCase().includes(search.toLowerCase()) ||
-    booking.user?.name.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -131,10 +150,7 @@ const AdminBookings = () => {
         />
         <Select
           value={filterStatus}
-          onChange={(e) => {
-            setFilterStatus(e.target.value);
-            fetchBookings();
-          }}
+          onChange={(e) => setFilterStatus(e.target.value)}
           className="w-full sm:w-auto"
         >
           <option value="">All Status</option>
@@ -159,7 +175,7 @@ const AdminBookings = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredBookings.map((booking) => (
+          {bookings.map((booking) => (
             <tr key={booking.id}>
               <Td className="font-medium text-neutral-900">{booking.booking_number}</Td>
               <Td>{booking.user?.name}</Td>
@@ -217,6 +233,10 @@ const AdminBookings = () => {
           ))}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="bookings" />
+      )}
 
       {/* View Booking Modal */}
       <Modal open={viewModal} onClose={closeViewModal} title="Booking Details" size="lg">

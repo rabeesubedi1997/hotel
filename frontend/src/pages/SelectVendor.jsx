@@ -21,8 +21,10 @@ const SelectVendor = () => {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    adminAPI.getVendors()
-      .then((res) => setVendors(res.data || []))
+    // per_page: 200 (the max page size) — this is a "pick a vendor" selector,
+    // not a browsable list, so it needs every vendor, not just the first page.
+    adminAPI.getVendors({ per_page: 200 })
+      .then((res) => setVendors(res.data.data || []))
       .catch((err) => console.error('Error fetching vendors:', err))
       .finally(() => setLoading(false));
   }, []);

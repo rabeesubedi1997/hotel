@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Loader2, UtensilsCrossed } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
-import { Button, Input, Textarea, Select, Modal, Card, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Card, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const ACTIVITY_TYPES = [
   { value: 'bungee', label: 'Bungee' },
@@ -41,23 +42,27 @@ const VendorActivities = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
+  const { pagination, applyResponse, goToPage, setPerPage } = usePagination();
 
-  const fetchActivities = useCallback(async () => {
+  const fetchActivities = useCallback(async (page, perPage) => {
     try {
       setLoading(true);
-      const response = await vendorAPI.getActivities();
-      setActivities(response.data || []);
+      const response = await vendorAPI.getActivities({ page, per_page: perPage });
+      setActivities(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Failed to fetch activities', error);
       toast.error('Failed to load activities');
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
   useEffect(() => {
-    fetchActivities();
-  }, [fetchActivities]);
+    fetchActivities(pagination.current_page, pagination.per_page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page]);
 
   const openCreateModal = () => {
     setEditingActivity(null);
@@ -197,6 +202,12 @@ const VendorActivities = () => {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {pagination.total > 0 && (
+        <div className="mt-6">
+          <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="activities" />
         </div>
       )}
 

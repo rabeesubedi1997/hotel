@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Concerns\ActsForVendor;
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use Illuminate\Http\Request;
@@ -11,12 +12,21 @@ use Illuminate\Support\Str;
 class ActivityController extends Controller
 {
     use ActsForVendor;
+    use Paginatable;
 
     public function index(Request $request)
     {
-        $activities = Activity::where('user_id', $this->vendorId($request))
-            ->orderBy('id', 'desc')
-            ->get();
+        $query = Activity::where('user_id', $this->vendorId($request));
+
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('city', 'like', "%{$search}%");
+            });
+        }
+
+        $activities = $this->paginateQuery($query->orderBy('id', 'desc'), $request);
 
         return response()->json($activities);
     }

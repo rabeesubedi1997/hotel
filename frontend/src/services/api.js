@@ -244,7 +244,7 @@ export const adminAPI = {
   getAuditLog: (params) => api.get('/admin/audit-log', { params }),
 
   // Vendors Management
-  getVendors: () => api.get('/admin/vendors'),
+  getVendors: (params) => api.get('/admin/vendors', { params }),
   createVendor: (data) => api.post('/admin/vendors', data),
   getVendor: (id) => api.get(`/admin/vendors/${id}`),
   updateVendor: (id, data) => api.put(`/admin/vendors/${id}`, data),
@@ -431,7 +431,7 @@ export const vendorAPI = {
   getStats: () => api.get('/vendor/dashboard/stats'),
   
   // Hotels Management
-  getHotels: () => api.get('/vendor/hotels'),
+  getHotels: (params) => api.get('/vendor/hotels', { params }),
   getHotel: (id) => api.get(`/vendor/hotels/${id}`),
   createHotel: (data) => api.post('/vendor/hotels', data),
   updateHotel: (id, data) => api.put(`/vendor/hotels/${id}`, data),
@@ -444,13 +444,13 @@ export const vendorAPI = {
   deleteRoom: (roomId) => api.delete(`/vendor/rooms/${roomId}`),
   
   // Activities Management
-  getActivities: () => api.get('/vendor/activities'),
+  getActivities: (params) => api.get('/vendor/activities', { params }),
   createActivity: (data) => api.post('/vendor/activities', data),
   updateActivity: (id, data) => api.put(`/vendor/activities/${id}`, data),
   deleteActivity: (id) => api.delete(`/vendor/activities/${id}`),
 
   // Tour Guide Services Management
-  getTourGuides: () => api.get('/vendor/tour-guides'),
+  getTourGuides: (params) => api.get('/vendor/tour-guides', { params }),
   createTourGuide: (data) => api.post('/vendor/tour-guides', data),
   updateTourGuide: (id, data) => api.put(`/vendor/tour-guides/${id}`, data),
   deleteTourGuide: (id) => api.delete(`/vendor/tour-guides/${id}`),
@@ -513,7 +513,7 @@ export const vendorAPI = {
   removeRestaurantStaff: (staffId) => api.delete(`/vendor/restaurant-staff/${staffId}`),
 
   // Bookings Management
-  getBookings: () => api.get('/vendor/bookings'),
+  getBookings: (params) => api.get('/vendor/bookings', { params }),
   getBooking: (id) => api.get(`/vendor/bookings/${id}`),
   updateBookingStatus: (id, data) => api.put(`/vendor/bookings/${id}/status`, data),
   getBookingStats: () => api.get('/vendor/bookings/stats'),

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Edit, Loader2, RefreshCw, Eye, Mail, Phone, MapPin, Calendar } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
-import { Button, Input, Select, Modal, Table, Th, Td, Badge, RatingStars } from '../../components/ui';
+import { Button, Input, Select, Modal, Table, Th, Td, Badge, RatingStars, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -24,14 +25,35 @@ const AdminUsers = () => {
     status: 'active',
   });
 
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term always lands back on page 1 (a no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, debouncedSearch]);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
-      const response = await adminAPI.getUsers();
+      const response = await adminAPI.getUsers({
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      });
       setUsers(response.data.data);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -164,11 +186,6 @@ const AdminUsers = () => {
     setViewedUser(null);
   };
 
-  const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(search.toLowerCase()) ||
-    user.email.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -209,7 +226,7 @@ const AdminUsers = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredUsers.map((user) => (
+          {users.map((user) => (
             <tr key={user.id}>
               <Td className="whitespace-normal">
                 <div className="flex items-center">
@@ -276,6 +293,10 @@ const AdminUsers = () => {
           ))}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="users" />
+      )}
 
       {/* Edit Modal */}
       <Modal

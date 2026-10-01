@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Concerns\ActsForVendor;
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Hotel;
@@ -15,17 +16,18 @@ use Illuminate\Http\Request;
 class BookingController extends Controller
 {
     use ActsForVendor;
+    use Paginatable;
 
     public function index(Request $request)
     {
         $vendorId = $this->vendorId($request);
-        
+
         // Get vendor's hotel and activity IDs
         $hotelIds = Hotel::where('user_id', $vendorId)->pluck('id');
         $activityIds = Activity::where('user_id', $vendorId)->pluck('id');
-        
+
         // Get bookings for vendor's properties
-        $bookings = Booking::where(function($query) use ($hotelIds, $activityIds) {
+        $query = Booking::where(function($query) use ($hotelIds, $activityIds) {
             $query->where(function($subQuery) use ($hotelIds) {
                 $subQuery->whereIn('bookable_id', $hotelIds)
                       ->where('bookable_type', Hotel::class);
@@ -34,10 +36,17 @@ class BookingController extends Controller
                       ->where('bookable_type', Activity::class);
             });
         })
-        ->with(['bookable', 'user', 'charges'])
-        ->orderBy('created_at', 'desc')
-        ->get();
-        
+        ->with(['bookable', 'user', 'charges']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        $bookings = $this->paginateQuery(
+            $query->orderBy('created_at', 'desc'),
+            $request
+        );
+
         return response()->json($bookings);
     }
 

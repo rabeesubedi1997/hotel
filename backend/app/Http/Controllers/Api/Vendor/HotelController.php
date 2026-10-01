@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Concerns\ActsForVendor;
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use Illuminate\Http\Request;
@@ -11,13 +12,14 @@ use Illuminate\Support\Str;
 class HotelController extends Controller
 {
     use ActsForVendor;
+    use Paginatable;
 
     public function index(Request $request)
     {
-        $hotels = Hotel::where('user_id', $this->vendorId($request))
-            ->withCount('rooms')
-            ->orderBy('id', 'desc')
-            ->get();
+        $hotels = $this->paginateQuery(
+            Hotel::where('user_id', $this->vendorId($request))->withCount('rooms')->orderBy('id', 'desc'),
+            $request
+        );
 
         return response()->json($hotels);
     }

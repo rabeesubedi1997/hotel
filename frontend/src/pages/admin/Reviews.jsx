@@ -1,23 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, CheckCircle, XCircle, Trash2, Loader2, Star } from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Input, Select, Table, Th, Td, Badge } from '../../components/ui';
+import { Input, Select, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminReviews = () => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term or status filter always lands back on page 1 (a
+  // no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterStatus]);
 
   useEffect(() => {
     fetchReviews();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, debouncedSearch, filterStatus]);
 
   const fetchReviews = async () => {
+    setLoading(true);
     try {
-      const params = filterStatus ? { status: filterStatus } : {};
+      const params = {
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(filterStatus ? { status: filterStatus } : {}),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      };
       const response = await adminAPI.getReviews(params);
       setReviews(response.data.data);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching reviews:', error);
     } finally {
@@ -57,11 +80,6 @@ const AdminReviews = () => {
     }
   };
 
-  const filteredReviews = reviews.filter((review) =>
-    review.user?.name.toLowerCase().includes(search.toLowerCase()) ||
-    review.comment?.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -87,10 +105,7 @@ const AdminReviews = () => {
         />
         <Select
           value={filterStatus}
-          onChange={(e) => {
-            setFilterStatus(e.target.value);
-            fetchReviews();
-          }}
+          onChange={(e) => setFilterStatus(e.target.value)}
           className="w-full sm:w-auto"
         >
           <option value="">All Status</option>
@@ -112,7 +127,7 @@ const AdminReviews = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredReviews.map((review) => (
+          {reviews.map((review) => (
             <tr key={review.id}>
               <Td className="text-neutral-900">{review.user?.name}</Td>
               <Td className="text-neutral-500">{review.reviewable?.name}</Td>
@@ -159,6 +174,10 @@ const AdminReviews = () => {
           ))}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="reviews" />
+      )}
     </div>
   );
 };

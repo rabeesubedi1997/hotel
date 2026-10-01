@@ -25,10 +25,17 @@ const VendorRestaurantSelect = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([vendorAPI.getHotels(), vendorAPI.getActivities(), vendorAPI.getMyRestaurantAccess()])
+    // per_page: 200 (the max page size) rather than paginating — this is a
+    // one-time "pick which property" selector, not a browsable list, so it
+    // needs every hotel/activity the vendor owns, not just the first page.
+    Promise.all([
+      vendorAPI.getHotels({ per_page: 200 }),
+      vendorAPI.getActivities({ per_page: 200 }),
+      vendorAPI.getMyRestaurantAccess(),
+    ])
       .then(([hotelsRes, activitiesRes, staffRes]) => {
-        const hotelList = hotelsRes.data || [];
-        const activityList = activitiesRes.data || [];
+        const hotelList = hotelsRes.data.data || [];
+        const activityList = activitiesRes.data.data || [];
         const staffList = staffRes.data || [];
         setHotels(hotelList);
         setActivities(activityList);

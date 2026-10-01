@@ -29,9 +29,12 @@ class BookingController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where('booking_number', 'like', "%{$search}%");
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+            });
         }
 
         $bookings = $query->orderBy('created_at', 'desc')

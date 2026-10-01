@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Loader2, BedDouble, CalendarCheck, UtensilsCrossed } from 'lucide-react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
-import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const emptyFormData = {
   name: '',
@@ -48,11 +49,14 @@ const VendorHotels = () => {
   const [editingRoom, setEditingRoom] = useState(null);
   const [roomFormData, setRoomFormData] = useState(emptyRoomForm);
   const [savingRoom, setSavingRoom] = useState(false);
+  const { pagination, applyResponse, goToPage, setPerPage } = usePagination();
 
-  const fetchHotels = async () => {
+  const fetchHotels = async (page = pagination.current_page, perPage = pagination.per_page) => {
+    setLoading(true);
     try {
-      const response = await vendorAPI.getHotels();
-      setHotels(response.data || []);
+      const response = await vendorAPI.getHotels({ page, per_page: perPage });
+      setHotels(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Failed to fetch hotels', error);
       toast.error('Failed to load hotels');
@@ -62,9 +66,9 @@ const VendorHotels = () => {
   };
 
   useEffect(() => {
-    fetchHotels();
+    fetchHotels(pagination.current_page, pagination.per_page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pagination.current_page, pagination.per_page]);
 
   const openAddModal = () => {
     setEditingHotel(null);
@@ -302,6 +306,12 @@ const VendorHotels = () => {
           )}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <div className="mt-6">
+          <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="hotels" />
+        </div>
+      )}
 
       <Modal
         open={editModal}

@@ -26,8 +26,13 @@ class PackageBookingController extends Controller
             $query->where('status', $request->status);
         }
 
-        if ($request->has('search')) {
-            $query->where('booking_number', 'like', '%' . $request->search . '%');
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))
+                  ->orWhereHas('itinerary', fn ($i) => $i->where('title', 'like', "%{$search}%"));
+            });
         }
 
         $bookings = $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 15));

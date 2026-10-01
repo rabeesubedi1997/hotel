@@ -13,3 +13,4 @@ export { Table, Th, Td } from './Table';
 export { Skeleton, CardSkeleton, CardGridSkeleton } from './Skeleton';
 export { default as Tabs } from './Tabs';
 export { default as Tag } from './Tag';
+export { default as Pagination, PAGE_SIZES } from './Pagination';

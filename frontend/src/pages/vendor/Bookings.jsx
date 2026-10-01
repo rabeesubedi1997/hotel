@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { XCircle } from 'lucide-react';
-import { Button, Table, Th, Td, Badge, Modal } from '../../components/ui';
+import { Button, Table, Th, Td, Badge, Modal, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const VendorBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -13,12 +14,19 @@ const VendorBookings = () => {
   const [updatingId, setUpdatingId] = useState(null);
   const [voidingChargeId, setVoidingChargeId] = useState(null);
   const toast = useToast();
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
 
   useEffect(() => {
     const fetchBookings = async () => {
+      setLoading(true);
       try {
-        const response = await vendorAPI.getBookings();
-        setBookings(response.data);
+        const response = await vendorAPI.getBookings({
+          page: pagination.current_page,
+          per_page: pagination.per_page,
+          ...(filter !== 'all' ? { status: filter } : {}),
+        });
+        setBookings(response.data.data || []);
+        applyResponse(response.data);
       } catch (error) {
         console.error('Failed to fetch bookings', error);
       } finally {
@@ -26,12 +34,15 @@ const VendorBookings = () => {
       }
     };
     fetchBookings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, filter]);
 
-  const filteredBookings = bookings.filter(booking => {
-    if (filter === 'all') return true;
-    return booking.status === filter;
-  });
+  // Status is now a server-side filter — switching tabs should land back on
+  // page 1 rather than preserving whatever page the previous filter was on.
+  const changeFilter = (status) => {
+    setFilter(status);
+    resetToFirstPage();
+  };
 
   const isHotelBooking = (booking) => (booking.bookable_type || '').includes('Hotel');
 
@@ -116,7 +127,7 @@ const VendorBookings = () => {
               key={status}
               variant={filter === status ? 'primary' : 'secondary'}
               size="sm"
-              onClick={() => setFilter(status)}
+              onClick={() => changeFilter(status)}
             >
               {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
             </Button>
@@ -124,7 +135,7 @@ const VendorBookings = () => {
         </div>
       </div>
 
-      {filteredBookings.length === 0 ? (
+      {bookings.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-neutral-500">No bookings found</div>
           <p className="text-neutral-400 mt-2">
@@ -148,7 +159,7 @@ const VendorBookings = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {filteredBookings.map((booking) => (
+            {bookings.map((booking) => (
               <tr key={booking.id}>
                 <Td>#{booking.id}</Td>
                 <Td>{booking.user?.name || 'N/A'}</Td>
@@ -197,6 +208,17 @@ const VendorBookings = () => {
             ))}
           </tbody>
         </Table>
+      )}
+
+      {pagination.total > 0 && (
+        <div className="mt-4">
+          <Pagination
+            pagination={pagination}
+            onPageChange={goToPage}
+            onPerPageChange={setPerPage}
+            itemLabel="bookings"
+          />
+        </div>
       )}
 
       {/* View Booking Modal */}

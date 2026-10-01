@@ -1,28 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Award, Loader2, Search, Settings2 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
-import { Button, Input, Table, Th, Td, Modal, Textarea } from '../../components/ui';
+import { Button, Input, Table, Th, Td, Modal, Textarea, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminLoyalty = () => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [adjustModal, setAdjustModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [adjustPoints, setAdjustPoints] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
 
   useEffect(() => {
     fetchAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pagination.current_page, pagination.per_page, appliedSearch]);
 
-  const fetchAccounts = async (params = {}) => {
+  const fetchAccounts = async () => {
+    setLoading(true);
     try {
-      const response = await adminAPI.getLoyaltyAccounts(params);
+      const response = await adminAPI.getLoyaltyAccounts({
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(appliedSearch ? { search: appliedSearch } : {}),
+      });
       setAccounts(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching loyalty accounts:', error);
     } finally {
@@ -32,7 +41,8 @@ const AdminLoyalty = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchAccounts(search ? { search } : {});
+    resetToFirstPage();
+    setAppliedSearch(search);
   };
 
   const openAdjustModal = (account) => {
@@ -123,6 +133,10 @@ const AdminLoyalty = () => {
           )}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="loyalty accounts" />
+      )}
 
       <Modal open={adjustModal} onClose={() => setAdjustModal(false)} title="Adjust Points" size="md">
         <form onSubmit={handleAdjust} className="space-y-4">

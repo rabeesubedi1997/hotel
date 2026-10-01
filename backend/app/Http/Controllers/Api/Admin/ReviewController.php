@@ -21,6 +21,14 @@ class ReviewController extends Controller
             $query->where('reviewable_type', $request->reviewable_type);
         }
 
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('comment', 'like', "%{$search}%")
+                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+            });
+        }
+
         $reviews = $query->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Vendor;
 
 use App\Http\Controllers\Concerns\ActsForVendor;
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Models\TourGuide;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 class TourGuideController extends Controller
 {
     use ActsForVendor;
+    use Paginatable;
 
     private const VALIDATION_RULES = [
         'name' => 'required|string|max:255',
@@ -28,9 +30,10 @@ class TourGuideController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $guides = TourGuide::where('vendor_id', $this->vendorId($request))
-            ->orderBy('id', 'desc')
-            ->get();
+        $guides = $this->paginateQuery(
+            TourGuide::where('vendor_id', $this->vendorId($request))->orderBy('id', 'desc'),
+            $request
+        );
 
         return response()->json($guides);
     }

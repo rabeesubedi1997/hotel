@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Loader2, Eye, RotateCcw } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { toast } from 'react-hot-toast';
-import { Button, Input, Select, Table, Th, Td, Badge, Modal, Textarea } from '../../components/ui';
+import { Button, Input, Select, Table, Th, Td, Badge, Modal, Textarea, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const AdminPackageBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -17,16 +18,38 @@ const AdminPackageBookings = () => {
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
 
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term or status filter always lands back on page 1 (a
+  // no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterStatus]);
+
   useEffect(() => {
     fetchBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pagination.current_page, pagination.per_page, debouncedSearch, filterStatus]);
 
   const fetchBookings = async () => {
+    setLoading(true);
     try {
-      const params = filterStatus ? { status: filterStatus } : {};
+      const params = {
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        ...(filterStatus ? { status: filterStatus } : {}),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      };
       const response = await adminAPI.getPackageBookings(params);
       setBookings(response.data.data || []);
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching package bookings:', error);
     } finally {
@@ -89,12 +112,6 @@ const AdminPackageBookings = () => {
     }
   };
 
-  const filtered = bookings.filter((b) =>
-    b.booking_number.toLowerCase().includes(search.toLowerCase()) ||
-    b.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
-    b.itinerary?.title?.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -120,7 +137,7 @@ const AdminPackageBookings = () => {
         />
         <Select
           value={filterStatus}
-          onChange={(e) => { setFilterStatus(e.target.value); fetchBookings(); }}
+          onChange={(e) => setFilterStatus(e.target.value)}
           className="w-full sm:w-auto"
         >
           <option value="">All Status</option>
@@ -147,7 +164,7 @@ const AdminPackageBookings = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filtered.map((booking) => (
+          {bookings.map((booking) => (
             <tr key={booking.id}>
               <Td className="font-medium text-neutral-900">{booking.booking_number}</Td>
               <Td>{booking.user?.name}</Td>
@@ -182,7 +199,7 @@ const AdminPackageBookings = () => {
               </Td>
             </tr>
           ))}
-          {filtered.length === 0 && (
+          {bookings.length === 0 && (
             <tr>
               <td colSpan={8} className="px-4 sm:px-6 py-8 text-center text-sm text-neutral-500">
                 No package bookings found.
@@ -191,6 +208,10 @@ const AdminPackageBookings = () => {
           )}
         </tbody>
       </Table>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="package bookings" />
+      )}
 
       {/* View Modal */}
       <Modal open={viewModal} onClose={closeViewModal} title="Package Booking Details" size="lg">
