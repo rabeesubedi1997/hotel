@@ -115,6 +115,7 @@ class MenuController extends Controller
                     'low_stock_threshold' => trim((string) ($data['low_stock_threshold'] ?? '')) !== '' ? $data['low_stock_threshold'] : 5,
                     'station' => trim((string) ($data['station'] ?? '')) ?: null,
                     'description' => trim((string) ($data['description'] ?? '')) ?: null,
+                    'image' => trim((string) ($data['image'] ?? '')) ?: null,
                     'allergens' => $allergens !== '' ? array_values(array_filter(array_map('trim', explode(';', $allergens)))) : [],
                     'is_available' => in_array($available, ['yes', 'y', 'true', '1'], true),
                 ];
@@ -129,6 +130,7 @@ class MenuController extends Controller
                     'low_stock_threshold' => 'nullable|integer|min:0',
                     'station' => 'nullable|string|max:100',
                     'description' => 'nullable|string',
+                    'image' => 'nullable|string|max:2048',
                     'allergens.*' => 'string|max:50',
                     'is_available' => 'boolean',
                 ]);

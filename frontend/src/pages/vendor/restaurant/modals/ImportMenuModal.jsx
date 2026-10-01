@@ -6,12 +6,12 @@ import { useRestaurant } from '../context/RestaurantContext';
 
 const TEMPLATE_HEADER = [
   'name', 'category', 'sku', 'price', 'cost_price',
-  'stock_quantity', 'low_stock_threshold', 'station', 'description', 'allergens', 'available',
+  'stock_quantity', 'low_stock_threshold', 'station', 'description', 'image', 'allergens', 'available',
 ];
 
 const TEMPLATE_SAMPLE_ROWS = [
-  ['Chicken Momo', 'Appetizers', 'MOMO-CHK', '8.99', '3.50', '40', '10', 'kitchen', 'Steamed dumplings with chicken filling', 'gluten', 'yes'],
-  ['House Lager', 'Beverages', 'BEV-LAGER', '5.00', '1.80', '120', '24', 'bar', '', '', 'yes'],
+  ['Chicken Momo', 'Appetizers', 'MOMO-CHK', '8.99', '3.50', '40', '10', 'kitchen', 'Steamed dumplings with chicken filling', '', 'gluten', 'yes'],
+  ['House Lager', 'Beverages', 'BEV-LAGER', '5.00', '1.80', '120', '24', 'bar', '', '', '', 'yes'],
 ];
 
 /**
@@ -93,6 +93,7 @@ const ImportMenuModal = ({ open, onClose }) => {
           <p><strong className="text-neutral-700">sku</strong> is optional but matches an existing item for {owner?.name || 'this property'} — if it matches, that item is updated (including stock) instead of a duplicate being created.</p>
           <p><strong className="text-neutral-700">allergens</strong> can list multiple values separated by semicolons, e.g. <code>gluten; dairy</code>.</p>
           <p><strong className="text-neutral-700">available</strong> accepts yes/no (defaults to yes if left blank). Leave <strong className="text-neutral-700">stock_quantity</strong> blank if this item&apos;s stock isn&apos;t tracked.</p>
+          <p><strong className="text-neutral-700">image</strong> is an optional photo URL. On a row that updates an existing item (matched by sku), leaving it blank clears that item&apos;s current photo too — leave the column filled with its existing URL if you want to keep it.</p>
         </div>
 
         <div>
