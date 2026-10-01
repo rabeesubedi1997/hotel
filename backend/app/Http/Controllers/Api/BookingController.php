@@ -236,20 +236,38 @@ class BookingController extends Controller
 
         // For hotels, check room availability
         if ($request->bookable_type === 'hotel') {
-            $conflictingBookings = Booking::where('bookable_type', $bookableClass)
-                ->where('bookable_id', $request->bookable_id)
-                ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
-                ->where(function ($q) use ($request) {
-                    $q->whereBetween('check_in_date', [$request->check_in_date, $request->check_out_date])
-                      ->orWhereBetween('check_out_date', [$request->check_in_date, $request->check_out_date])
-                      ->orWhere(function ($q) use ($request) {
-                          $q->where('check_in_date', '<=', $request->check_in_date)
-                            ->where('check_out_date', '>=', $request->check_out_date);
-                      });
-                })
-                ->count();
+            // Counts conflicting bookings for one specific room (by id) —
+            // previously this summed ALL conflicting bookings hotel-wide
+            // against the SUM of every room type's available_count, which
+            // conflated unrelated room types and always failed for a hotel
+            // whose rooms don't all share one pooled inventory.
+            $conflictingBookingsFor = function (int $roomId) use ($request, $bookableClass) {
+                return Booking::where('bookable_type', $bookableClass)
+                    ->where('bookable_id', $request->bookable_id)
+                    ->where('room_id', $roomId)
+                    ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
+                    ->where(function ($q) use ($request) {
+                        $q->whereBetween('check_in_date', [$request->check_in_date, $request->check_out_date])
+                          ->orWhereBetween('check_out_date', [$request->check_in_date, $request->check_out_date])
+                          ->orWhere(function ($q) use ($request) {
+                              $q->where('check_in_date', '<=', $request->check_in_date)
+                                ->where('check_out_date', '>=', $request->check_out_date);
+                          });
+                    })
+                    ->count();
+            };
 
-            $isAvailable = $conflictingBookings < $bookable->rooms()->sum('available_count');
+            if ($request->filled('room_id')) {
+                $room = $bookable->rooms()->find($request->room_id);
+                $isAvailable = $room && $conflictingBookingsFor($room->id) < $room->available_count;
+            } else {
+                // No room type picked yet — the hotel counts as available
+                // if at least one of its room types still has open capacity
+                // for these dates.
+                $isAvailable = $bookable->rooms->contains(
+                    fn ($room) => $conflictingBookingsFor($room->id) < $room->available_count
+                );
+            }
         } else {
             // For activities, check max participants
             $bookedParticipants = Booking::where('bookable_type', $bookableClass)
