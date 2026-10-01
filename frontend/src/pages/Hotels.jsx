@@ -265,6 +265,18 @@ const Hotels = () => {
     fetchHotels(params);
   };
 
+  // Debounced live search — typing in the search box re-runs the filter
+  // set automatically, same as clicking "Search" would, without the user
+  // needing to click anything. Enter still works immediately (see the
+  // input's onKeyDown below) instead of waiting out the debounce.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      applyFilters();
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search]);
+
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.last_page) {
       setPagination((prev) => ({ ...prev, current_page: page }));
@@ -367,6 +379,12 @@ const Hotels = () => {
               placeholder={pageContent?.sections?.filters?.search_placeholder || "Search hotels..."}
               value={filters.search}
               onChange={handleFilterChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  applyFilters();
+                }
+              }}
               className="flex-1 min-w-[220px]"
             />
             <Select

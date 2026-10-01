@@ -10,6 +10,7 @@ use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -45,6 +46,13 @@ class PaymentController extends Controller
         if ($request->filled('package_booking_id')) {
             $packageBooking = PackageBooking::findOrFail($request->package_booking_id);
             if ($packageBooking->user_id !== Auth::id()) {
+                Log::warning('Payment resolvePayable: package booking owner mismatch', [
+                    'package_booking_id' => $packageBooking->id,
+                    'package_booking_owner_id' => $packageBooking->user_id,
+                    'package_booking_created_at' => $packageBooking->created_at,
+                    'authenticated_user_id' => Auth::id(),
+                    'authenticated_user_email' => Auth::user()?->email,
+                ]);
                 return [null, true, response()->json(['message' => 'Unauthorized.'], 403)];
             }
             return [$packageBooking, true, null];
@@ -52,6 +60,19 @@ class PaymentController extends Controller
 
         $booking = Booking::findOrFail($request->booking_id);
         if ($booking->user_id !== Auth::id()) {
+            // Temporary diagnostic logging — this exact 403 has reproduced
+            // twice in what was reported as a single continuous checkout
+            // session, after the multi-tab token-pinning fix. Logging the
+            // actual owner vs. the actual authenticated user (plus timing)
+            // here so the next occurrence can be diagnosed from fact rather
+            // than guesswork.
+            Log::warning('Payment resolvePayable: booking owner mismatch', [
+                'booking_id' => $booking->id,
+                'booking_owner_id' => $booking->user_id,
+                'booking_created_at' => $booking->created_at,
+                'authenticated_user_id' => Auth::id(),
+                'authenticated_user_email' => Auth::user()?->email,
+            ]);
             return [null, false, response()->json(['message' => 'Unauthorized.'], 403)];
         }
         return [$booking, false, null];

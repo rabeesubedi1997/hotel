@@ -111,6 +111,18 @@ const Activities = () => {
     fetchActivities(buildParams(filters));
   };
 
+  // Debounced live search — typing in the search box re-runs the filter
+  // set automatically, same as clicking "Search" would. Enter still works
+  // immediately (see the input's onKeyDown below) instead of waiting out
+  // the debounce.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      applyFilters();
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search]);
+
   // Category pill bar — instant filter using the real `type` enum served by
   // the backend, rather than requiring the dropdown to be opened.
   const handleCategoryClick = (typeKey) => {
@@ -227,6 +239,12 @@ const Activities = () => {
               placeholder={pageContent?.sections?.filters?.search_placeholder || "Search activities..."}
               value={filters.search}
               onChange={handleFilterChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  applyFilters();
+                }
+              }}
               className="flex-1 min-w-[220px]"
             />
             <Select
