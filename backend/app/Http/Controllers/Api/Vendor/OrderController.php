@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Vendor;
 
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Vendor\Concerns\ResolvesRestaurantOwner;
 use App\Models\BookingCharge;
@@ -15,6 +16,7 @@ use Illuminate\Validation\Rule;
 class OrderController extends Controller
 {
     use ResolvesRestaurantOwner;
+    use Paginatable;
 
     public function index(Request $request, $ownerId)
     {
@@ -25,6 +27,28 @@ class OrderController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
+        }
+
+        $hasDateRange = $request->filled('from') || $request->filled('to');
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->date('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->date('to'));
+        }
+
+        // The live Kitchen/Tables board polls this every 15s with no
+        // filters — bound it to orders still in play so the query (and
+        // payload) doesn't grow with the restaurant's entire order history.
+        // Reports passes an explicit date range when it wants
+        // completed/cancelled orders too, and gets a real paginated
+        // response instead of the live board's plain array.
+        if (!$request->filled('status') && !$hasDateRange) {
+            $query->whereNotIn('status', [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED]);
+        }
+
+        if ($hasDateRange) {
+            return response()->json($this->paginateQuery($query, $request, 100));
         }
 
         return response()->json($query->get());

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Clock3, DollarSign, Loader2, Receipt, UtensilsCrossed, Wallet, XCircle } from 'lucide-react';
 import { Badge, Button, Input, StatCard } from '../../../components/ui';
 import { vendorAPI } from '../../../services/api';
@@ -8,10 +8,12 @@ import RevenueTrendChart from './charts/RevenueTrendChart';
 import ChannelDonut from './charts/ChannelDonut';
 
 const RestaurantReports = () => {
-  const { ownerType, ownerId, orders, toast } = useRestaurant();
+  const { ownerType, ownerId, toast } = useRestaurant();
 
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportOrders, setReportOrders] = useState([]);
+  const [reportOrdersLoading, setReportOrdersLoading] = useState(false);
   const [reportFrom, setReportFrom] = useState(() => new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10));
   const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [expandedOrderId, setExpandedOrderId] = useState(null);
@@ -30,13 +32,36 @@ const RestaurantReports = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerType, ownerId, reportFrom, reportTo]);
 
+  // Order-level breakdown for Reports — the live board's `orders` (Kitchen
+  // Context) only ever holds currently-active orders now, so this fetches
+  // its own date-ranged page directly instead (the backend returns a real
+  // paginated response whenever `from`/`to` is present — see
+  // OrderController::index). per_page: 100 (its allowed max before this
+  // needs its own pager) comfortably covers a month of most restaurants'
+  // orders; narrow the date range for a busier one.
+  const loadReportOrders = useCallback(async () => {
+    setReportOrdersLoading(true);
+    try {
+      const response = await vendorAPI.getOrders(ownerType, ownerId, { from: reportFrom, to: reportTo, per_page: 100 });
+      setReportOrders(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to load report orders', error);
+      toast.error('Failed to load order breakdown');
+    } finally {
+      setReportOrdersLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerType, ownerId, reportFrom, reportTo]);
+
   useEffect(() => {
     loadReport();
+    loadReportOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     loadReport();
+    loadReportOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportFrom, reportTo]);
 
@@ -46,20 +71,6 @@ const RestaurantReports = () => {
     setReportFrom(from.toISOString().slice(0, 10));
     setReportTo(to.toISOString().slice(0, 10));
   };
-
-  // Order-level breakdown for Reports — the earnings endpoint only returns
-  // aggregates, so this reuses the orders already loaded for Kitchen and
-  // filters them to the selected report date range client-side.
-  const reportOrders = useMemo(() => {
-    const from = new Date(reportFrom + 'T00:00:00');
-    const to = new Date(reportTo + 'T23:59:59');
-    return orders
-      .filter((o) => {
-        const created = new Date(o.created_at);
-        return created >= from && created <= to;
-      })
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [orders, reportFrom, reportTo]);
 
   return (
     <div>
@@ -219,7 +230,11 @@ const RestaurantReports = () => {
               <h4 className="font-display headline-sm text-on-surface">Orders in this period</h4>
               <span className="text-label-caps text-neutral-400">{reportOrders.length} order(s)</span>
             </div>
-            {reportOrders.length === 0 ? (
+            {reportOrdersLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
+              </div>
+            ) : reportOrders.length === 0 ? (
               <p className="text-body-sm text-neutral-500 text-center py-8">No orders in this date range.</p>
             ) : (
               <div className="divide-y divide-neutral-100">

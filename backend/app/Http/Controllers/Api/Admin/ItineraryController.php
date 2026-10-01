@@ -24,6 +24,10 @@ class ItineraryController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%' . $request->string('search') . '%');
+        }
+
         $itineraries = $query->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 20));
 

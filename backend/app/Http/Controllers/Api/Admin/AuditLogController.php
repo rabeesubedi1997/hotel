@@ -29,6 +29,14 @@ class AuditLogController extends Controller
             $query->where('action', $request->action);
         }
 
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('actor', fn ($a) => $a->where('name', 'like', "%{$search}%"))
+                  ->orWhereHas('targetUser', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+            });
+        }
+
         $logs = $query->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 25));
 

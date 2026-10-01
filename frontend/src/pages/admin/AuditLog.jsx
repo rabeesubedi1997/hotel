@@ -1,7 +1,8 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Button, Input, Select, Table, Th, Td, Badge } from '../../components/ui';
+import { Input, Select, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const ACTION_OPTIONS = [
   { value: '', label: 'All Actions' },
@@ -43,12 +44,13 @@ const AdminAuditLog = () => {
   const [subjectFilter, setSubjectFilter] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    per_page: 20,
-    total: 0,
-  });
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fetchAuditLog = useCallback(async () => {
     setLoading(true);
@@ -59,56 +61,34 @@ const AdminAuditLog = () => {
       };
       if (actionFilter) params.action = actionFilter;
       if (subjectFilter) params.subject_type = subjectFilter;
+      if (debouncedSearch) params.search = debouncedSearch;
 
       const response = await adminAPI.getAuditLog(params);
       setEntries(response.data.data || []);
-      setPagination({
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        per_page: response.data.per_page,
-        total: response.data.total,
-      });
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching audit log:', error);
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.current_page, pagination.per_page, actionFilter, subjectFilter]);
+  }, [pagination.current_page, pagination.per_page, actionFilter, subjectFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchAuditLog();
-  }, [pagination.current_page, pagination.per_page, actionFilter, subjectFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.current_page, pagination.per_page, actionFilter, subjectFilter, debouncedSearch]);
 
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= pagination.last_page) {
-      setPagination((prev) => ({ ...prev, current_page: page }));
-    }
-  };
+  // A new search term or filter always lands back on page 1 (a no-op if
+  // already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, actionFilter, subjectFilter]);
 
   const handleFilterChange = (setter) => (e) => {
     setter(e.target.value);
-    setPagination((prev) => ({ ...prev, current_page: 1 }));
   };
-
-  const getPageNumbers = () => {
-    const pages = [];
-    const { current_page, last_page } = pagination;
-    for (let i = Math.max(1, current_page - 2); i <= Math.min(last_page, current_page + 2); i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
-  const filteredEntries = search.trim()
-    ? entries.filter((entry) => {
-        const q = search.toLowerCase();
-        return (
-          entry.actor?.name?.toLowerCase().includes(q) ||
-          entry.target_user?.name?.toLowerCase().includes(q)
-        );
-      })
-    : entries;
 
   const toggleExpanded = (id) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -180,7 +160,7 @@ const AdminAuditLog = () => {
         </Select>
       </div>
 
-      {filteredEntries.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-card p-12 text-center text-neutral-500">
           No audit log entries yet
         </div>
@@ -197,7 +177,7 @@ const AdminAuditLog = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {filteredEntries.map((entry) => {
+            {entries.map((entry) => {
               const hasDiff = entry.before || entry.after;
               const isExpanded = expandedId === entry.id;
               return (
@@ -259,45 +239,9 @@ const AdminAuditLog = () => {
         </Table>
       )}
 
-      {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-card gap-4">
-        <p className="text-neutral-600 text-sm">
-          Showing {filteredEntries.length} of {pagination.total} entries
-        </p>
-        {pagination.last_page > 1 && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handlePageChange(pagination.current_page - 1)}
-              disabled={pagination.current_page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            {getPageNumbers().map((page) => (
-              <Button
-                key={page}
-                variant={page === pagination.current_page ? 'primary' : 'secondary'}
-                size="sm"
-                onClick={() => handlePageChange(page)}
-                className="!px-4"
-              >
-                {page}
-              </Button>
-            ))}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handlePageChange(pagination.current_page + 1)}
-              disabled={pagination.current_page === pagination.last_page}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="entries" />
+      )}
     </div>
   );
 };

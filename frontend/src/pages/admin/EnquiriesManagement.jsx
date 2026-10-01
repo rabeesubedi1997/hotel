@@ -12,7 +12,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const EnquiriesManagement = () => {
   const [enquiries, setEnquiries] = useState([]);
@@ -23,18 +24,28 @@ const EnquiriesManagement = () => {
     type: 'all',
     search: ''
   });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [responseText, setResponseText] = useState('');
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    total: 0
-  });
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 400);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  // A new search term or filter always lands back on page 1 (a no-op if
+  // already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status, filters.type, debouncedSearch]);
 
   useEffect(() => {
     fetchEnquiries();
-  }, [filters.status, filters.type, pagination.current_page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status, filters.type, debouncedSearch, pagination.current_page, pagination.per_page]);
 
   const fetchEnquiries = async () => {
     try {
@@ -42,28 +53,19 @@ const EnquiriesManagement = () => {
       const params = {
         status: filters.status,
         type: filters.type,
-        search: filters.search,
-        page: pagination.current_page
+        search: debouncedSearch,
+        page: pagination.current_page,
+        per_page: pagination.per_page,
       };
       const response = await adminAPI.getEnquiries(params);
       setEnquiries(response.data.data);
-      setPagination({
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        total: response.data.total
-      });
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching enquiries:', error);
       setMessage('Error loading enquiries');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setPagination(prev => ({ ...prev, current_page: 1 }));
-    fetchEnquiries();
   };
 
   const handleStatusUpdate = async (id, status) => {
@@ -183,7 +185,7 @@ const EnquiriesManagement = () => {
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-card p-4">
         <div className="flex flex-wrap gap-4">
-          <form onSubmit={handleSearch} className="flex-1 min-w-[280px]">
+          <form onSubmit={(e) => e.preventDefault()} className="flex-1 min-w-[280px]">
             <Input
               icon={Search}
               type="text"
@@ -296,32 +298,11 @@ const EnquiriesManagement = () => {
             </tbody>
           </Table>
         )}
-
-        {/* Pagination */}
-        {pagination.last_page > 1 && (
-          <div className="px-4 sm:px-6 py-4 border-t border-neutral-100 flex justify-between items-center">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPagination(prev => ({ ...prev, current_page: prev.current_page - 1 }))}
-              disabled={pagination.current_page === 1}
-            >
-              Previous
-            </Button>
-            <span className="text-sm text-neutral-600">
-              Page {pagination.current_page} of {pagination.last_page}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setPagination(prev => ({ ...prev, current_page: prev.current_page + 1 }))}
-              disabled={pagination.current_page === pagination.last_page}
-            >
-              Next
-            </Button>
-          </div>
-        )}
       </div>
+
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="enquiries" />
+      )}
 
       {/* Enquiry Detail Modal */}
       {selectedEnquiry && (

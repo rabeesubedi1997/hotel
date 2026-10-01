@@ -18,7 +18,18 @@ class MenuController extends Controller
         $user = auth()->user();
         $owner = $this->resolveOwner($user, $this->ownerTypeFromRequest($request), $ownerId);
 
-        $items = $owner->menuItems()->orderBy('category')->orderBy('name')->get();
+        // The Menu tab's category filters, stock dashboard, search and
+        // CSV export all operate over the full menu at once (a POS menu is
+        // meant to be seen in full during service, not paginated) — so
+        // this stays a plain array, just capped at the max page size
+        // (200) as a safety ceiling against unbounded growth rather than
+        // a visible pager. A menu with more than 200 live items should
+        // reconsider its categories, not scroll through pages mid-shift.
+        $items = $owner->menuItems()
+            ->orderBy('category')
+            ->orderBy('name')
+            ->limit(200)
+            ->get();
 
         return response()->json($items);
     }

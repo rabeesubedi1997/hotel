@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Http\Controllers\Concerns\Paginatable;
 use App\Http\Controllers\Controller;
 use App\Mail\EnquiryResponseSent;
 use App\Models\AdminAuditLog;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Mail;
 
 class EnquiryController extends Controller
 {
+    use Paginatable;
+
     public function index(Request $request): JsonResponse
     {
         $query = Enquiry::with(['user', 'responder']);
@@ -39,7 +42,7 @@ class EnquiryController extends Controller
             });
         }
         
-        $enquiries = $query->orderBy('created_at', 'desc')->paginate(20);
+        $enquiries = $this->paginateQuery($query->orderBy('created_at', 'desc'), $request);
         
         return response()->json($enquiries);
     }

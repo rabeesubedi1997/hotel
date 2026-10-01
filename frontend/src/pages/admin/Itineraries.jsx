@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -7,8 +7,6 @@ import {
   Loader2,
   X,
   Image as ImageIcon,
-  ChevronLeft,
-  ChevronRight,
   ListChecks,
   Hotel as HotelIcon,
   Compass,
@@ -18,7 +16,8 @@ import { adminAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
-import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge } from '../../components/ui';
+import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Pagination } from '../../components/ui';
+import usePagination from '../../hooks/usePagination';
 
 const emptyFormData = {
   title: '',
@@ -47,13 +46,8 @@ const AdminItineraries = () => {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Pagination state
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    last_page: 1,
-    per_page: 20,
-    total: 0,
-  });
+  const { pagination, applyResponse, goToPage, setPerPage, resetToFirstPage } = usePagination();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Edit / Create modal
   const [editModal, setEditModal] = useState(false);
@@ -77,18 +71,15 @@ const AdminItineraries = () => {
   const canManage = user && ['admin', 'manager', 'super_admin'].includes(user.role);
 
   const fetchItineraries = async () => {
+    setLoading(true);
     try {
       const response = await adminAPI.getItineraries({
         page: pagination.current_page,
         per_page: pagination.per_page,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
       });
       setItineraries(response.data.data || []);
-      setPagination({
-        current_page: response.data.current_page,
-        last_page: response.data.last_page,
-        per_page: response.data.per_page,
-        total: response.data.total,
-      });
+      applyResponse(response.data);
     } catch (error) {
       console.error('Error fetching itineraries:', error);
     } finally {
@@ -97,36 +88,20 @@ const AdminItineraries = () => {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // A new search term always lands back on page 1 (a no-op if already there).
+  useEffect(() => {
+    resetToFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  useEffect(() => {
     fetchItineraries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.current_page, pagination.per_page]);
-
-  const filteredItineraries = useMemo(() => {
-    return itineraries.filter((itinerary) =>
-      itinerary.title.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [itineraries, search]);
-
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= pagination.last_page) {
-      setPagination((prev) => ({ ...prev, current_page: page }));
-    }
-  };
-
-  const handlePerPageChange = (perPage) => {
-    setPagination((prev) => ({ ...prev, per_page: perPage, current_page: 1 }));
-  };
-
-  // Generate page numbers for pagination
-  const getPageNumbers = () => {
-    const pages = [];
-    const { current_page, last_page } = pagination;
-
-    for (let i = Math.max(1, current_page - 2); i <= Math.min(last_page, current_page + 2); i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
+  }, [pagination.current_page, pagination.per_page, debouncedSearch]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this itinerary?')) return;
@@ -381,7 +356,7 @@ const AdminItineraries = () => {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {filteredItineraries.map((itinerary) => (
+          {itineraries.map((itinerary) => (
             <tr key={itinerary.id}>
               <Td>
                 <div className="flex items-center">
@@ -430,7 +405,7 @@ const AdminItineraries = () => {
               </Td>
             </tr>
           ))}
-          {filteredItineraries.length === 0 && (
+          {itineraries.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 sm:px-6 py-8 text-center text-sm text-neutral-500">
                 No itineraries found.
@@ -440,60 +415,9 @@ const AdminItineraries = () => {
         </tbody>
       </Table>
 
-      {/* Pagination */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-card">
-        <p className="text-neutral-600 mb-4 sm:mb-0">
-          Showing {itineraries.length} of {pagination.total} itineraries
-        </p>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-neutral-600">Rows per page:</span>
-            <select
-              value={pagination.per_page}
-              onChange={(e) => handlePerPageChange(Number(e.target.value))}
-              className="px-3 py-1 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-
-          {pagination.last_page > 1 && (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handlePageChange(pagination.current_page - 1)}
-                disabled={pagination.current_page === 1}
-                className="px-3 py-2 rounded-lg border border-neutral-300 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-
-              {getPageNumbers().map((page) => (
-                <button
-                  key={page}
-                  onClick={() => handlePageChange(page)}
-                  className={`px-4 py-2 rounded-lg ${
-                    page === pagination.current_page
-                      ? 'bg-primary-600 text-white'
-                      : 'border border-neutral-300 hover:bg-neutral-100'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              <button
-                onClick={() => handlePageChange(pagination.current_page + 1)}
-                disabled={pagination.current_page === pagination.last_page}
-                className="px-3 py-2 rounded-lg border border-neutral-300 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      {pagination.total > 0 && (
+        <Pagination pagination={pagination} onPageChange={goToPage} onPerPageChange={setPerPage} itemLabel="itineraries" />
+      )}
 
       {/* Edit / Create Modal */}
       <Modal
