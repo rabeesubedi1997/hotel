@@ -274,11 +274,14 @@ export const adminAPI = {
   updateHotelBannerOrder: (id, order) => api.post(`/admin/hotels/${id}/banner-order`, { banner_order: order }),
   getHotelBannerItems: () => api.get('/admin/hotels/banner-items'),
 
-  // Room Management
-  getHotelRooms: (hotelId) => api.get(`/hotels/${hotelId}/rooms`),
-  createRoom: (hotelId, data) => api.post(`/hotels/${hotelId}/rooms`, data),
-  updateRoom: (roomId, data) => api.put(`/rooms/${roomId}`, data),
-  deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`),
+  // Room Management — there's no separate /admin/hotels/{id}/rooms route;
+  // Vendor\RoomController already lets an admin-level user manage any
+  // hotel's rooms (see its isAdminLevel() bypass), so this reuses the
+  // vendor endpoints rather than the public, GET-only /hotels/{id}/rooms.
+  getHotelRooms: (hotelId) => api.get(`/vendor/hotels/${hotelId}/rooms`),
+  createRoom: (hotelId, data) => api.post(`/vendor/hotels/${hotelId}/rooms`, data),
+  updateRoom: (roomId, data) => api.put(`/vendor/rooms/${roomId}`, data),
+  deleteRoom: (roomId) => api.delete(`/vendor/rooms/${roomId}`),
 
   // Activities
   getActivities: (params) => api.get('/admin/activities', { params }),
