@@ -142,13 +142,22 @@ class MenuController extends Controller
 
                 $validated = $validator->validated();
 
-                $existing = $validated['sku'] ? $owner->menuItems()->where('sku', $validated['sku'])->first() : null;
-                if ($existing) {
-                    $existing->update($validated);
-                    $updated++;
-                } else {
-                    $owner->menuItems()->create($validated);
-                    $created++;
+                try {
+                    $existing = $validated['sku'] ? $owner->menuItems()->where('sku', $validated['sku'])->first() : null;
+                    if ($existing) {
+                        $existing->update($validated);
+                        $updated++;
+                    } else {
+                        $owner->menuItems()->create($validated);
+                        $created++;
+                    }
+                } catch (\Throwable $e) {
+                    // A DB-level failure (e.g. a column too short for a
+                    // value) shouldn't 500 the whole import — MySQL doesn't
+                    // poison the transaction on a failed query the way
+                    // Postgres does, so it's safe to log this row and keep
+                    // processing the rest.
+                    $errors[] = ['row' => $rowNumber, 'errors' => ['Could not save this row: ' . $e->getMessage()]];
                 }
             }
         });
