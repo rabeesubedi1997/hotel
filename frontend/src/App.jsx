@@ -32,6 +32,7 @@ import Profile from './pages/Profile';
 import Bookings from './pages/Bookings';
 import BookingDetails from './pages/BookingDetails';
 import Checkout from './pages/Checkout';
+import PaymentReturn from './pages/PaymentReturn';
 import PackageBookingDetails from './pages/PackageBookingDetails';
 import Wishlist from './pages/Wishlist';
 import TripPlanner from './pages/TripPlanner';
@@ -47,6 +48,7 @@ import AdminReviews from './pages/admin/Reviews';
 import AdminBanner from './pages/admin/BannerManagement';
 import AdminSEO from './pages/admin/SeoManagement';
 import AdminSiteSettings from './pages/admin/SiteSettings';
+import AdminPaymentGateways from './pages/admin/PaymentGateways';
 import AdminAbout from './pages/admin/AboutManagement';
 import AdminEnquiries from './pages/admin/EnquiriesManagement';
 import AdminTourGuides from './pages/admin/TourGuideManagement';
@@ -217,6 +219,7 @@ function App() {
             <Route path="bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
             <Route path="bookings/:id" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
             <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+            <Route path="payment/return" element={<ProtectedRoute><PaymentReturn /></ProtectedRoute>} />
             <Route path="package-bookings/:id" element={<ProtectedRoute><PackageBookingDetails /></ProtectedRoute>} />
             <Route path="wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="trip-planner" element={<ProtectedRoute><TripPlanner /></ProtectedRoute>} />
@@ -239,6 +242,7 @@ function App() {
             <Route path="banner" element={<AdminBanner />} />
             <Route path="seo" element={<AdminSEO />} />
             <Route path="settings" element={<AdminSiteSettings />} />
+            <Route path="payment-gateways" element={<AdminPaymentGateways />} />
             <Route path="about" element={<AdminAbout />} />
             <Route path="media-library" element={<AdminMediaLibrary />} />
             <Route path="tour-guides" element={<AdminTourGuides />} />

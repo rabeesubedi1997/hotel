@@ -27,6 +27,8 @@ class Payment extends Model
         'booking_id',
         'package_booking_id',
         'method',
+        'gateway_code',
+        'mode',
         'transaction_id',
         'payment_intent_id',
         'amount',

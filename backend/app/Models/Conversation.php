@@ -26,6 +26,8 @@ class Conversation extends Model
     ];
 
     protected $casts = [
+        'vendor_id' => 'integer',
+        'customer_id' => 'integer',
         'last_message_at' => 'datetime',
     ];
 

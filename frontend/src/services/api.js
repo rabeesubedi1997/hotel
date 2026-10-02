@@ -109,13 +109,13 @@ export const bookingsAPI = {
 
 // Payments APIs
 export const paymentsAPI = {
+  // Enabled + configured gateways, as managed in Admin → Payment Gateways.
   getMethods: () => api.get('/payments/methods'),
-  createCOD: (data, config) => api.post('/payments/cod', data, config),
-  initiateKhalti: (data) => api.post('/payments/khalti/initiate', data),
-  verifyKhalti: (data) => api.post('/payments/khalti/verify', data),
-  createStripeIntent: (data) => api.post('/payments/stripe/intent', data),
-  paypalCreateOrder: (data) => api.post('/payments/paypal/create-order', data),
-  confirm: (paymentId) => api.post(`/payments/${paymentId}/confirm`),
+  // Starts a payment with any gateway by its code. Offline gateways (cash)
+  // complete immediately; others return { redirect_url } to send the customer to.
+  initiate: (code, data, config) => api.post(`/payments/${code}/initiate`, data, config),
+  // Called from /payment/return — the server asks the provider whether it really succeeded.
+  verify: (paymentId) => api.post(`/payments/${paymentId}/verify`),
 };
 
 // Reviews APIs
@@ -273,6 +273,14 @@ export const adminAPI = {
   toggleHotelBanner: (id) => api.post(`/admin/hotels/${id}/toggle-banner`),
   updateHotelBannerOrder: (id, order) => api.post(`/admin/hotels/${id}/banner-order`, { banner_order: order }),
   getHotelBannerItems: () => api.get('/admin/hotels/banner-items'),
+
+  // Payment Gateways (admin / super_admin only)
+  getPaymentGateways: () => api.get('/admin/payment-gateways'),
+  createPaymentGateway: (data) => api.post('/admin/payment-gateways', data),
+  updatePaymentGateway: (id, data) => api.put(`/admin/payment-gateways/${id}`, data),
+  deletePaymentGateway: (id) => api.delete(`/admin/payment-gateways/${id}`),
+  reorderPaymentGateways: (ids) => api.post('/admin/payment-gateways/reorder', { ids }),
+  testPaymentGateway: (id) => api.post(`/admin/payment-gateways/${id}/test`),
 
   // Room Management — there's no separate /admin/hotels/{id}/rooms route;
   // Vendor\RoomController already lets an admin-level user manage any

@@ -142,12 +142,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Payments
     Route::get('/payments/methods', [PaymentController::class, 'methods']);
-    Route::post('/payments/cod', [PaymentController::class, 'createCODPayment']);
-    Route::post('/payments/khalti/initiate', [PaymentController::class, 'initiateKhalti']);
-    Route::post('/payments/khalti/verify', [PaymentController::class, 'verifyKhalti']);
-    Route::post('/payments/stripe/intent', [PaymentController::class, 'createStripeIntent']);
-    Route::post('/payments/paypal/create-order', [PaymentController::class, 'paypalCreateOrder']);
-    Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirmPayment']);
+    Route::post('/payments/cod', [PaymentController::class, 'createCODPayment']); // legacy alias of initiate/cod
+    Route::post('/payments/{code}/initiate', [PaymentController::class, 'initiate']);
+    Route::post('/payments/{payment}/verify', [PaymentController::class, 'verify']);
 
     // Reviews
     Route::post('/reviews', [ReviewController::class, 'store']);
@@ -424,8 +421,17 @@ Route::middleware(['auth:sanctum', 'admin.dashboard'])->prefix('admin')->group(f
     Route::post('/media-library/upload', [\App\Http\Controllers\Api\Admin\MediaLibraryController::class, 'upload']);
     Route::delete('/media-library', [\App\Http\Controllers\Api\Admin\MediaLibraryController::class, 'destroy']);
 
+    // Payment Gateways (admin / super_admin only — enforced in the controller)
+    $paymentGateways = \App\Http\Controllers\Api\Admin\PaymentGatewayController::class;
+    Route::get('/payment-gateways', [$paymentGateways, 'index']);
+    Route::post('/payment-gateways', [$paymentGateways, 'store']);
+    Route::post('/payment-gateways/reorder', [$paymentGateways, 'reorder']);
+    Route::put('/payment-gateways/{paymentGateway}', [$paymentGateways, 'update']);
+    Route::delete('/payment-gateways/{paymentGateway}', [$paymentGateways, 'destroy']);
+    Route::post('/payment-gateways/{paymentGateway}/test', [$paymentGateways, 'test']);
+
     // Other admin routes...
-    Route::get('/seo', [\App\Http\Controllers\Api\Admin\SeoController::class, 'index']);
+    Route::get('/seo',[\App\Http\Controllers\Api\Admin\SeoController::class, 'index']);
     Route::post('/seo', [\App\Http\Controllers\Api\Admin\SeoController::class, 'store']);
     Route::put('/seo/{seo}', [\App\Http\Controllers\Api\Admin\SeoController::class, 'update']);
     Route::delete('/seo/{seo}', [\App\Http\Controllers\Api\Admin\SeoController::class, 'destroy']);

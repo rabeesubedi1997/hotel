@@ -17,6 +17,11 @@ class Wishlist extends Model
         'wishlistable_id',
     ];
 
+    protected $casts = [
+        // Ownership checks compare this strictly against the auth user's id.
+        'user_id' => 'integer',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

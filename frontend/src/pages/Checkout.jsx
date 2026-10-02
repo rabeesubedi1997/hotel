@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2, CreditCard, Smartphone, DollarSign, Banknote, CheckCircle, Wallet, ArrowLeft, Calendar, Users, Info, MapPin, Lock, Tag, Check, X, Award } from 'lucide-react';
+import { Loader2, CreditCard, Smartphone, DollarSign, ArrowLeft, Calendar, Users, Info, MapPin, Lock, Tag, Check, X, Award } from 'lucide-react';
 import { hotelsAPI, activitiesAPI, bookingsAPI, paymentsAPI, itinerariesAPI, tripPlansAPI, couponsAPI, packageBookingsAPI, loyaltyAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { getHotelImage, getActivityImage } from '../utils/images';
 import { Button, Card, Badge, Container, Input, Textarea, Select } from '../components/ui';
 import useCurrencyStore from '../stores/currencyStore';
 import useSearchStore from '../stores/searchStore';
+import PaymentMethodPicker from '../components/PaymentMethodPicker';
+import usePaymentMethods from '../hooks/usePaymentMethods';
 
 // ---------------------------------------------------------------------------
 // Multi-item trip/itinerary checkout (mode=itinerary|trip). Kept completely
@@ -24,6 +26,22 @@ import useSearchStore from '../stores/searchStore';
 // created and pass it explicitly to the payment call so a later token
 // change elsewhere can't affect this in-flight checkout.
 const pinnedAuthConfig = (token) => (token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+
+// Starts payment with whichever gateway the customer picked. Offline
+// gateways (cash) come back { status: 'completed' }; online ones come back
+// { status: 'redirect', redirect_url } and the caller sends the browser
+// there — the payment is only confirmed later, server-side, when
+// /payment/return asks the provider whether it really succeeded.
+const startPayment = async (gatewayCode, payableKey, payableId, token) => {
+  const response = await paymentsAPI.initiate(
+    gatewayCode,
+    { [payableKey]: payableId, return_url: `${window.location.origin}/payment/return` },
+    pinnedAuthConfig(token)
+  );
+  return response.data;
+};
+
+const paymentErrorMessage = (error) => error.response?.data?.message || 'Payment failed. Please try again.';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
@@ -58,7 +76,7 @@ const SingleItemCheckout = () => {
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState(null);
   const [checkoutToken, setCheckoutToken] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const payments = usePaymentMethods();
   const [pendingBooking, setPendingBooking] = useState(null);
   const [couponCode, setCouponCode] = useState('');
   const [couponChecking, setCouponChecking] = useState(false);
@@ -445,24 +463,28 @@ const SingleItemCheckout = () => {
       return;
     }
     
+    if (!payments.selected) {
+      toast.error('Please choose a payment method.');
+      return;
+    }
+
     setProcessing(true);
     try {
-      if (paymentMethod === 'cod') {
-        await paymentsAPI.createCOD({ booking_id: booking.id }, pinnedAuthConfig(checkoutToken));
-        toast.success('Booking confirmed successfully!');
-        navigate('/bookings', { replace: true });
-      } else {
-        // Khalti/Stripe/PayPal aren't wired to a real payment gateway yet —
-        // don't fake a success here (that would leave the booking stuck at
-        // "pending" while telling the customer they paid).
-        toast.error('This payment method is not available yet. Please use Cash on Delivery for now.');
+      const result = await startPayment(payments.selected, 'booking_id', booking.id, checkoutToken);
+
+      if (result.status === 'redirect') {
+        // Leave `processing` on: the page is navigating away to the provider.
+        window.location.href = result.redirect_url;
+        return;
       }
+
+      toast.success('Booking confirmed successfully!');
+      navigate('/bookings', { replace: true });
     } catch (error) {
       console.error('Error processing payment:', error);
-      toast.error('Payment failed. Please try again.');
-    } finally {
-      setProcessing(false);
+      toast.error(paymentErrorMessage(error));
     }
+    setProcessing(false);
   };
 
   if (loading) {
@@ -670,27 +692,13 @@ const SingleItemCheckout = () => {
         <Card hoverLift={false} className="p-5 sm:p-8">
           <h2 className="font-display text-2xl font-bold text-neutral-900 mb-6">Select Payment Method</h2>
 
-          <div className="space-y-4 mb-8">
-            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition ${paymentMethod === 'cod' ? 'border-primary-600 bg-primary-50' : 'border-neutral-200'}`}>
-              <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'}
-                onChange={(e) => setPaymentMethod(e.target.value)} className="hidden" />
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                <Banknote className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4 flex-1">
-                <h3 className="font-semibold text-neutral-900">Cash on Delivery</h3>
-                <p className="text-sm text-neutral-500">Pay at hotel/activity location</p>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'cod' ? 'border-primary-600 bg-primary-600' : 'border-neutral-300'}`}>
-                {paymentMethod === 'cod' && <CheckCircle className="h-4 w-4 text-white" />}
-              </div>
-            </label>
-
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-neutral-50 text-sm text-neutral-500">
-              <Wallet className="h-4 w-4 shrink-0" />
-              Khalti, card, and PayPal payments are coming soon — Cash on Delivery is the only option for now.
-            </div>
-          </div>
+          <PaymentMethodPicker
+            methods={payments.methods}
+            loading={payments.loading}
+            error={payments.error}
+            selected={payments.selected}
+            onSelect={payments.setSelected}
+          />
 
           {loyaltyAccount?.points_balance > 0 && booking?.status === 'pending' && (
             <div className="mb-6 p-4 rounded-xl border border-neutral-200">
@@ -773,8 +781,8 @@ const SingleItemCheckout = () => {
             <Button variant="secondary" fullWidth onClick={() => setStep(1)}>
               <ArrowLeft className="h-5 w-5" /> Back
             </Button>
-            <Button variant="primary" fullWidth loading={processing} disabled={processing} onClick={handlePayment}>
-              {!processing && (paymentMethod === 'cod' ? 'Confirm Booking' : 'Pay Now')}
+            <Button variant="primary" fullWidth loading={processing} disabled={processing || !payments.selected} onClick={handlePayment}>
+              {!processing && (payments.selectedMethod?.offline ? 'Confirm Booking' : 'Pay Now')}
             </Button>
           </div>
 
@@ -808,7 +816,7 @@ const PackageCheckout = () => {
   const [processing, setProcessing] = useState(false);
   const [packageBooking, setPackageBooking] = useState(null);
   const [checkoutToken, setCheckoutToken] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const payments = usePaymentMethods();
 
   const [travelDate, setTravelDate] = useState('');
   const [travelers, setTravelers] = useState(1);
@@ -896,19 +904,28 @@ const PackageCheckout = () => {
 
   const handlePayment = async () => {
     if (!packageBooking) return;
+    if (!payments.selected) {
+      toast.error('Please choose a payment method.');
+      return;
+    }
+
     setProcessing(true);
     try {
-      if (paymentMethod === 'cod') {
-        await paymentsAPI.createCOD({ package_booking_id: packageBooking.id }, pinnedAuthConfig(checkoutToken));
+      const result = await startPayment(payments.selected, 'package_booking_id', packageBooking.id, checkoutToken);
+
+      if (result.status === 'redirect') {
+        // Leave `processing` on: the page is navigating away to the provider.
+        window.location.href = result.redirect_url;
+        return;
       }
+
       toast.success('Package booked successfully!');
       navigate('/bookings', { replace: true });
     } catch (error) {
       console.error('Error processing payment:', error);
-      toast.error('Payment failed. Please try again.');
-    } finally {
-      setProcessing(false);
+      toast.error(paymentErrorMessage(error));
     }
+    setProcessing(false);
   };
 
   if (loading) {
@@ -1042,22 +1059,13 @@ const PackageCheckout = () => {
         <Card hoverLift={false} className="p-5 sm:p-8">
           <h2 className="font-display text-2xl font-bold text-neutral-900 mb-6">Select Payment Method</h2>
 
-          <div className="space-y-4 mb-8">
-            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition ${paymentMethod === 'cod' ? 'border-primary-600 bg-primary-50' : 'border-neutral-200'}`}>
-              <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'}
-                onChange={(e) => setPaymentMethod(e.target.value)} className="hidden" />
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                <Banknote className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4 flex-1">
-                <h3 className="font-semibold text-neutral-900">Cash on Delivery</h3>
-                <p className="text-sm text-neutral-500">Pay at check-in</p>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'cod' ? 'border-primary-600 bg-primary-600' : 'border-neutral-300'}`}>
-                {paymentMethod === 'cod' && <CheckCircle className="h-4 w-4 text-white" />}
-              </div>
-            </label>
-          </div>
+          <PaymentMethodPicker
+            methods={payments.methods}
+            loading={payments.loading}
+            error={payments.error}
+            selected={payments.selected}
+            onSelect={payments.setSelected}
+          />
 
           <div className="bg-neutral-50 rounded-2xl p-6 mb-6">
             {Number(packageBooking?.discount_amount) > 0 && (
@@ -1081,8 +1089,8 @@ const PackageCheckout = () => {
             <Button variant="secondary" fullWidth onClick={() => setStep(1)}>
               <ArrowLeft className="h-5 w-5" /> Back
             </Button>
-            <Button variant="primary" fullWidth loading={processing} disabled={processing} onClick={handlePayment}>
-              {!processing && 'Confirm Booking'}
+            <Button variant="primary" fullWidth loading={processing} disabled={processing || !payments.selected} onClick={handlePayment}>
+              {!processing && (payments.selectedMethod?.offline ? 'Confirm Booking' : 'Pay Now')}
             </Button>
           </div>
 
@@ -1119,6 +1127,9 @@ const MultiItemCheckout = () => {
   const [createdBookings, setCreatedBookings] = useState([]);
   const [checkoutToken, setCheckoutToken] = useState(null);
   const [bookingAttempted, setBookingAttempted] = useState(false);
+  // One online payment can't cover several separate bookings, so this flow
+  // only offers offline methods (cash) — see usePaymentMethods.
+  const payments = usePaymentMethods({ offlineOnly: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -1255,9 +1266,13 @@ const MultiItemCheckout = () => {
     }
   };
 
-  const handleConfirmCOD = async () => {
+  const handleConfirmOffline = async () => {
     if (createdBookings.length === 0) {
       toast.error('There are no bookings to confirm.');
+      return;
+    }
+    if (!payments.selected) {
+      toast.error('Please choose a payment method.');
       return;
     }
 
@@ -1266,10 +1281,10 @@ const MultiItemCheckout = () => {
 
     for (const b of createdBookings) {
       try {
-        await paymentsAPI.createCOD({ booking_id: b.id }, pinnedAuthConfig(checkoutToken));
+        await startPayment(payments.selected, 'booking_id', b.id, checkoutToken);
         successCount += 1;
       } catch (err) {
-        console.error(`COD confirmation failed for booking ${b.id}:`, err);
+        console.error(`Payment confirmation failed for booking ${b.id}:`, err);
         toast.error(`Failed to confirm booking #${b.booking_number || b.id}`);
       }
     }
@@ -1412,8 +1427,17 @@ const MultiItemCheckout = () => {
           <h2 className="font-display text-xl sm:text-2xl font-bold text-neutral-900 mb-2">Payment</h2>
           <p className="text-sm text-neutral-600 mb-6 flex items-start gap-2">
             <Info className="h-4 w-4 text-accent-600 mt-0.5 flex-shrink-0" />
-            Online payment for multi-item trips isn't available yet — pay individually from My Bookings, or use Cash on Delivery below.
+            Online payment for multi-item trips isn't available yet — pay individually from My Bookings, or use an offline method below.
           </p>
+
+          <PaymentMethodPicker
+            methods={payments.methods}
+            loading={payments.loading}
+            error={payments.error}
+            selected={payments.selected}
+            onSelect={payments.setSelected}
+            emptyMessage="No offline payment method is enabled right now. Your bookings are saved — pay for each one from My Bookings."
+          />
 
           <div className="bg-neutral-50 rounded-lg p-6 mb-6">
             <div className="flex justify-between items-center mb-3">
@@ -1448,11 +1472,11 @@ const MultiItemCheckout = () => {
             <Button
               variant="primary"
               fullWidth
-              disabled={processing || createdBookings.length === 0}
+              disabled={processing || createdBookings.length === 0 || !payments.selected}
               loading={processing}
-              onClick={handleConfirmCOD}
+              onClick={handleConfirmOffline}
             >
-              Confirm (Cash on Delivery)
+              Confirm{payments.selectedMethod ? ` (${payments.selectedMethod.name})` : ''}
             </Button>
           </div>
           <div className="flex items-center justify-center gap-1.5 mt-4 text-xs text-neutral-400">

@@ -26,6 +26,7 @@ class TourGuideBooking extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'booking_date' => 'date',
         'duration_days' => 'integer',
         'total_price' => 'decimal:2',

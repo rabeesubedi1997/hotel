@@ -42,6 +42,7 @@ class TourGuide extends Model
     ];
 
     protected $casts = [
+        'vendor_id' => 'integer',
         'trips_completed' => 'integer',
         'rating' => 'decimal:1',
         'total_reviews' => 'integer',

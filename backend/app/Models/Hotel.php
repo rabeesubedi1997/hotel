@@ -57,6 +57,7 @@ class Hotel extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'amenities' => 'array',
         'images' => 'array',
         'price_per_night' => 'decimal:2',

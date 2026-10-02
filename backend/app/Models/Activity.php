@@ -67,6 +67,7 @@ class Activity extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'includes' => 'array',
         'images' => 'array',
         'price' => 'decimal:2',

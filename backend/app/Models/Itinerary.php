@@ -43,6 +43,7 @@ class Itinerary extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'is_public' => 'boolean',
         'duration_days' => 'integer',
         'price_from' => 'decimal:2',

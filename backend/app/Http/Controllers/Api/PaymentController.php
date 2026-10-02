@@ -6,35 +6,189 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\PackageBooking;
 use App\Models\Payment;
+use App\Models\PaymentGateway;
 use App\Services\LoyaltyService;
+use App\Services\Payments\CurrencyConverter;
+use App\Services\Payments\PaymentException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * Customer-facing payment endpoints. Which gateways exist, their credentials
+ * and sandbox/live mode live in the payment_gateways table (Admin → Payment
+ * Gateways); the provider-specific work lives in App\Services\Payments\Drivers.
+ *
+ * A payment is only ever marked completed here, server-side, after the
+ * driver has confirmed it with the provider (or for offline methods like
+ * cash on delivery). Nothing the browser sends can complete a payment.
+ */
 class PaymentController extends Controller
 {
-    public function __construct(private LoyaltyService $loyalty)
-    {
+    public function __construct(
+        private LoyaltyService $loyalty,
+        private CurrencyConverter $converter,
+    ) {
     }
 
+    /** Enabled, fully-configured gateways — what the checkout page renders. */
     public function methods(): JsonResponse
     {
-        return response()->json([
-            'methods' => [
-                ['id' => 'cod', 'name' => 'Cash on Delivery (Pay at Hotel/Activity)', 'icon' => 'banknote', 'currency' => 'NPR'],
-                ['id' => 'khalti', 'name' => 'Khalti Digital Wallet', 'icon' => 'wallet', 'currency' => 'NPR'],
-                ['id' => 'stripe', 'name' => 'Credit/Debit Card', 'icon' => 'credit-card', 'currency' => 'USD'],
-                ['id' => 'paypal', 'name' => 'PayPal', 'icon' => 'paypal', 'currency' => 'USD'],
+        $methods = PaymentGateway::enabled()->ordered()->get()
+            ->filter(fn (PaymentGateway $g) => $g->isConfigured())
+            ->map(fn (PaymentGateway $g) => $g->toPublicArray())
+            ->values();
+
+        return response()->json(['methods' => $methods]);
+    }
+
+    /**
+     * Start a payment with the given gateway. Offline gateways (cash) are
+     * completed immediately; others return a `redirect_url` to send the
+     * customer to the provider.
+     */
+    public function initiate(Request $request, string $code): JsonResponse
+    {
+        [$payable, $isPackage, $error] = $this->resolvePayable($request);
+        if ($error) {
+            return $error;
+        }
+
+        $gateway = PaymentGateway::enabled()->where('code', $code)->first();
+        if (!$gateway || !$gateway->isConfigured()) {
+            return response()->json(['message' => 'This payment method is not available.'], 422);
+        }
+
+        $driver = $gateway->driverInstance();
+        $offline = $driver::isOffline();
+
+        if (!$offline) {
+            $request->validate(['return_url' => 'required|url']);
+            if (parse_url($request->return_url, PHP_URL_HOST) !== $request->getHost()) {
+                return response()->json(['message' => 'Invalid return URL.'], 422);
+            }
+        }
+
+        try {
+            [$amount, $rate] = $offline
+                ? [(float) $payable->total_amount, 1.0]
+                : $this->converter->convert((float) $payable->total_amount, $gateway->currency);
+        } catch (PaymentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $payment = Payment::create([
+            'booking_id' => $isPackage ? null : $payable->id,
+            'package_booking_id' => $isPackage ? $payable->id : null,
+            'method' => $driver::paymentMethod(),
+            'gateway_code' => $gateway->code,
+            'mode' => $gateway->mode,
+            'amount' => $amount,
+            'currency' => $offline ? config('payments.base_currency') : strtoupper($gateway->currency),
+            'status' => Payment::STATUS_PENDING,
+            'request_data' => [
+                'base_amount' => (float) $payable->total_amount,
+                'base_currency' => config('payments.base_currency'),
+                'exchange_rate' => $rate,
             ],
+        ]);
+
+        try {
+            $result = $driver->initiate($gateway, $payment, $this->buildContext($request, $payable, $payment, $gateway));
+        } catch (PaymentException $e) {
+            $payment->update(['status' => Payment::STATUS_FAILED]);
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        if ($result['completed'] ?? false) {
+            $this->complete($payment, null, []);
+
+            return response()->json([
+                'status' => 'completed',
+                'payment' => $payment->fresh(),
+                'booking' => $payable->fresh(),
+                'message' => 'Booking confirmed with ' . $gateway->name . '.',
+            ]);
+        }
+
+        $payment->update([
+            'status' => Payment::STATUS_INITIATED,
+            'payment_intent_id' => $result['reference'],
+            'response_data' => $result['raw'] ?? null,
+        ]);
+
+        return response()->json([
+            'status' => 'redirect',
+            'payment_id' => $payment->id,
+            'redirect_url' => $result['redirect_url'],
         ]);
     }
 
     /**
+     * Called by the return page after the provider redirects the customer
+     * back. Asks the provider (via the stored reference) whether the payment
+     * really succeeded — it never trusts what came back in the URL.
+     */
+    public function verify(Request $request, Payment $payment): JsonResponse
+    {
+        $isPackage = (bool) $payment->package_booking_id;
+        $payable = $isPackage ? $payment->packageBooking : $payment->booking;
+
+        if (!$payable || (int) $payable->user_id !== (int) Auth::id()) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($payment->isCompleted()) {
+            return response()->json(['status' => 'completed', 'payment' => $payment, 'booking' => $payable, 'message' => 'Payment already confirmed.']);
+        }
+
+        if (!in_array($payment->status, [Payment::STATUS_INITIATED, Payment::STATUS_PENDING], true)) {
+            return response()->json(['status' => 'failed', 'message' => 'This payment is no longer active. Please start a new payment.'], 422);
+        }
+
+        $gateway = PaymentGateway::where('code', $payment->gateway_code)->first();
+        if (!$gateway) {
+            return response()->json(['status' => 'failed', 'message' => 'This payment method is no longer available.'], 422);
+        }
+
+        try {
+            $result = $gateway->driverInstance()->verify($gateway, $payment);
+        } catch (PaymentException $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+        }
+
+        if ($result['status'] === 'completed') {
+            $this->complete($payment, $result['transaction_id'] ?? null, $result['raw'] ?? []);
+
+            return response()->json([
+                'status' => 'completed',
+                'payment' => $payment->fresh(),
+                'booking' => $payable->fresh(),
+                'message' => 'Payment successful. Your booking is confirmed.',
+            ]);
+        }
+
+        if ($result['status'] === 'failed') {
+            $payment->update(['status' => Payment::STATUS_FAILED, 'response_data' => $result['raw'] ?? null]);
+
+            return response()->json(['status' => 'failed', 'message' => 'The payment was not completed.'], 422);
+        }
+
+        return response()->json(['status' => 'pending', 'message' => 'The payment has not been completed yet.'], 202);
+    }
+
+    /** Legacy endpoint kept so already-loaded browser bundles still work. */
+    public function createCODPayment(Request $request): JsonResponse
+    {
+        return $this->initiate($request, 'cod');
+    }
+
+    /**
      * Resolve the payable target from either `booking_id` or
-     * `package_booking_id` — exactly one must be provided and owned by the
-     * requesting user. Returns [payable, isPackage, error] where error is a
-     * JsonResponse to return immediately, or null if resolution succeeded.
+     * `package_booking_id` — exactly one must be provided, owned by the
+     * requesting user, and still awaiting payment.
      */
     private function resolvePayable(Request $request): array
     {
@@ -43,39 +197,76 @@ class PaymentController extends Controller
             'package_booking_id' => 'required_without:booking_id|nullable|exists:package_bookings,id',
         ]);
 
-        if ($request->filled('package_booking_id')) {
-            $packageBooking = PackageBooking::findOrFail($request->package_booking_id);
-            if ((int) $packageBooking->user_id !== (int) Auth::id()) {
-                Log::warning('Payment resolvePayable: package booking owner mismatch', [
-                    'package_booking_id' => $packageBooking->id,
-                    'package_booking_owner_id' => $packageBooking->user_id,
-                    'package_booking_created_at' => $packageBooking->created_at,
-                    'authenticated_user_id' => Auth::id(),
-                    'authenticated_user_email' => Auth::user()?->email,
-                ]);
-                return [null, true, response()->json(['message' => 'Unauthorized.'], 403)];
-            }
-            return [$packageBooking, true, null];
+        $isPackage = $request->filled('package_booking_id');
+        $payable = $isPackage
+            ? PackageBooking::findOrFail($request->package_booking_id)
+            : Booking::findOrFail($request->booking_id);
+
+        // (int) on both sides: some MySQL drivers return ids as strings.
+        if ((int) $payable->user_id !== (int) Auth::id()) {
+            return [null, $isPackage, response()->json(['message' => 'Unauthorized.'], 403)];
         }
 
-        $booking = Booking::findOrFail($request->booking_id);
-        if ((int) $booking->user_id !== (int) Auth::id()) {
-            // Temporary diagnostic logging — this exact 403 has reproduced
-            // twice in what was reported as a single continuous checkout
-            // session, after the multi-tab token-pinning fix. Logging the
-            // actual owner vs. the actual authenticated user (plus timing)
-            // here so the next occurrence can be diagnosed from fact rather
-            // than guesswork.
-            Log::warning('Payment resolvePayable: booking owner mismatch', [
-                'booking_id' => $booking->id,
-                'booking_owner_id' => $booking->user_id,
-                'booking_created_at' => $booking->created_at,
-                'authenticated_user_id' => Auth::id(),
-                'authenticated_user_email' => Auth::user()?->email,
-            ]);
-            return [null, false, response()->json(['message' => 'Unauthorized.'], 403)];
+        if (!$payable->isPending()) {
+            return [null, $isPackage, response()->json(['message' => 'This booking is not awaiting payment.'], 422)];
         }
-        return [$booking, false, null];
+
+        return [$payable, $isPackage, null];
+    }
+
+    private function buildContext(Request $request, $payable, Payment $payment, PaymentGateway $gateway): array
+    {
+        $returnUrl = $request->filled('return_url')
+            ? $this->withQuery($request->return_url, ['payment' => $payment->id, 'gateway' => $gateway->code])
+            : null;
+
+        return [
+            'return_url' => $returnUrl,
+            'cancel_url' => $returnUrl ? $this->withQuery($returnUrl, ['cancelled' => 1]) : null,
+            'website_url' => $returnUrl ? parse_url($returnUrl, PHP_URL_SCHEME) . '://' . parse_url($returnUrl, PHP_URL_HOST) : null,
+            'reference' => $payable->booking_number,
+            'description' => 'Booking ' . $payable->booking_number,
+            'customer' => [
+                'name' => $payable->user?->name,
+                'email' => $payable->user?->email,
+            ],
+        ];
+    }
+
+    private function withQuery(string $url, array $params): string
+    {
+        return $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params);
+    }
+
+    /**
+     * Mark a payment completed and confirm what it paid for. Locked and
+     * idempotent so a double-submitted return (refresh, two tabs) can't
+     * confirm twice or award loyalty points twice.
+     */
+    private function complete(Payment $payment, ?string $transactionId, array $raw): void
+    {
+        DB::transaction(function () use ($payment, $transactionId, $raw) {
+            $payment = Payment::whereKey($payment->id)->lockForUpdate()->first();
+            if ($payment->isCompleted()) {
+                return;
+            }
+
+            $payment->update([
+                'status' => Payment::STATUS_COMPLETED,
+                'transaction_id' => $transactionId,
+                'response_data' => $raw ?: $payment->response_data,
+                'paid_at' => now(),
+            ]);
+
+            $isPackage = (bool) $payment->package_booking_id;
+            $payable = $isPackage ? $payment->packageBooking : $payment->booking;
+
+            // Money is recorded either way, but only a still-pending booking
+            // gets confirmed (and earns points) — never twice.
+            if ($payable->isPending()) {
+                $this->confirmPayable($payable, $isPackage);
+            }
+        });
     }
 
     private function confirmPayable($payable, bool $isPackage): void
@@ -95,144 +286,5 @@ class PaymentController extends Controller
             $isPackage ? null : $payable->id,
             $isPackage ? $payable->id : null
         );
-    }
-
-    public function initiateKhalti(Request $request): JsonResponse
-    {
-        $request->validate(['return_url' => 'required|url']);
-        [$payable, $isPackage, $error] = $this->resolvePayable($request);
-        if ($error) return $error;
-
-        $payment = Payment::create([
-            'booking_id' => $isPackage ? null : $payable->id,
-            'package_booking_id' => $isPackage ? $payable->id : null,
-            'method' => Payment::METHOD_KHALTI,
-            'amount' => $payable->total_amount,
-            'currency' => 'NPR',
-            'status' => Payment::STATUS_PENDING,
-            'request_data' => $request->all(),
-        ]);
-
-        // Khalti integration would go here
-        // For now, return mock response
-        return response()->json([
-            'payment' => $payment,
-            'khalti_config' => [
-                'public_key' => config('services.khalti.public_key'),
-                'amount' => $payable->total_amount * 100, // Paisa
-                'product_identity' => $payable->booking_number,
-                'product_name' => 'Booking ' . $payable->booking_number,
-                'return_url' => $request->return_url,
-            ],
-        ]);
-    }
-
-    public function verifyKhalti(Request $request): JsonResponse
-    {
-        $request->validate([
-            'token' => 'required|string',
-            'amount' => 'required|numeric',
-        ]);
-
-        // Khalti verification logic would go here
-        // This is a mock implementation
-
-        return response()->json([
-            'verified' => true,
-            'message' => 'Payment verified successfully.',
-        ]);
-    }
-
-    public function createStripeIntent(Request $request): JsonResponse
-    {
-        [$payable, $isPackage, $error] = $this->resolvePayable($request);
-        if ($error) return $error;
-
-        $payment = Payment::create([
-            'booking_id' => $isPackage ? null : $payable->id,
-            'package_booking_id' => $isPackage ? $payable->id : null,
-            'method' => Payment::METHOD_STRIPE,
-            'amount' => $payable->total_amount,
-            'currency' => 'USD',
-            'status' => Payment::STATUS_PENDING,
-            'request_data' => $request->all(),
-        ]);
-
-        // Stripe PaymentIntent creation would go here
-        // For now, return mock client secret
-        return response()->json([
-            'payment' => $payment,
-            'client_secret' => 'mock_client_secret_' . uniqid(),
-        ]);
-    }
-
-    public function paypalCreateOrder(Request $request): JsonResponse
-    {
-        [$payable, $isPackage, $error] = $this->resolvePayable($request);
-        if ($error) return $error;
-
-        $payment = Payment::create([
-            'booking_id' => $isPackage ? null : $payable->id,
-            'package_booking_id' => $isPackage ? $payable->id : null,
-            'method' => Payment::METHOD_PAYPAL,
-            'amount' => $payable->total_amount,
-            'currency' => 'USD',
-            'status' => Payment::STATUS_PENDING,
-            'request_data' => $request->all(),
-        ]);
-
-        // PayPal order creation would go here
-        return response()->json([
-            'payment' => $payment,
-            'paypal_order_id' => 'ORDER_' . uniqid(),
-        ]);
-    }
-
-    public function confirmPayment(Request $request, Payment $payment): JsonResponse
-    {
-        $isPackage = (bool) $payment->package_booking_id;
-        $payable = $isPackage ? $payment->packageBooking : $payment->booking;
-
-        if ((int) $payable->user_id !== (int) Auth::id()) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
-        $payment->update([
-            'status' => Payment::STATUS_COMPLETED,
-            'paid_at' => now(),
-        ]);
-
-        $this->confirmPayable($payable, $isPackage);
-
-        return response()->json([
-            'payment' => $payment,
-            'message' => 'Payment confirmed successfully.',
-        ]);
-    }
-
-    public function createCODPayment(Request $request): JsonResponse
-    {
-        [$payable, $isPackage, $error] = $this->resolvePayable($request);
-        if ($error) return $error;
-
-        // Create COD payment record - auto-confirmed
-        $payment = Payment::create([
-            'booking_id' => $isPackage ? null : $payable->id,
-            'package_booking_id' => $isPackage ? $payable->id : null,
-            'method' => Payment::METHOD_CASH,
-            'amount' => $payable->total_amount,
-            'currency' => 'NPR',
-            'status' => Payment::STATUS_COMPLETED,
-            'paid_at' => now(),
-            'request_data' => $request->all(),
-        ]);
-
-        $this->confirmPayable($payable, $isPackage);
-
-        return response()->json([
-            'payment' => $payment,
-            'booking' => $payable,
-            'message' => 'Booking confirmed with Cash on Delivery. Please pay at the venue.',
-        ]);
     }
 }

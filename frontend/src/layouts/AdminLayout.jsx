@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, Map, ScrollText, MessageSquare, Megaphone, Tag, DollarSign, Award, X, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, Building2, Compass, Calendar, Users, Star, LogOut, Menu, Image, Globe, Settings, Mail, MapPin, Images, Layout, Map, ScrollText, MessageSquare, Megaphone, Tag, DollarSign, Award, X, CheckCircle, CreditCard } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
 import useSiteSettingsStore from '../stores/siteSettingsStore';
@@ -70,6 +70,8 @@ const AdminLayout = () => {
     { path: '/admin/loyalty', icon: Award, label: 'Loyalty Points', adminOnly: true },
     { path: '/admin/seo', icon: Globe, label: 'SEO', adminOnly: true },
     { path: '/admin/settings', icon: Settings, label: 'Site Settings', adminOnly: true },
+    // Holds API secrets — the backend only allows these two roles, so don't show it to managers either.
+    { path: '/admin/payment-gateways', icon: CreditCard, label: 'Payment Gateways', adminOnly: true, rolesOnly: ['super_admin', 'admin'] },
     { path: '/admin/tour-guides', icon: MapPin, label: 'Tour Guides', adminOnly: true },
     { path: '/admin/itineraries', icon: Map, label: 'Itineraries', adminOnly: true },
     { path: '/admin/media-library', icon: Images, label: 'Media Library', adminOnly: true },
@@ -80,6 +82,7 @@ const AdminLayout = () => {
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
+    if (item.rolesOnly && !item.rolesOnly.includes(user?.role)) return false;
     if (user?.role === 'vendor') {
       return !item.adminOnly; // Hide admin-only items from vendors
     }

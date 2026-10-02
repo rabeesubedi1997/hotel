@@ -27,6 +27,7 @@ class Review extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'images' => 'array',
         'approved_at' => 'datetime',
     ];
