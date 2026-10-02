@@ -36,6 +36,9 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+echo "==> Payment gateway status (informational — never fails the deploy)..."
+php artisan payments:status || true
+
 echo "==> Done. Backend is up to date."
 echo "    (One-time only, if not already set up: two cron jobs for"
 echo "    schedule:run and queue:work — see deployment notes.)"
