@@ -1,4 +1,14 @@
 // Unsplash image URLs for hotels and activities
+
+// onError handler that swaps in a fallback image ONCE. A plain
+// `e.target.src = fallback` re-fires onError forever if the fallback is
+// also unreachable — that looped ~20 requests/second per broken image.
+export const fallbackOnce = (fallback) => (e) => {
+  const img = e.currentTarget;
+  if (img.dataset.fallbackApplied) return;
+  img.dataset.fallbackApplied = '1';
+  img.src = fallback;
+};
 export const getHotelImage = (id) => {
   const hotelImages = [
     'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80', // Luxury resort
@@ -16,12 +26,12 @@ export const getHotelImage = (id) => {
 export const getActivityImage = (type) => {
   const activityImages = {
     bungee: 'https://images.unsplash.com/photo-1523287562758-66c7fc58967f?w=800&q=80',
-    paragliding: 'https://images.unsplash.com/photo-1605891525466-5a5b7c9b2d34?w=800&q=80',
+    paragliding: 'https://images.unsplash.com/photo-1571401835393-8c5f35328320?w=800&q=80',
     rafting: 'https://images.unsplash.com/photo-1530866495561-507c9faab2ed?w=800&q=80',
     trekking: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80',
     zipline: 'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?w=800&q=80',
-    skydiving: 'https://images.unsplash.com/photo-1549798616-570507f00f73?w=800&q=80',
-    canyoning: 'https://images.unsplash.com/photo-1504280509585-0d7a56c2c9e8?w=800&q=80',
+    skydiving: 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&q=80',
+    canyoning: 'https://images.unsplash.com/photo-1530866495561-507c9faab2ed?w=800&q=80',
     rock_climbing: 'https://images.unsplash.com/photo-1522163182402-834f871fd851?w=800&q=80',
     hot_air_balloon: 'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=800&q=80',
     other: 'https://images.unsplash.com/photo-1533692328991-08159ff19fca?w=800&q=80',

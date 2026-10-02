@@ -13,8 +13,10 @@ import { resizeImage, getFileSizeMB } from '../utils/imageResizer';
 import { useRef } from 'react';
 import useAuthStore from '../stores/authStore';
 import useActingVendorStore from '../stores/actingVendorStore';
+import { useToast } from '../contexts/ToastContext';
 
 const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
+  const toast = useToast();
   const { user } = useAuthStore();
   const { vendorId: actingVendorId } = useActingVendorStore();
   const [files, setFiles] = useState([]);
@@ -84,7 +86,7 @@ const MediaPicker = ({ isOpen, onClose, onSelect, folder = '' }) => {
       onClose();
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Error uploading image');
+      toast.error(error.response?.data?.message || 'Could not upload that image. Use a JPG, PNG or WebP under the size limit.');
     } finally {
       setUploading(false);
       setResizeProgress(null);

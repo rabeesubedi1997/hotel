@@ -22,6 +22,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Button, Input, Textarea, Select, Card, Badge, RatingStars, Container } from '../components/ui';
 import AddToTripButton from '../components/AddToTripButton';
 import useSiteSettingsStore from '../stores/siteSettingsStore';
+import { loginUrl } from '../utils/loginRedirect';
 
 const TourGuideDetail = () => {
   const { slug } = useParams();
@@ -86,7 +87,7 @@ const TourGuideDetail = () => {
   const handleMessageHost = async () => {
     if (!isAuthenticated) {
       toast.info('Please log in to message the host.');
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setMessagingHost(true);

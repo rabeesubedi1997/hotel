@@ -92,9 +92,29 @@ class BookingController extends Controller
             return response()->json(['message' => 'Item not found.'], 404);
         }
 
+        // The room must belong to this hotel — otherwise any cheap room from
+        // another hotel could be used to price this booking.
+        $room = null;
+        if ($request->bookable_type === 'hotel' && $request->room_id) {
+            $room = $bookable->rooms()->find($request->room_id);
+            if (!$room) {
+                return response()->json(['message' => 'That room type does not belong to this hotel.'], 422);
+            }
+        }
+
+        // Enforce capacity server-side; the UI check alone can be skipped
+        // or raced by two customers booking the last room.
+        $available = $request->bookable_type === 'hotel'
+            ? ($room
+                ? $this->roomHasCapacity($room, $request->check_in_date, $request->check_out_date)
+                : $bookable->rooms->contains(fn ($r) => $this->roomHasCapacity($r, $request->check_in_date, $request->check_out_date)))
+            : $this->activityHasCapacity($bookable, $request->activity_datetime, (int) $request->participants);
+        if (!$available) {
+            return response()->json(['message' => 'Sorry, this is no longer available for the selected dates. Please choose different dates.'], 422);
+        }
+
         // Calculate total amount
         if ($request->bookable_type === 'hotel') {
-            $room = $request->room_id ? Room::find($request->room_id) : null;
             $pricePerNight = $room ? $room->price : $bookable->price_per_night;
             $nights = (new \DateTime($request->check_in_date))->diff(new \DateTime($request->check_out_date))->days;
             $totalAmount = $pricePerNight * $nights * $request->guests;
@@ -234,49 +254,22 @@ class BookingController extends Controller
             return response()->json(['message' => 'Item not found.'], 404);
         }
 
-        // For hotels, check room availability
+        // For hotels, check room availability per room type (each room has
+        // its own available_count; they are not one pooled inventory).
         if ($request->bookable_type === 'hotel') {
-            // Counts conflicting bookings for one specific room (by id) —
-            // previously this summed ALL conflicting bookings hotel-wide
-            // against the SUM of every room type's available_count, which
-            // conflated unrelated room types and always failed for a hotel
-            // whose rooms don't all share one pooled inventory.
-            $conflictingBookingsFor = function (int $roomId) use ($request, $bookableClass) {
-                return Booking::where('bookable_type', $bookableClass)
-                    ->where('bookable_id', $request->bookable_id)
-                    ->where('room_id', $roomId)
-                    ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
-                    ->where(function ($q) use ($request) {
-                        $q->whereBetween('check_in_date', [$request->check_in_date, $request->check_out_date])
-                          ->orWhereBetween('check_out_date', [$request->check_in_date, $request->check_out_date])
-                          ->orWhere(function ($q) use ($request) {
-                              $q->where('check_in_date', '<=', $request->check_in_date)
-                                ->where('check_out_date', '>=', $request->check_out_date);
-                          });
-                    })
-                    ->count();
-            };
-
             if ($request->filled('room_id')) {
                 $room = $bookable->rooms()->find($request->room_id);
-                $isAvailable = $room && $conflictingBookingsFor($room->id) < $room->available_count;
+                $isAvailable = $room && $this->roomHasCapacity($room, $request->check_in_date, $request->check_out_date);
             } else {
                 // No room type picked yet — the hotel counts as available
                 // if at least one of its room types still has open capacity
                 // for these dates.
                 $isAvailable = $bookable->rooms->contains(
-                    fn ($room) => $conflictingBookingsFor($room->id) < $room->available_count
+                    fn ($room) => $this->roomHasCapacity($room, $request->check_in_date, $request->check_out_date)
                 );
             }
         } else {
-            // For activities, check max participants
-            $bookedParticipants = Booking::where('bookable_type', $bookableClass)
-                ->where('bookable_id', $request->bookable_id)
-                ->where('activity_datetime', $request->activity_datetime)
-                ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
-                ->sum('participants');
-
-            $isAvailable = ($bookedParticipants + $request->participants) <= $bookable->max_participants;
+            $isAvailable = $this->activityHasCapacity($bookable, $request->activity_datetime, (int) $request->participants);
         }
 
         return response()->json([
@@ -290,40 +283,72 @@ class BookingController extends Controller
         $request->validate([
             'hotel_id' => 'required|integer|exists:hotels,id',
             'room_id' => 'nullable|integer|exists:rooms,id',
-            'year' => 'required|integer|min:2020|max:2030',
+            'year' => 'required|integer|min:2020|max:2100',
             'month' => 'required|integer|min:1|max:12',
         ]);
 
-        $hotelId = $request->hotel_id;
-        $roomId = $request->room_id;
-        $year = $request->year;
-        $month = $request->month;
+        // Public endpoint: return only which nights are sold out, never the
+        // bookings themselves (ids, guest counts) — that's other customers' data.
+        $hotel = Hotel::with('rooms')->findOrFail($request->hotel_id);
+        $rooms = $request->room_id
+            ? $hotel->rooms->where('id', (int) $request->room_id)
+            : $hotel->rooms;
 
-        // Get all bookings for the hotel (and specific room if provided)
-        $query = Booking::where('bookable_type', Hotel::class)
-            ->where('bookable_id', $hotelId)
+        $monthStart = \Carbon\Carbon::create((int) $request->year, (int) $request->month, 1)->startOfDay();
+        $monthEnd = $monthStart->copy()->addMonth();
+
+        // Includes stays that began last month and run into this one.
+        $bookings = Booking::where('bookable_type', Hotel::class)
+            ->where('bookable_id', $hotel->id)
+            ->whereIn('room_id', $rooms->pluck('id'))
             ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
-            ->whereYear('check_in_date', $year)
-            ->whereMonth('check_in_date', $month);
+            ->where('check_in_date', '<', $monthEnd->toDateString())
+            ->where('check_out_date', '>', $monthStart->toDateString())
+            ->get(['room_id', 'check_in_date', 'check_out_date']);
 
-        if ($roomId) {
-            $query->where('room_id', $roomId);
+        // A night is sold out when every selected room type is at capacity.
+        $soldOut = [];
+        for ($day = $monthStart->copy(); $day < $monthEnd; $day->addDay()) {
+            $date = $day->toDateString();
+            $hasRoomLeft = $rooms->contains(function ($room) use ($bookings, $date) {
+                $taken = $bookings->filter(fn ($b) => (int) $b->room_id === $room->id
+                    && substr((string) $b->check_in_date, 0, 10) <= $date
+                    && substr((string) $b->check_out_date, 0, 10) > $date)->count();
+                return $taken < max(1, (int) $room->available_count);
+            });
+            if ($rooms->isNotEmpty() && !$hasRoomLeft) {
+                $soldOut[] = $date;
+            }
         }
 
-        $bookings = $query->with('room')->get();
+        return response()->json(['sold_out_dates' => $soldOut]);
+    }
 
-        // Format bookings for calendar
-        $calendarData = $bookings->map(function ($booking) {
-            return [
-                'id' => $booking->id,
-                'check_in_date' => $booking->check_in_date,
-                'check_out_date' => $booking->check_out_date,
-                'status' => $booking->status,
-                'room_type' => $booking->room ? $booking->room->room_type : null,
-                'guests' => $booking->guests,
-            ];
-        });
+    private function roomHasCapacity(Room $room, string $checkIn, string $checkOut): bool
+    {
+        // Two stays overlap when one starts before the other ends; a guest
+        // checking out the morning another checks in is not a clash.
+        $taken = Booking::where('room_id', $room->id)
+            ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
+            ->where('check_in_date', '<', $checkOut)
+            ->where('check_out_date', '>', $checkIn)
+            ->count();
 
-        return response()->json($calendarData);
+        return $taken < max(1, (int) $room->available_count);
+    }
+
+    private function activityHasCapacity(Activity $activity, ?string $datetime, int $participants): bool
+    {
+        if (!$activity->max_participants) {
+            return true; // no limit set
+        }
+
+        $booked = Booking::where('bookable_type', Activity::class)
+            ->where('bookable_id', $activity->id)
+            ->where('activity_datetime', $datetime)
+            ->whereNotIn('status', [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED])
+            ->sum('participants');
+
+        return ($booked + $participants) <= $activity->max_participants;
     }
 }

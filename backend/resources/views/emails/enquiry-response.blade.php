@@ -84,7 +84,7 @@
 
         <div class="footer">
             <p>Best regards,<br>
-            <strong>Reserve Now Team</strong></p>
+            <strong>{{ \App\Models\SiteSetting::getValue('site_name', 'Paradise Nepal') }} Team</strong></p>
             <p style="font-size: 12px; color: #9ca3af;">
                 This is an automated response. Please do not reply directly to this email.
             </p>

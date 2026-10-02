@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { vendorAPI } from '../../services/api';
 import { Building2, Compass, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { StatCard, SectionHeading } from '../../components/ui';
+import { formatUSD } from '../../utils/money';
 
 const VendorDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -56,7 +57,7 @@ const VendorDashboard = () => {
       />
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
         <StatCard
           icon={Building2}
           title="Total Hotels"
@@ -72,7 +73,7 @@ const VendorDashboard = () => {
           hint={stats.pending_activities > 0 ? `${stats.pending_activities} pending approval` : null}
         />
         <StatCard icon={Calendar} title="Total Bookings" value={stats.total_bookings} tone="accent" />
-        <StatCard icon={DollarSign} title="Total Revenue" value={`$${stats.total_revenue}`} tone="warning" />
+        <StatCard icon={DollarSign} title="Total Revenue" value={formatUSD(stats.total_revenue)} tone="warning" />
       </div>
 
       {/* Pending Items Alert */}
@@ -115,16 +116,28 @@ const VendorDashboard = () => {
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6">
-          <h3 className="font-display text-lg font-semibold text-neutral-900 mb-4">Recent Activity</h3>
-          <div className="space-y-2">
-            <div className="flex items-center text-sm text-neutral-600">
-              <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-              <span>Your properties are performing well</span>
-            </div>
-            <div className="flex items-center text-sm text-neutral-600">
-              <Calendar className="h-4 w-4 mr-2 text-primary-500" />
-              <span>Keep track of your bookings</span>
-            </div>
+          <h3 className="font-display text-lg font-semibold text-neutral-900 mb-4">Next steps</h3>
+          <div className="space-y-3 text-sm text-neutral-600">
+            {stats.hotels_count + stats.activities_count === 0 ? (
+              <p className="flex items-start">
+                <AlertCircle className="h-4 w-4 mr-2 mt-0.5 text-amber-500 shrink-0" />
+                <span>You have no listings yet. Add a hotel or activity — customers can book it once an administrator approves it.</span>
+              </p>
+            ) : stats.total_pending > 0 ? (
+              <p className="flex items-start">
+                <AlertCircle className="h-4 w-4 mr-2 mt-0.5 text-amber-500 shrink-0" />
+                <span>{stats.total_pending} listing{stats.total_pending === 1 ? ' is' : 's are'} waiting for approval.</span>
+              </p>
+            ) : (
+              <p className="flex items-start">
+                <CheckCircle className="h-4 w-4 mr-2 mt-0.5 text-green-500 shrink-0" />
+                <span>All your listings are approved and visible to customers.</span>
+              </p>
+            )}
+            <Link to="/vendor/bookings" className="flex items-center text-primary-600 hover:text-primary-700 font-medium">
+              <Calendar className="h-4 w-4 mr-2" />
+              {stats.total_bookings > 0 ? `View ${stats.total_bookings} booking${stats.total_bookings === 1 ? '' : 's'}` : 'No bookings yet — view bookings'}
+            </Link>
           </div>
         </div>
       </div>

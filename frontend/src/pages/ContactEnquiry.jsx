@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { Mail, Phone, MessageSquare, Check, Send, MapPin, Clock } from 'lucide-react';
 import { enquiriesAPI, publicAPI } from '../services/api';
 import { Button, Input, Textarea, Select, Card, Container } from '../components/ui';
+import { useToast } from '../contexts/ToastContext';
+import useSiteSettingsStore from '../stores/siteSettingsStore';
 
 // Live Kathmandu time — a small, honest, real-time touch (no fabricated
 // claims, just a live clock) matching the concierge-desk mockup.
@@ -37,6 +39,8 @@ const ContactEnquiry = () => {
   const prefillItem = queryParams.get('item') || '';
   const kathmanduTime = useKathmanduTime();
 
+  const toast = useToast();
+  const siteContact = useSiteSettingsStore((s) => s.getContactInfo)();
   const [loading, setLoading] = useState(false);
   const [pageContent, setPageContent] = useState(null);
   const [formData, setFormData] = useState({
@@ -72,13 +76,19 @@ const ContactEnquiry = () => {
       setEnquiryNumber(response.data.enquiry_number);
       setSubmitted(true);
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to submit enquiry');
+      toast.error(error.response?.data?.message || 'Could not send your enquiry. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const contactInfo = pageContent?.sections?.contact_info || {};
+  const pageContact = pageContent?.sections?.contact_info || {};
+  const contactInfo = {
+    ...pageContact,
+    address: pageContact.address || siteContact.address,
+    email: pageContact.email || siteContact.email,
+    phone: pageContact.phone || siteContact.phone,
+  };
 
   if (submitted) {
     return (
@@ -211,37 +221,37 @@ const ContactEnquiry = () => {
                 {contactInfo.title || 'Contact Information'}
               </h3>
               <div className="space-y-4">
-                <div className="flex items-start gap-3">
+                {contactInfo.address && <div className="flex items-start gap-3">
                   <span className="w-9 h-9 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                     <MapPin className="h-4 w-4" />
                   </span>
                   <div>
                     <p className="font-medium text-neutral-900 text-sm">Address</p>
-                    <p className="text-neutral-600 text-sm">{contactInfo.address || 'Thamel, Kathmandu, Nepal'}</p>
+                    <p className="text-neutral-600 text-sm">{contactInfo.address}</p>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
+                </div>}
+                {contactInfo.email && <div className="flex items-start gap-3">
                   <span className="w-9 h-9 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                     <Mail className="h-4 w-4" />
                   </span>
                   <div>
                     <p className="font-medium text-neutral-900 text-sm">Email</p>
-                    <a href={`mailto:${contactInfo.email || 'info@reservenow.com'}`} className="text-neutral-600 text-sm hover:text-primary-600">
-                      {contactInfo.email || 'info@reservenow.com'}
+                    <a href={`mailto:${contactInfo.email}`} className="text-neutral-600 text-sm hover:text-primary-600 break-all">
+                      {contactInfo.email}
                     </a>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
+                </div>}
+                {contactInfo.phone && <div className="flex items-start gap-3">
                   <span className="w-9 h-9 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                     <Phone className="h-4 w-4" />
                   </span>
                   <div>
                     <p className="font-medium text-neutral-900 text-sm">Phone</p>
-                    <a href={`tel:${contactInfo.phone || '+977 1-4444444'}`} className="text-neutral-600 text-sm hover:text-primary-600">
-                      {contactInfo.phone || '+977 1-4444444'}
+                    <a href={`tel:${contactInfo.phone.replace(/[^\d+]/g, '')}`} className="text-neutral-600 text-sm hover:text-primary-600">
+                      {contactInfo.phone}
                     </a>
                   </div>
-                </div>
+                </div>}
                 <div className="flex items-start gap-3">
                   <span className="w-9 h-9 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                     <MessageSquare className="h-4 w-4" />

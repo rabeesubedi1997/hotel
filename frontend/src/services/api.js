@@ -1,5 +1,6 @@
 import axios from 'axios';
 import useActingVendorStore from '../stores/actingVendorStore';
+import { loginUrl } from '../utils/loginRedirect';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -46,14 +47,16 @@ api.interceptors.request.use((config) => {
 // authenticated request, 401'd again, and redirected in an infinite loop.
 // Only redirect if we're not already there, so a 401 on the login page
 // itself (e.g. a stray background request) can't loop either.
+// Only a request that carried a token means "your session expired" — a
+// guest's 401 on a public page must not bounce them to the login screen.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && error.config?.headers?.Authorization) {
       localStorage.removeItem('token');
       localStorage.removeItem('auth-storage');
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        window.location.href = loginUrl();
       }
     }
     return Promise.reject(error);

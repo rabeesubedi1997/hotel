@@ -64,7 +64,7 @@
 
         <div class="footer">
             <p>Best regards,<br>
-            <strong>Reserve Now Team</strong></p>
+            <strong>{{ \App\Models\SiteSetting::getValue('site_name', 'Paradise Nepal') }} Team</strong></p>
         </div>
     </div>
 </body>

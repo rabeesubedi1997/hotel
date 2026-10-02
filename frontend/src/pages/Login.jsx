@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import SEO from '../components/SEO';
 import { getSystemHomeRoute } from '../utils/systemAccess';
+import { safeRedirect } from '../utils/loginRedirect';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = safeRedirect(searchParams.get('redirect'));
   const { login, isLoading, error, clearError } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,7 +28,10 @@ const Login = () => {
     const result = await login(formData);
     if (result.success) {
       const { user } = useAuthStore.getState();
-      navigate(getSystemHomeRoute(user?.role));
+      // Customers go back to where they were (e.g. the hotel they were
+      // booking); staff roles keep landing on their own dashboard.
+      const isCustomer = !user?.role || user.role === 'customer';
+      navigate(redirectTo && isCustomer ? redirectTo : getSystemHomeRoute(user?.role), { replace: true });
     }
   };
 

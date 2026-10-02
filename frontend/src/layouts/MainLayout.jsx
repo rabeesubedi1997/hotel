@@ -150,7 +150,7 @@ const MainLayout = () => {
               <div className="hidden sm:flex flex-col leading-none">
                 <span className="font-display text-lg font-bold tracking-tight text-neutral-900">{siteName}</span>
                 {siteTagline && (
-                  <span className="font-label-caps text-label-caps text-primary-600 tracking-wider uppercase mt-1 truncate max-w-[14rem]">
+                  <span className="hidden xl:block font-label-caps text-label-caps text-primary-600 tracking-wider uppercase mt-1 truncate max-w-[14rem]">
                     {siteTagline}
                   </span>
                 )}
@@ -166,13 +166,13 @@ const MainLayout = () => {
                   <Link
                     key={item.url}
                     to={item.url}
-                    className={`px-3.5 py-1.5 rounded-full font-label-md text-label-md flex items-center transition-colors ${
+                    className={`px-2.5 xl:px-3.5 py-1.5 rounded-full font-label-md text-label-md flex items-center whitespace-nowrap transition-colors ${
                       active
                         ? 'text-primary-600 font-semibold bg-neutral-100'
                         : 'text-neutral-600 hover:text-neutral-900'
                     }`}
                   >
-                    {item.icon && <MenuIcon className="h-4 w-4 mr-1.5" />}
+                    {item.icon && <MenuIcon className="hidden 2xl:block h-4 w-4 mr-1.5" />}
                     {item.label}
                   </Link>
                 );
@@ -180,7 +180,7 @@ const MainLayout = () => {
             </nav>
 
             {/* Desktop User Actions */}
-            <div className="hidden md:flex items-center gap-3 lg:gap-4 shrink-0">
+            <div className="hidden md:flex items-center gap-3 xl:gap-4 shrink-0">
               <div className="hidden sm:block relative">
                 <button
                   type="button"
@@ -215,7 +215,7 @@ const MainLayout = () => {
               <button
                 onClick={() => navigate('/hotels')}
                 aria-label="Search stays and adventures"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+                className="hidden xl:flex w-9 h-9 rounded-full items-center justify-center text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
                 type="button"
               >
                 <LucideIcons.Search className="h-5 w-5" />
@@ -231,25 +231,29 @@ const MainLayout = () => {
                   {user && ['admin', 'manager', 'super_admin', 'vendor'].includes(user.role) && (
                     <button
                       onClick={() => navigate(getSystemHomeRoute(user.role))}
-                      className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-full text-sm font-semibold hover:bg-neutral-800 transition-colors"
-                      title="Dashboard"
+                      className="flex items-center gap-2 px-3 2xl:px-4 py-2 bg-neutral-900 text-white rounded-full text-sm font-semibold hover:bg-neutral-800 transition-colors whitespace-nowrap"
+                      title={user.role === 'vendor' ? 'Vendor Dashboard' : 'Admin Dashboard'}
                     >
                       <LucideIcons.Settings className="h-4 w-4" />
-                      <span>{user.role === 'vendor' ? 'Vendor Dashboard' : 'Admin Dashboard'}</span>
+                      <span className="hidden 2xl:inline">{user.role === 'vendor' ? 'Vendor Dashboard' : 'Admin Dashboard'}</span>
+                      <span className="2xl:hidden">Dashboard</span>
                     </button>
                   )}
-                  <Link to="/wishlist" className="text-neutral-600 hover:text-accent-600 transition-colors">
+                  <Link to="/wishlist" aria-label="My wishlist" title="My wishlist" className="text-neutral-600 hover:text-accent-600 transition-colors">
                     <LucideIcons.Heart className="h-6 w-6" />
                   </Link>
                   <NotificationBell />
                   <div className="relative group">
-                    <button className="flex items-center gap-2 text-neutral-700 hover:text-primary-600 border border-neutral-200 rounded-full pl-3 pr-1.5 py-1.5 transition-colors">
-                      <span className="hidden sm:block text-sm font-medium">{user?.name}</span>
+                    <button type="button" aria-haspopup="menu" aria-label="Account menu" className="flex items-center gap-2 text-neutral-700 hover:text-primary-600 border border-neutral-200 rounded-full pl-1.5 2xl:pl-3 pr-1.5 py-1.5 transition-colors">
+                      <span className="hidden 2xl:block text-sm font-medium max-w-[8rem] truncate">{user?.name}</span>
                       <span className="h-7 w-7 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold">
                         {user?.name?.charAt(0)}
                       </span>
                     </button>
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-card-hover border border-neutral-100 py-1 hidden group-hover:block">
+                    {/* pt-2 bridge (not mt-2) so the pointer can travel from the button into the menu without it closing */}
+                    <div className="absolute right-0 top-full pt-2 w-52 hidden group-hover:block group-focus-within:block z-20">
+                    <div className="bg-white rounded-xl shadow-card-hover border border-neutral-100 py-1">
+                      <p className="px-4 pt-2 pb-2 mb-1 border-b border-neutral-100 text-sm font-semibold text-neutral-900 truncate">{user?.name}</p>
                       <Link to="/profile" className="block px-4 py-2 text-neutral-700 hover:bg-neutral-50">
                         Profile
                       </Link>
@@ -276,6 +280,7 @@ const MainLayout = () => {
                         Logout
                       </button>
                     </div>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -288,13 +293,13 @@ const MainLayout = () => {
                   </Link>
                   <Link
                     to="/register"
-                    className="hidden lg:inline font-label-md text-label-md text-neutral-600 hover:text-neutral-900"
+                    className="hidden xl:inline font-label-md text-label-md text-neutral-600 hover:text-neutral-900"
                   >
                     Sign up
                   </Link>
                   <Link
                     to="/quote"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-600 text-white font-label-md text-label-md shadow-[0_4px_14px_rgba(0,95,80,0.25)] hover:bg-primary-700 transition-all"
+                    className="inline-flex items-center gap-2 px-4 xl:px-5 py-2.5 whitespace-nowrap rounded-full bg-primary-600 text-white font-label-md text-label-md shadow-[0_4px_14px_rgba(0,95,80,0.25)] hover:bg-primary-700 transition-all"
                   >
                     <span>Plan My Trip</span>
                     <LucideIcons.ArrowRight className="h-4 w-4" />
@@ -305,8 +310,10 @@ const MainLayout = () => {
 
             {/* Mobile Menu Button */}
             <button
-              className="md:hidden p-2 text-neutral-700"
+              className="lg:hidden p-2 text-neutral-700"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <LucideIcons.X className="h-6 w-6" /> : <LucideIcons.Menu className="h-6 w-6" />}
             </button>
@@ -315,7 +322,7 @@ const MainLayout = () => {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden fixed top-16 left-0 right-0 z-50 bg-white border-t shadow-lg">
+          <div className="lg:hidden fixed top-16 md:top-20 left-0 right-0 z-50 bg-white border-t shadow-lg">
             <div className="overflow-y-auto px-4 pt-2 pb-4 space-y-1 max-h-[calc(100vh-4rem)] overscroll-contain overscroll-behavior-y-auto">
               {headerMenu.map((item) => (
                 <Link
@@ -329,6 +336,28 @@ const MainLayout = () => {
                   {item.label}
                 </Link>
               ))}
+
+              {rates.length > 1 && (
+                <div className="md:hidden px-3 py-3 border-y border-neutral-100 my-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Currency</p>
+                  <div className="flex flex-wrap gap-2">
+                    {rates.map((r) => (
+                      <button
+                        key={r.code}
+                        type="button"
+                        onClick={() => setCurrency(r.code)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                          selectedCurrency === r.code
+                            ? 'bg-primary-600 border-primary-600 text-white'
+                            : 'bg-white border-neutral-200 text-neutral-700 hover:border-neutral-300'
+                        }`}
+                      >
+                        {r.code} <span className="opacity-70">{r.symbol}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isAuthenticated ? (
                 <>
@@ -387,7 +416,7 @@ const MainLayout = () => {
               </Link>
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-3 py-2 text-neutral-700 hover:bg-neutral-100 rounded-md"
+                className="w-full text-left px-3 py-2 text-neutral-700 hover:bg-neutral-100 rounded-md flex items-center"
               >
                 <LucideIcons.LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -540,18 +569,24 @@ const MainLayout = () => {
             <div className="lg:col-span-2 flex flex-col gap-4">
               <h4 className="font-headline-sm text-headline-sm font-semibold">Concierge Desk</h4>
               <div className="flex flex-col gap-3 font-body-md text-body-md text-neutral-400">
-                <div className="flex items-start gap-2.5">
-                  <LucideIcons.MapPin className="h-[18px] w-[18px] text-primary-300 mt-0.5 shrink-0" />
-                  <span>{contactInfo.address}</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <LucideIcons.Phone className="h-[18px] w-[18px] text-primary-300 shrink-0" />
-                  <a href={`tel:${contactInfo.phone}`} className="hover:text-white transition-colors">{contactInfo.phone}</a>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <LucideIcons.Mail className="h-[18px] w-[18px] text-primary-300 shrink-0" />
-                  <a href={`mailto:${contactInfo.email}`} className="hover:text-white transition-colors">{contactInfo.email}</a>
-                </div>
+                {contactInfo.address && (
+                  <div className="flex items-start gap-2.5">
+                    <LucideIcons.MapPin className="h-[18px] w-[18px] text-primary-300 mt-0.5 shrink-0" />
+                    <span>{contactInfo.address}</span>
+                  </div>
+                )}
+                {contactInfo.phone && (
+                  <div className="flex items-center gap-2.5">
+                    <LucideIcons.Phone className="h-[18px] w-[18px] text-primary-300 shrink-0" />
+                    <a href={`tel:${contactInfo.phone.replace(/[^\d+]/g, '')}`} className="hover:text-white transition-colors">{contactInfo.phone}</a>
+                  </div>
+                )}
+                {contactInfo.email && (
+                  <div className="flex items-center gap-2.5">
+                    <LucideIcons.Mail className="h-[18px] w-[18px] text-primary-300 shrink-0" />
+                    <a href={`mailto:${contactInfo.email}`} className="hover:text-white transition-colors break-all">{contactInfo.email}</a>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -564,16 +599,11 @@ const MainLayout = () => {
           {footerDirectory.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-5 py-8 border-t border-white/10">
               {footerDirectory.map((dept) => (
-                <Link key={dept.label} to={dept.url} className="flex flex-col gap-1 group">
-                  <span className="font-semibold text-white text-sm group-hover:text-primary-300 transition-colors">{dept.label}</span>
-                  <a
-                    href={`tel:${contactInfo.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-neutral-400 hover:text-white transition-colors"
-                  >
-                    {contactInfo.phone}
-                  </a>
-                </Link>
+                <div key={dept.label} className="flex flex-col gap-1">
+                  <Link to={dept.url} className="font-semibold text-white text-sm hover:text-primary-300 transition-colors w-fit">
+                    {dept.label}
+                  </Link>
+                </div>
               ))}
             </div>
           )}

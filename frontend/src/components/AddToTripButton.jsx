@@ -5,6 +5,7 @@ import useAuthStore from '../stores/authStore';
 import useTripStore from '../stores/tripStore';
 import { useToast } from '../contexts/ToastContext';
 import { Button, Input } from './ui';
+import { loginUrl } from '../utils/loginRedirect';
 
 /**
  * "Add to Trip" action reused on hotel/activity/tour-guide cards and detail
@@ -30,7 +31,7 @@ const AddToTripButton = ({ bookableType, bookableId, bookableName, variant = 'ic
     e?.stopPropagation();
     if (!isAuthenticated) {
       toast.info('Please log in to plan a trip.');
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setOpen(true);

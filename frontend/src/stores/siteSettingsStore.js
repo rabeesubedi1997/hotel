@@ -82,8 +82,8 @@ const useSiteSettingsStore = create((set, get) => ({
   getContactInfo: () => {
     return {
       address: get().getSetting('contact_address', 'Thamel, Kathmandu, Nepal'),
-      email: get().getSetting('contact_email', 'info@reservenow.com'),
-      phone: get().getSetting('contact_phone', '+977 1 4412345'),
+      email: get().getSetting('contact_email', ''),
+      phone: get().getSetting('contact_phone', ''),
     };
   },
 

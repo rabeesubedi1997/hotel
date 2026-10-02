@@ -6,6 +6,7 @@ import { useRestaurant } from './context/RestaurantContext';
 import { CHANNEL_LABEL, ORDER_TYPE_ICON, REPORT_PRESETS, STATION_LABEL } from './constants';
 import RevenueTrendChart from './charts/RevenueTrendChart';
 import ChannelDonut from './charts/ChannelDonut';
+import { formatUSD } from '../../../utils/money';
 
 const RestaurantReports = () => {
   const { ownerType, ownerId, toast } = useRestaurant();
@@ -100,13 +101,13 @@ const RestaurantReports = () => {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={DollarSign} title="Total Revenue" value={`$${report.total_revenue.toFixed(2)}`} tone="success" />
+            <StatCard icon={DollarSign} title="Total Revenue" value={formatUSD(report.total_revenue)} tone="success" />
             <StatCard icon={Receipt} title="Orders (served/completed)" value={report.orders_count} tone="primary" />
-            <StatCard icon={Wallet} title="Avg Order Value" value={`$${report.avg_order_value.toFixed(2)}`} tone="accent" />
+            <StatCard icon={Wallet} title="Avg Order Value" value={formatUSD(report.avg_order_value)} tone="accent" />
             <StatCard
               icon={XCircle}
               title="Cancelled (lost sales)"
-              value={`$${report.cancelled_value.toFixed(2)}`}
+              value={formatUSD(report.cancelled_value)}
               hint={`${report.cancelled_count} order(s)`}
               tone="warning"
             />

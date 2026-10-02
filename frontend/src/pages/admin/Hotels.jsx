@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, ChevronLeft, ChevronRight, BedDouble, Check, UserCog, UtensilsCrossed, LogIn } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
-import { getHotelImage } from '../../utils/images';
+import { getHotelImage, fallbackOnce } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
 import useActingVendorStore from '../../stores/actingVendorStore';
@@ -466,7 +466,7 @@ const AdminHotels = () => {
                       src={getHotelImage(hotel.id)}
                       alt={hotel.name}
                       className="h-12 w-12 rounded-lg object-cover"
-                      onError={(e) => { e.target.src = getHotelImage(hotel.id); }}
+                      onError={fallbackOnce(getHotelImage(hotel.id))}
                     />
                   </div>
                   <div className="ml-4">
@@ -671,7 +671,7 @@ const AdminHotels = () => {
                   src={formData.featured_image}
                   alt="Preview"
                   className="h-32 w-full object-cover rounded-xl"
-                  onError={(e) => { e.target.src = getHotelImage(editingHotel?.id || 0); }}
+                  onError={fallbackOnce(getHotelImage(editingHotel?.id || 0))}
                 />
                 <button
                   type="button"

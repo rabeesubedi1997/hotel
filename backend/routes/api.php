@@ -55,6 +55,16 @@ Route::get('/activities/banner', [AdminActivityController::class, 'getBannerItem
 Route::get('/activities/filters', [ActivityController::class, 'filters']);
 Route::get('/activities/{activity:slug}', [ActivityController::class, 'show']);
 
+// Availability (Public — guests browse hotels before logging in; a 401
+// here used to bounce them to the login page from any hotel page)
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/bookings/calendar', [BookingController::class, 'getCalendarData']);
+    Route::post('/bookings/check-availability', [BookingController::class, 'checkAvailability']);
+});
+
+// Quote form options (Public — the quote page is open to guests)
+Route::get('/quotes/package-options', [QuoteController::class, 'getPackageOptions']);
+
 // Reviews (Public - approved only)
 Route::get('/reviews', [ReviewController::class, 'index']);
 
@@ -121,11 +131,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/chat/conversations/{conversation}/messages', [\App\Http\Controllers\Api\ChatController::class, 'sendMessage']);
     Route::post('/chat/conversations/{conversation}/read', [\App\Http\Controllers\Api\ChatController::class, 'markRead']);
 
-    // Bookings - Fixed route order for calendar endpoint
+    // Bookings (calendar + check-availability are public, registered above)
     Route::get('/bookings', [BookingController::class, 'index']);
     Route::post('/bookings', [BookingController::class, 'store']);
-    Route::get('/bookings/calendar', [BookingController::class, 'getCalendarData']);
-    Route::post('/bookings/check-availability', [BookingController::class, 'checkAvailability']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
     Route::get('/bookings/{booking}/invoice', [BookingController::class, 'downloadInvoice']);
@@ -169,7 +177,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/loyalty/redeem', [\App\Http\Controllers\Api\LoyaltyController::class, 'redeem']);
 
     // Quotes
-    Route::get('/quotes/package-options', [QuoteController::class, 'getPackageOptions']);
     Route::post('/quotes', [QuoteController::class, 'store']);
     Route::get('/my-quotes', [QuoteController::class, 'myQuotes']);
 

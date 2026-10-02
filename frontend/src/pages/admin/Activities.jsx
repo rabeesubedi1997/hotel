@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Star, Loader2, X, Image as ImageIcon, Check, UserCog, LogIn } from 'lucide-react';
 import { adminAPI, vendorAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
-import { getActivityImage } from '../../utils/images';
+import { getActivityImage, fallbackOnce } from '../../utils/images';
 import MediaPicker from '../../components/MediaPicker';
 import useAuthStore from '../../stores/authStore';
 import useActingVendorStore from '../../stores/actingVendorStore';
@@ -12,9 +12,7 @@ import { Button, Input, Textarea, Select, Modal, Table, Th, Td, Badge, Paginatio
 import usePagination from '../../hooks/usePagination';
 
   const ActivityRow = React.memo(({ activity, onToggleFeatured, onEdit, onDelete, onApprove, onReject, onLoginAsVendor, getDifficultyColor, getActivityImage, user }) => {
-    const handleImageError = useCallback((e) => {
-      e.target.src = getActivityImage(activity.type);
-    }, [activity.type, getActivityImage]);
+    const handleImageError = useCallback((e) => fallbackOnce(getActivityImage(activity.type))(e), [activity.type, getActivityImage]);
 
     return (
       <tr>
@@ -604,7 +602,7 @@ const AdminActivities = () => {
                   src={formData.featured_image}
                   alt="Preview"
                   className="h-32 w-full object-cover rounded-xl"
-                  onError={(e) => { e.target.src = getActivityImage(formData.type); }}
+                  onError={fallbackOnce(getActivityImage(formData.type))}
                 />
               </div>
             )}

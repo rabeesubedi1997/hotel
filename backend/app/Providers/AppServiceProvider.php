@@ -27,8 +27,10 @@ class AppServiceProvider extends ServiceProvider
         // class strings, so renaming a model class later won't orphan
         // existing rows. This is the only morph relation in the app that
         // uses a map — bookable/reviewable/wishlistable predate it and
-        // still store raw class strings; that's an intentional split, not
-        // something to retrofit here.
+        // still store raw class strings. NOTE: the map also changes
+        // Hotel/Activity's getMorphClass() to the alias everywhere, which
+        // silently broke their bookings()/reviews()/wishlists() morphMany
+        // lookups — those now use HasLegacyMorphRelations instead.
         Relation::morphMap([
             'hotel' => Hotel::class,
             'activity' => Activity::class,

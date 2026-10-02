@@ -11,6 +11,7 @@ import HotelCard from '../components/HotelCard';
 import DestinationShortcuts from '../components/DestinationShortcuts';
 import { Button, Input, Select, Badge, RatingStars, Container, CardGridSkeleton } from '../components/ui';
 import PromotionSlot from '../components/PromotionSlot';
+import { loginUrl } from '../utils/loginRedirect';
 
 const LucideIcons = { Wifi, Waves, Wind, Utensils, Car, Dumbbell, Sparkles, Tv, Coffee, Wine };
 
@@ -108,7 +109,7 @@ const Hotels = () => {
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
 

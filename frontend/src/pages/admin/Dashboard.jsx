@@ -12,6 +12,7 @@ import {
 import { adminAPI } from '../../services/api';
 import { StatCard, Badge, Table, Th, Td, SectionHeading } from '../../components/ui';
 import PendingRequestsWidget from '../../components/admin/PendingRequestsWidget';
+import { formatUSD } from '../../utils/money';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -74,7 +75,7 @@ const Dashboard = () => {
         <StatCard
           icon={DollarSign}
           title="Total Revenue"
-          value={`$${Number(stats?.total_revenue || 0).toFixed(2)}`}
+          value={formatUSD(stats?.total_revenue)}
           tone="success"
         />
         <StatCard icon={Users} title="Total Users" value={stats?.total_users || 0} tone="accent" />
@@ -104,7 +105,7 @@ const Dashboard = () => {
                   <Td className="font-medium text-neutral-900">{booking.booking_number}</Td>
                   <Td>{booking.user?.name}</Td>
                   <Td>{booking.bookable?.name}</Td>
-                  <Td className="font-semibold text-neutral-900">${booking.total_amount}</Td>
+                  <Td className="font-semibold text-neutral-900">{formatUSD(booking.total_amount)}</Td>
                   <Td>
                     <Badge status={booking.status} />
                   </Td>

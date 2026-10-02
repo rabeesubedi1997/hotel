@@ -4,7 +4,7 @@ import { bookingsAPI } from '../services/api';
 
 const BookingCalendar = ({ hotelId, roomId = null }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [bookings, setBookings] = useState([]);
+  const [soldOut, setSoldOut] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -14,20 +14,10 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
-      console.log('Fetching calendar data for:', { hotelId, roomId, year, month });
-      console.log('API URL:', `/bookings/calendar?hotel_id=${hotelId}&room_id=${roomId}&year=${year}&month=${month}`);
-      const response = await bookingsAPI.getCalendarData(hotelId, roomId, year, month);
-      console.log('Calendar data received:', response.data);
-      console.log('Response status:', response.status);
-      setBookings(response.data || []);
-    } catch (error) {
-      console.error('Error fetching calendar data:', error);
-      console.error('Error response:', error.response);
-      console.error('Error status:', error.response?.status);
-      console.error('Error data:', error.response?.data);
-      setBookings([]);
+      const response = await bookingsAPI.getCalendarData(hotelId, roomId, currentDate.getFullYear(), currentDate.getMonth() + 1);
+      setSoldOut(response.data?.sold_out_dates || []);
+    } catch {
+      setSoldOut([]);
     } finally {
       setLoading(false);
     }
@@ -44,21 +34,12 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
     return { daysInMonth, startingDay };
   };
 
-  const isDateBooked = (day) => {
-    // If no room is selected, don't show any dates as booked
-    if (!roomId) {
-      return false;
-    }
-    
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const targetDate = new Date(dateStr);
-    
-    return bookings.some(booking => {
-      const checkIn = new Date(booking.check_in_date);
-      const checkOut = new Date(booking.check_out_date);
-      return targetDate >= checkIn && targetDate < checkOut;
-    });
-  };
+  const dateKey = (day) =>
+    `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  // The API returns nights where every room (of the selected type, or of
+  // the whole hotel when none is picked) is already taken.
+  const isDateBooked = (day) => soldOut.includes(dateKey(day));
 
   const isPastDate = (day) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -127,7 +108,7 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-              <span className="text-gray-600">Booked</span>
+              <span className="text-gray-600">Sold out</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
@@ -179,15 +160,11 @@ const BookingCalendar = ({ hotelId, roomId = null }) => {
             })}
           </div>
 
-          {/* Summary */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Bookings this month:</span>
-              <span className="font-medium text-gray-900">
-                {bookings.length} bookings
-              </span>
-            </div>
-          </div>
+          <p className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
+            {soldOut.length === 0
+              ? `Rooms available every night in ${monthName.split(' ')[0]}.`
+              : `${soldOut.length} night${soldOut.length === 1 ? '' : 's'} sold out this month${roomId ? ' for this room type' : ''}.`}
+          </p>
         </>
       )}
     </div>

@@ -24,6 +24,7 @@ import DestinationShortcuts from '../components/DestinationShortcuts';
 import TrustStrip from '../components/TrustStrip';
 import useCurrencyStore from '../stores/currencyStore';
 import { Button, Card, Badge, Container, CardGridSkeleton } from '../components/ui';
+import { loginUrl } from '../utils/loginRedirect';
 
 const DIFFICULTY_TONE = { easy: 'success', moderate: 'warning', challenging: 'accent', extreme: 'danger' };
 
@@ -134,7 +135,7 @@ const Home = () => {
     e.preventDefault();
     e.stopPropagation();
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     const key = `${item.item_type}:${item.id}`;

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasLegacyMorphRelations;
 use App\Models\Concerns\HasRestaurantPos;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Activity extends Model
 {
-    use HasFactory, SoftDeletes, HasRestaurantPos;
+    use HasFactory, SoftDeletes, HasRestaurantPos, HasLegacyMorphRelations;
 
     const STATUS_ACTIVE = 'active';
     const STATUS_INACTIVE = 'inactive';
@@ -79,10 +80,7 @@ class Activity extends Model
         'longitude' => 'decimal:8',
     ];
 
-    public function bookings(): \Illuminate\Database\Eloquent\Relations\MorphMany
-    {
-        return $this->morphMany(Booking::class, 'bookable');
-    }
+    // bookings(), reviews(), wishlists(): see HasLegacyMorphRelations.
 
     public function user(): BelongsTo
     {
@@ -107,16 +105,6 @@ class Activity extends Model
     public function scopeRejected($query)
     {
         return $query->where('approval_status', self::APPROVAL_STATUS_REJECTED);
-    }
-
-    public function reviews(): \Illuminate\Database\Eloquent\Relations\MorphMany
-    {
-        return $this->morphMany(Review::class, 'reviewable');
-    }
-
-    public function wishlists(): \Illuminate\Database\Eloquent\Relations\MorphMany
-    {
-        return $this->morphMany(Wishlist::class, 'wishlistable');
     }
 
     public function scopeActive($query)

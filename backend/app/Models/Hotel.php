@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasLegacyMorphRelations;
 use App\Models\Concerns\HasRestaurantPos;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Hotel extends Model
 {
-    use HasFactory, SoftDeletes, HasRestaurantPos;
+    use HasFactory, SoftDeletes, HasRestaurantPos, HasLegacyMorphRelations;
 
     const STATUS_ACTIVE = 'active';
     const STATUS_INACTIVE = 'inactive';
@@ -99,20 +100,7 @@ class Hotel extends Model
         return $query->where('approval_status', self::APPROVAL_STATUS_REJECTED);
     }
 
-    public function bookings(): MorphMany
-    {
-        return $this->morphMany(Booking::class, 'bookable');
-    }
-
-    public function reviews(): MorphMany
-    {
-        return $this->morphMany(Review::class, 'reviewable');
-    }
-
-    public function wishlists(): MorphMany
-    {
-        return $this->morphMany(Wishlist::class, 'wishlistable');
-    }
+    // bookings(), reviews(), wishlists(): see HasLegacyMorphRelations.
 
     public function scopeActive($query)
     {

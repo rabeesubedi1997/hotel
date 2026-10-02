@@ -26,11 +26,15 @@ const Pagination = ({ pagination, onPageChange, onPerPageChange, itemLabel = 'it
       <p className="text-neutral-600 text-sm">
         {total === 0
           ? `No ${itemLabel}`
-          : `Showing ${(current_page - 1) * per_page + 1}–${Math.min(current_page * per_page, total)} of ${total} ${itemLabel}`}
+          : `Showing ${((current_page - 1) * per_page + 1).toLocaleString()}–${Math.min(current_page * per_page, total).toLocaleString()} of ${total.toLocaleString()} ${itemLabel}`}
       </p>
-      <div className="flex items-center gap-4">
+      {/* Wraps on phones — the single row used to run off both screen edges. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-neutral-600 text-sm whitespace-nowrap">Rows per page:</span>
+          <span className="text-neutral-600 text-sm whitespace-nowrap">
+            <span className="hidden sm:inline">Rows per page:</span>
+            <span className="sm:hidden">Per page:</span>
+          </span>
           <Select
             value={per_page}
             onChange={(e) => onPerPageChange(Number(e.target.value))}
@@ -43,12 +47,13 @@ const Pagination = ({ pagination, onPageChange, onPerPageChange, itemLabel = 'it
         </div>
 
         {last_page > 1 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Button
               variant="secondary"
               size="sm"
               onClick={() => onPageChange(current_page - 1)}
               disabled={current_page === 1}
+              aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -59,7 +64,9 @@ const Pagination = ({ pagination, onPageChange, onPerPageChange, itemLabel = 'it
                 variant={page === current_page ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => onPageChange(page)}
-                className="!px-4"
+                aria-current={page === current_page ? 'page' : undefined}
+                // Phones show only current ±1 so the row fits.
+                className={`!px-3 sm:!px-4 ${Math.abs(page - current_page) > 1 ? 'hidden sm:inline-flex' : ''}`}
               >
                 {page}
               </Button>
@@ -70,6 +77,7 @@ const Pagination = ({ pagination, onPageChange, onPerPageChange, itemLabel = 'it
               size="sm"
               onClick={() => onPageChange(current_page + 1)}
               disabled={current_page === last_page}
+              aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

@@ -28,10 +28,15 @@ const VendorRestaurantSelect = () => {
     // per_page: 200 (the max page size) rather than paginating — this is a
     // one-time "pick which property" selector, not a browsable list, so it
     // needs every hotel/activity the vendor owns, not just the first page.
+    // Staff-access grants are only readable by kitchen/waiter accounts — a
+    // property owner gets a 403 there, which must not sink the whole page.
+    const hasStaffPermission = hasAnyPermission(['restaurant.kitchen.view', 'restaurant.kitchen.manage', 'restaurant.waiter.view', 'restaurant.waiter.manage']);
     Promise.all([
       vendorAPI.getHotels({ per_page: 200 }),
       vendorAPI.getActivities({ per_page: 200 }),
-      vendorAPI.getMyRestaurantAccess(),
+      hasStaffPermission
+        ? vendorAPI.getMyRestaurantAccess().catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
     ])
       .then(([hotelsRes, activitiesRes, staffRes]) => {
         const hotelList = hotelsRes.data.data || [];

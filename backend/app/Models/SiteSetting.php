@@ -38,7 +38,7 @@ class SiteSetting extends Model
     const DEFAULTS = [
         // General
         'site_name' => [
-            'value' => 'ReserveNow',
+            'value' => 'Paradise Nepal',
             'type' => 'text',
             'group' => 'general',
             'label' => 'Site Name',

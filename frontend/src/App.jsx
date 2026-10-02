@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import useAuthStore from './stores/authStore';
 import useSiteSettingsStore from './stores/siteSettingsStore';
 import { ToastProvider } from './contexts/ToastContext';
+import { loginUrl } from './utils/loginRedirect';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
@@ -26,6 +27,7 @@ import ItineraryDetails from './pages/ItineraryDetails';
 import VendorProfile from './pages/VendorProfile';
 import Messages from './pages/Messages';
 import Loyalty from './pages/Loyalty';
+import NotFound from './pages/NotFound';
 
 // Protected Pages
 import Profile from './pages/Profile';
@@ -147,16 +149,22 @@ const MaintenanceRoute = ({ children }) => {
   
   return children;
 };
+// Sends a logged-out visitor to login and, after signing in, back here.
+const LoginRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={loginUrl(location.pathname + location.search)} replace />;
+};
+
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? children : <LoginRedirect />;
 };
 
 // Admin Route Component
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <LoginRedirect />;
 
   // Allow admin, manager, super_admin, and vendor roles
   if (user?.role !== 'admin' && user?.role !== 'manager' && user?.role !== 'super_admin' && user?.role !== 'vendor') {
@@ -170,7 +178,7 @@ const AdminRoute = ({ children }) => {
 const VendorRoute = ({ children }) => {
   const { isAuthenticated, user, hasAnyPermission } = useAuthStore();
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <LoginRedirect />;
   // Admin-level users can also enter the Management System (managing a
   // vendor's panel on their behalf — see SelectVendor.jsx); VendorLayout
   // itself then redirects them to /select-vendor if they haven't picked
@@ -227,6 +235,7 @@ function App() {
             <Route path="loyalty" element={<ProtectedRoute><Loyalty /></ProtectedRoute>} />
             <Route path="messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="messages/:id" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
           </Route>
 
           {/* Admin Routes */}
@@ -257,6 +266,7 @@ function App() {
             <Route path="messages/:id" element={<AdminMessages />} />
             <Route path="enquiries" element={<AdminEnquiries />} />
             <Route path="pages" element={<PagesManagement />} />
+            <Route path="*" element={<NotFound homePath="/admin" homeLabel="Back to dashboard" />} />
           </Route>
 
           {/* Vendor Routes */}
@@ -272,6 +282,7 @@ function App() {
             <Route path="bookings" element={<VendorBookings />} />
             <Route path="messages" element={<VendorMessages />} />
             <Route path="messages/:id" element={<VendorMessages />} />
+            <Route path="*" element={<NotFound homePath="/vendor" homeLabel="Back to dashboard" />} />
           </Route>
         </Routes>
       </Router>

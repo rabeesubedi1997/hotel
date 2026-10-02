@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   MapPin,
@@ -29,6 +29,8 @@ import SEO, { generateActivityJsonLd } from '../components/SEO';
 import { Button, Textarea, Select, Card, Badge, RatingStars, Container, WishlistButton } from '../components/ui';
 import AddToTripButton from '../components/AddToTripButton';
 import useCurrencyStore from '../stores/currencyStore';
+import { loginUrl } from '../utils/loginRedirect';
+import MobileBookingBar from '../components/MobileBookingBar';
 
 const DIFFICULTY_TONE = {
   easy: 'success',
@@ -42,6 +44,7 @@ const ActivityDetails = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
   const formatPrice = useCurrencyStore((s) => s.formatPrice);
+  const bookingCardRef = useRef(null);
   const { startConversation } = useChatStore();
   const toast = useToast();
   const [activity, setActivity] = useState(null);
@@ -77,7 +80,7 @@ const ActivityDetails = () => {
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setSubmittingReview(true);
@@ -90,9 +93,9 @@ const ActivityDetails = () => {
       });
       setReviewForm({ rating: 5, comment: '' });
       fetchActivity();
-      alert('Review submitted successfully! It will appear after admin approval.');
+      toast.success('Thanks! Your review will appear once it has been approved.');
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to submit review');
+      toast.error(error.response?.data?.message || 'Could not submit your review. Please try again.');
     } finally {
       setSubmittingReview(false);
     }
@@ -112,7 +115,7 @@ const ActivityDetails = () => {
 
   const toggleWishlist = async () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     try {
@@ -133,7 +136,7 @@ const ActivityDetails = () => {
   const handleMessageHost = async () => {
     if (!isAuthenticated) {
       toast.info('Please log in to message the host.');
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setMessagingHost(true);
@@ -487,7 +490,7 @@ const ActivityDetails = () => {
         </div>
 
         {/* Right Column - Booking */}
-        <div>
+        <div ref={bookingCardRef} className="scroll-mt-20">
           <Card hoverLift={false} className="p-6 sticky top-24">
             <h3 className="font-display text-xl font-bold text-neutral-900 mb-4">Book This Activity</h3>
             <div className="mb-4">
@@ -518,6 +521,8 @@ const ActivityDetails = () => {
           </Card>
         </div>
       </div>
+
+      <MobileBookingBar targetRef={bookingCardRef} price={formatPrice(activity.price)} unit="/ person" ctaLabel="Book now" />
     </Container>
     </div>
   );

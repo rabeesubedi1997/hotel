@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { Calendar, Users, Send, Check, Package } from 'lucide-react';
 import { quotesAPI } from '../services/api';
 import { Button, Input, Textarea, Select, Card, Container } from '../components/ui';
+import { useToast } from '../contexts/ToastContext';
 
 const GetQuote = () => {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [options, setOptions] = useState(null);
   const [formData, setFormData] = useState({
@@ -44,7 +46,7 @@ const GetQuote = () => {
       setQuoteNumber(response.data.quote_number);
       setSubmitted(true);
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to submit quote request');
+      toast.error(error.response?.data?.message || 'Could not send your quote request. Please try again.');
     } finally {
       setLoading(false);
     }

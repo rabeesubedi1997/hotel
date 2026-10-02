@@ -1,5 +1,5 @@
 // Cache bust: 2025-04-07-12-54-00 - All imports fixed including bookingsAPI
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -36,6 +36,8 @@ import { Button, Textarea, Select, Card, RatingStars, Container, WishlistButton 
 import AddToTripButton from '../components/AddToTripButton';
 import useCurrencyStore from '../stores/currencyStore';
 import useSearchStore, { toYmd } from '../stores/searchStore';
+import { loginUrl } from '../utils/loginRedirect';
+import MobileBookingBar, { scrollToBookingCard } from '../components/MobileBookingBar';
 
 const HotelDetails = () => {
   const { slug } = useParams();
@@ -69,6 +71,7 @@ const HotelDetails = () => {
   }, [checkInDate, checkOutDate, adults]);
   const [children, setChildren] = useState(0);
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const bookingCardRef = useRef(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState(null);
   const [totalPrice, setTotalPrice] = useState(0);
@@ -162,7 +165,7 @@ const HotelDetails = () => {
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setSubmittingReview(true);
@@ -184,9 +187,9 @@ const HotelDetails = () => {
       await reviewsAPI.create(formData);
       setReviewForm({ rating: 0, comment: '', photos: [] });
       fetchHotel();
-      alert('Review submitted successfully! It will appear after admin approval.');
+      toast.success('Thanks! Your review will appear once it has been approved.');
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to submit review');
+      toast.error(error.response?.data?.message || 'Could not submit your review. Please try again.');
     } finally {
       setSubmittingReview(false);
     }
@@ -207,7 +210,7 @@ const HotelDetails = () => {
 
   const toggleWishlist = async () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     try {
@@ -231,7 +234,7 @@ const HotelDetails = () => {
   const handleMessageHost = async () => {
     if (!isAuthenticated) {
       toast.info('Please log in to message the host.');
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
     setMessagingHost(true);
@@ -316,7 +319,7 @@ const HotelDetails = () => {
   // Handle proceed to checkout
   const handleProceedToCheckout = () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(loginUrl());
       return;
     }
 
@@ -631,7 +634,7 @@ const HotelDetails = () => {
                           <Button
                             variant={isSelected ? 'primary' : 'secondary'}
                             size="sm"
-                            onClick={() => { setSelectedRoom(room); setAvailabilityStatus(null); }}
+                            onClick={() => { setSelectedRoom(room); setAvailabilityStatus(null); scrollToBookingCard(bookingCardRef); }}
                           >
                             {isSelected ? <Check className="h-4 w-4" /> : null}
                             {isSelected ? 'Selected' : 'Select This Room'}
@@ -890,7 +893,7 @@ const HotelDetails = () => {
         </div>
 
         {/* Right Column - Booking */}
-        <div>
+        <div ref={bookingCardRef} className="scroll-mt-20">
           <Card hoverLift={false} className="p-6 sticky top-24">
             <h3 className="font-display text-xl font-bold text-neutral-900 mb-4">Book Your Stay</h3>
             <div className="mb-4">
@@ -1107,6 +1110,15 @@ const HotelDetails = () => {
           </Card>
         </div>
       </div>
+
+      <MobileBookingBar
+        targetRef={bookingCardRef}
+        price={formatPrice(selectedRoom
+          ? selectedRoom.price
+          : Math.min(...[hotel.price_per_night, ...(hotel.rooms || []).map((r) => r.price)].map(Number).filter((n) => n > 0)) || hotel.price_per_night)}
+        unit="/ night"
+        ctaLabel={selectedRoom ? 'Choose dates' : 'Check availability'}
+      />
     </Container>
   );
 };
