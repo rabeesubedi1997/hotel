@@ -39,7 +39,7 @@ class PaymentsStatus extends Command
             if (!$driver) {
                 $notes[] = "driver \"{$gateway->driver}\" not installed";
             } elseif (!$gateway->isConfigured()) {
-                $notes[] = 'missing ' . implode(', ', $gateway->missingCredentials()) . " ({$gateway->mode})";
+                $notes[] = 'missing ' . implode(', ', $gateway->missingAll()) . " ({$gateway->mode})";
             }
 
             if ($driver && !$offline && $gateway->is_enabled) {

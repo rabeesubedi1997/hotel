@@ -26,6 +26,67 @@ const prefillCredentials = (driver, gateway) => {
   return out;
 };
 
+// Settings are mode-independent and non-secret, so every value (including the
+// driver's declared default) is prefilled and editable.
+const prefillSettings = (driver, gateway) => {
+  const out = {};
+  for (const field of driver?.settings_fields || []) {
+    out[field.key] = gateway?.settings?.[field.key] ?? field.default ?? '';
+  }
+  return out;
+};
+
+const MONO = 'font-mono text-xs';
+
+// One renderer for every driver-declared field type, so a new driver's
+// form needs no frontend work.
+const FieldControl = ({ field, value, onChange, placeholder }) => {
+  const label = `${field.label}${field.required ? ' *' : ''}`;
+  const hint = field.help ? <p className="mt-1 text-xs text-neutral-400">{field.help}</p> : null;
+
+  if (field.type === 'select') {
+    return (
+      <div>
+        <Select label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+          {(field.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </Select>
+        {hint}
+      </div>
+    );
+  }
+
+  if (field.type === 'json' || field.type === 'textarea') {
+    return (
+      <div>
+        <Textarea
+          label={label}
+          rows={field.type === 'json' ? 6 : 3}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder ?? field.placeholder}
+          spellCheck={false}
+          className={MONO}
+        />
+        {hint}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Input
+        label={label}
+        type={field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text'}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? field.placeholder}
+      />
+      {hint}
+    </div>
+  );
+};
+
 const Switch = ({ checked, onChange, disabled, label }) => (
   <button
     type="button"
@@ -86,6 +147,7 @@ const PaymentGateways = () => {
       currency: driver?.default_currency || 'USD',
       mode: 'sandbox',
       credentials: prefillCredentials(driver, null),
+      settings: prefillSettings(driver, null),
     });
     setCredTab('sandbox');
     setModalOpen(true);
@@ -100,6 +162,7 @@ const PaymentGateways = () => {
       currency: gateway.currency,
       mode: gateway.mode,
       credentials: prefillCredentials(driversByKey[gateway.driver], gateway),
+      settings: prefillSettings(driversByKey[gateway.driver], gateway),
     });
     setCredTab(gateway.mode);
     setModalOpen(true);
@@ -110,11 +173,15 @@ const PaymentGateways = () => {
     setForm((f) => ({
       ...f,
       driver: key,
-      name: driver?.label || f.name,
+      // A Custom gateway has no meaningful built-in name — make the admin pick one.
+      name: key === 'custom' ? '' : driver?.label || f.name,
       currency: driver?.default_currency || f.currency,
       credentials: prefillCredentials(driver, null),
+      settings: prefillSettings(driver, null),
     }));
   };
+
+  const setSetting = (key, value) => setForm((f) => ({ ...f, settings: { ...f.settings, [key]: value } }));
 
   const setCredential = (mode, key, value) =>
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [mode]: { ...f.credentials[mode], [key]: value } } }));
@@ -151,6 +218,7 @@ const PaymentGateways = () => {
         currency: form.currency,
         mode: form.mode,
         credentials: buildCredentials(),
+        settings: form.settings,
       };
       if (editing) {
         await adminAPI.updatePaymentGateway(editing.id, payload);
@@ -339,10 +407,10 @@ const PaymentGateways = () => {
       </div>
 
       <p className="text-xs text-neutral-500">
-        Need a provider that is not in the list? A developer adds one driver class under
-        <code className="mx-1">backend/app/Services/Payments/Drivers</code> and registers it in
-        <code className="mx-1">config/payments.php</code> — it then shows up in <strong>Add Gateway</strong> with its own credential fields.
-        You can add the same provider more than once (for example two Stripe accounts).
+        Provider not listed? Choose <strong>Custom gateway</strong> in <strong>Add Gateway</strong> and fill in its URLs and
+        response mapping from its API docs — no developer needed. (Providers that require a locally computed signature or a
+        browser form-POST, such as eSewa, need a developer-written driver.) You can add the same provider more than once,
+        for example two Stripe accounts.
       </p>
 
       <Modal
@@ -418,26 +486,44 @@ const PaymentGateways = () => {
                     {(formDriver?.fields || []).map((field) => {
                       const stored = editing?.credentials?.[credTab]?.[field.key];
                       return (
-                        <div key={`${credTab}-${field.key}`}>
-                          <Input
-                            label={`${field.label}${field.required ? ' *' : ''}`}
-                            type={field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text'}
-                            autoComplete="off"
-                            value={form.credentials[credTab][field.key] ?? ''}
-                            onChange={(e) => setCredential(credTab, field.key, e.target.value)}
-                            placeholder={
-                              field.secret && stored?.set
-                                ? `Saved (${stored.hint}) — leave blank to keep`
-                                : field.placeholder || (field.key === 'api_url' ? formDriver?.default_api_urls?.[credTab] : '') || ''
-                            }
-                          />
-                          {field.help && <p className="mt-1 text-xs text-neutral-400">{field.help}</p>}
-                        </div>
+                        <FieldControl
+                          key={`${credTab}-${field.key}`}
+                          field={field}
+                          value={form.credentials[credTab][field.key] ?? ''}
+                          onChange={(value) => setCredential(credTab, field.key, value)}
+                          placeholder={
+                            field.secret && stored?.set
+                              ? `Saved (${stored.hint}) — leave blank to keep`
+                              : field.placeholder || (field.key === 'api_url' ? formDriver?.default_api_urls?.[credTab] : '') || ''
+                          }
+                        />
                       );
                     })}
                   </div>
                 </div>
               </>
+            )}
+
+            {formDriver?.settings_fields?.length > 0 && (
+              <div className="rounded-xl border border-neutral-200 p-4 space-y-5">
+                <div>
+                  <h4 className="font-semibold text-neutral-900">Gateway settings</h4>
+                  <p className="text-xs text-neutral-500">Same for sandbox and live. Tell us how to talk to this provider.</p>
+                </div>
+                {[...new Set(formDriver.settings_fields.map((f) => f.group || 'General'))].map((group) => (
+                  <fieldset key={group} className="space-y-4">
+                    <legend className="text-xs font-bold uppercase tracking-wide text-primary-700 mb-1">{group}</legend>
+                    {formDriver.settings_fields.filter((f) => (f.group || 'General') === group).map((field) => (
+                      <FieldControl
+                        key={field.key}
+                        field={field}
+                        value={form.settings[field.key] ?? ''}
+                        onChange={(value) => setSetting(field.key, value)}
+                      />
+                    ))}
+                  </fieldset>
+                ))}
+              </div>
             )}
 
             <div className="flex justify-end gap-3 pt-2">

@@ -14,8 +14,6 @@ use App\Services\Payments\PaymentException;
  */
 class StripeDriver extends PaymentDriver
 {
-    private const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
-
     public static function key(): string
     {
         return 'stripe';
@@ -142,12 +140,5 @@ class StripeDriver extends PaymentDriver
         return $response->successful()
             ? ['ok' => true, 'message' => 'Connected to Stripe (' . $gateway->mode . ').']
             : ['ok' => false, 'message' => 'Stripe rejected these credentials.'];
-    }
-
-    private function toMinorUnits(string|float $amount, string $currency): int
-    {
-        $factor = in_array(strtoupper($currency), self::ZERO_DECIMAL, true) ? 1 : 100;
-
-        return (int) round(((float) $amount) * $factor);
     }
 }

@@ -14,7 +14,7 @@ class PaymentGateway extends Model
 
     protected $fillable = [
         'code', 'driver', 'name', 'description', 'mode',
-        'is_enabled', 'sort_order', 'currency', 'credentials',
+        'is_enabled', 'sort_order', 'currency', 'credentials', 'settings',
     ];
 
     // Secrets must never leave the server via normal serialization — the
@@ -27,6 +27,7 @@ class PaymentGateway extends Model
         // Encrypted with APP_KEY. If APP_KEY is ever rotated these become
         // unreadable and the credentials must be re-entered.
         'credentials' => 'encrypted:array',
+        'settings' => 'array',
     ];
 
     public function scopeEnabled(Builder $query): Builder
@@ -86,9 +87,65 @@ class PaymentGateway extends Model
         return $missing;
     }
 
+    /**
+     * A setting's stored value, falling back to the driver's declared
+     * default so a freshly-created gateway behaves sensibly before every
+     * field has been touched.
+     */
+    public function setting(string $key, ?string $default = null): ?string
+    {
+        $value = $this->settings[$key] ?? null;
+
+        if ($value === null || $value === '') {
+            $driver = $this->driverClass();
+            foreach ($driver ? $driver::settingsFields() : [] as $field) {
+                if ($field['key'] === $key && isset($field['default'])) {
+                    return (string) $field['default'];
+                }
+            }
+
+            return $default;
+        }
+
+        return (string) $value;
+    }
+
+    /** Required driver settings that are still empty. */
+    public function missingSettings(): array
+    {
+        $driver = $this->driverClass();
+        $missing = [];
+
+        foreach ($driver ? $driver::settingsFields() : [] as $field) {
+            if (($field['required'] ?? false) && $this->setting($field['key']) === null) {
+                $missing[] = $field['key'];
+            }
+        }
+
+        return $missing;
+    }
+
+    /** Everything still needed (credentials for the mode + settings) before this can take payments. */
+    public function missingAll(?string $mode = null): array
+    {
+        return array_merge($this->missingCredentials($mode), $this->missingSettings());
+    }
+
     public function isConfigured(?string $mode = null): bool
     {
-        return $this->driverClass() !== null && empty($this->missingCredentials($mode));
+        return $this->driverClass() !== null && empty($this->missingAll($mode));
+    }
+
+    /** Admin-facing settings, with each field's default filled in. */
+    public function settingsForAdmin(): array
+    {
+        $driver = $this->driverClass();
+        $out = [];
+        foreach ($driver ? $driver::settingsFields() : [] as $field) {
+            $out[$field['key']] = $this->setting($field['key']) ?? '';
+        }
+
+        return $out;
     }
 
     /**

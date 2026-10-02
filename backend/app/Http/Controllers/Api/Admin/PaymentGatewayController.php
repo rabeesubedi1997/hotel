@@ -47,6 +47,7 @@ class PaymentGatewayController extends Controller
             'mode' => ['nullable', Rule::in([PaymentGateway::MODE_SANDBOX, PaymentGateway::MODE_LIVE])],
             'currency' => 'nullable|string|size:3',
             'credentials' => 'nullable|array',
+            'settings' => 'nullable|array',
         ]);
 
         $driver = $this->manager->driverClass($validated['driver']);
@@ -66,6 +67,7 @@ class PaymentGatewayController extends Controller
             'sort_order' => (int) PaymentGateway::max('sort_order') + 1,
         ]);
         $gateway->credentials = $this->mergeCredentials($gateway, $validated['credentials'] ?? [], $driver);
+        $gateway->settings = $this->mergeSettings($gateway, $validated['settings'] ?? [], $driver);
         $gateway->save();
 
         AdminAuditLog::record($request->user(), 'create', 'PaymentGateway', $gateway->id, null, null, $this->auditView($gateway));
@@ -87,6 +89,7 @@ class PaymentGatewayController extends Controller
             'is_enabled' => 'sometimes|boolean',
             'sort_order' => 'sometimes|integer|min:0',
             'credentials' => 'nullable|array',
+            'settings' => 'nullable|array',
         ]);
 
         $before = $this->auditView($gateway);
@@ -96,11 +99,16 @@ class PaymentGatewayController extends Controller
             $this->assertCurrencySupported($driver, $validated['currency']);
         }
 
-        $gateway->fill(collect($validated)->except('credentials')->all());
+        $gateway->fill(collect($validated)->except(['credentials', 'settings'])->all());
 
         $credentialsTouched = !empty($validated['credentials']);
         if ($credentialsTouched && $driver) {
             $gateway->credentials = $this->mergeCredentials($gateway, $validated['credentials'], $driver);
+        }
+
+        $settingsTouched = !empty($validated['settings']);
+        if ($settingsTouched && $driver) {
+            $gateway->settings = $this->mergeSettings($gateway, $validated['settings'], $driver);
         }
 
         // Evaluated on the resulting state, so flipping to live without live
@@ -116,7 +124,7 @@ class PaymentGatewayController extends Controller
 
         AdminAuditLog::record(
             $request->user(), 'update', 'PaymentGateway', $gateway->id, null,
-            $before, $this->auditView($gateway) + ['credentials_changed' => $credentialsTouched]
+            $before, $this->auditView($gateway) + ['credentials_changed' => $credentialsTouched, 'settings_changed' => $settingsTouched]
         );
 
         return response()->json(['message' => 'Payment gateway updated.', 'gateway' => $this->serialize($gateway->fresh())]);
@@ -239,6 +247,61 @@ class PaymentGatewayController extends Controller
         return $current;
     }
 
+    /**
+     * Apply submitted driver settings (mode-independent, non-secret).
+     * Validates against the driver's own declaration so a typo is caught
+     * here, at save time, rather than when a customer tries to pay.
+     */
+    private function mergeSettings(PaymentGateway $gateway, array $incoming, string $driver): array
+    {
+        $current = $gateway->settings ?? [];
+        $fields = collect($driver::settingsFields())->keyBy('key');
+
+        foreach ($incoming as $key => $value) {
+            $field = $fields->get($key);
+            if (!$field) {
+                continue;
+            }
+
+            $value = is_string($value) ? trim($value) : '';
+            $path = "settings.{$key}";
+
+            if (mb_strlen($value) > 5000) {
+                throw ValidationException::withMessages([$path => ['Too long.']]);
+            }
+
+            if ($value !== '') {
+                $type = $field['type'] ?? 'text';
+
+                if ($type === 'select' && !in_array($value, array_column($field['options'] ?? [], 'value'), true)) {
+                    throw ValidationException::withMessages([$path => ['Choose one of the listed options.']]);
+                }
+
+                if ($type === 'json' && !is_array(json_decode($value, true))) {
+                    throw ValidationException::withMessages([$path => ['"' . $field['label'] . '" must be valid JSON (check quotes and commas).']]);
+                }
+
+                if (isset($field['allowed_placeholders'])) {
+                    preg_match_all('/\{(\w+)\}/', $value, $found);
+                    $unknown = array_values(array_diff(array_unique($found[1]), $field['allowed_placeholders']));
+                    if ($unknown) {
+                        throw ValidationException::withMessages([$path => [
+                            'Unknown placeholder ' . implode(', ', array_map(fn ($u) => '{' . $u . '}', $unknown)) . ' in "' . $field['label'] . '".',
+                        ]]);
+                    }
+                }
+            }
+
+            if ($value === '') {
+                unset($current[$key]);
+            } else {
+                $current[$key] = $value;
+            }
+        }
+
+        return $current;
+    }
+
     // The server sends API secrets to this URL, so plain http (or a typo'd
     // scheme) is refused outside local development.
     private function assertSafeUrl(string $url, string $field): void
@@ -254,9 +317,9 @@ class PaymentGatewayController extends Controller
     private function missingLabels(PaymentGateway $gateway): array
     {
         $driver = $gateway->driverClass();
-        $labels = collect($driver ? $driver::fields() : [])->pluck('label', 'key');
+        $labels = collect($driver ? array_merge($driver::fields(), $driver::settingsFields()) : [])->pluck('label', 'key');
 
-        return collect($gateway->missingCredentials())->map(fn ($k) => $labels->get($k, $k))->all();
+        return collect($gateway->missingAll())->map(fn ($k) => $labels->get($k, $k))->all();
     }
 
     private function serialize(PaymentGateway $gateway): array
@@ -274,6 +337,7 @@ class PaymentGatewayController extends Controller
             'configured' => $gateway->isConfigured(),
             'missing' => $this->missingLabels($gateway),
             'credentials' => $gateway->maskedCredentials(),
+            'settings' => $gateway->settingsForAdmin(),
             'payments_count' => Payment::where('gateway_code', $gateway->code)->count(),
         ];
     }

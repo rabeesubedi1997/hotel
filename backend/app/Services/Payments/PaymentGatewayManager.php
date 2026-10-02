@@ -39,6 +39,7 @@ class PaymentGatewayManager
                 'label' => $class::label(),
                 'description' => $class::description(),
                 'fields' => $class::fields(),
+                'settings_fields' => $class::settingsFields(),
                 'default_currency' => $class::defaultCurrency(),
                 'supported_currencies' => $class::supportedCurrencies(),
                 'offline' => $class::isOffline(),

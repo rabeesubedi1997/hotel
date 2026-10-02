@@ -21,6 +21,8 @@ return [
         'khalti' => \App\Services\Payments\Drivers\KhaltiDriver::class,
         'stripe' => \App\Services\Payments\Drivers\StripeDriver::class,
         'paypal' => \App\Services\Payments\Drivers\PayPalDriver::class,
+        // Any other REST/redirect provider, configured entirely from the admin screen.
+        'custom' => \App\Services\Payments\Drivers\CustomDriver::class,
     ],
 
     // Prices are stored in this currency; gateways that charge in another

@@ -46,6 +46,16 @@ abstract class PaymentDriver
         return '';
     }
 
+    /**
+     * Mode-independent, non-secret configuration fields (same shape as
+     * fields(), plus optional 'group', 'default', 'options' for selects and
+     * 'allowed_placeholders' for template fields). Most drivers have none.
+     */
+    public static function settingsFields(): array
+    {
+        return [];
+    }
+
     public static function icon(): string
     {
         return 'wallet';
@@ -96,6 +106,16 @@ abstract class PaymentDriver
     public function testConnection(PaymentGateway $gateway): array
     {
         return ['ok' => true, 'message' => 'Credentials saved. This gateway has no connection test.'];
+    }
+
+    private const ZERO_DECIMAL_CURRENCIES = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+
+    /** Amount in the currency's smallest unit (cents/paisa), 1:1 for zero-decimal currencies. */
+    protected function toMinorUnits(string|float $amount, string $currency): int
+    {
+        $factor = in_array(strtoupper($currency), self::ZERO_DECIMAL_CURRENCIES, true) ? 1 : 100;
+
+        return (int) round(((float) $amount) * $factor);
     }
 
     protected function apiUrl(PaymentGateway $gateway): string
